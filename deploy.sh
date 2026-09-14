@@ -1,8 +1,8 @@
 #!/bin/bash
 #
-# 本番デプロイスクリプト（CoreServer / calendar.alpacasandbag.jp）
+# 本番デプロイスクリプト（CoreServer 向け、rsync + SSH）
 #
-# 使い方: ./deploy.sh
+# 使い方: cp deploy.env.example deploy.env && vi deploy.env && ./deploy.sh
 #
 # 処理内容:
 #   1. ローカルでビルド（npm run build, composer --no-dev）
@@ -19,9 +19,17 @@
 set -e
 cd "$(dirname "$0")"
 
-SERVER="alpacasandbag@v2007.coreserver.jp"
-SSH_KEY="$HOME/.ssh/ycs_rsa"
-REMOTE_PATH="/home/alpacasandbag/domains/calendar.alpacasandbag.jp/public_html"
+# 接続情報は git 管理外の deploy.env に置く（deploy.env.example を参照）
+if [ ! -f deploy.env ]; then
+  echo "❌ deploy.env がありません。deploy.env.example をコピーして接続情報を記入してください。"
+  exit 1
+fi
+# shellcheck disable=SC1091
+. ./deploy.env
+: "${SERVER:?deploy.env に SERVER を設定してください}"
+: "${SSH_KEY:?deploy.env に SSH_KEY を設定してください}"
+: "${REMOTE_PATH:?deploy.env に REMOTE_PATH を設定してください}"
+SITE_URL="${SITE_URL:-}"
 
 DEV_DEPS_STRIPPED=0
 
@@ -106,4 +114,4 @@ echo "▶ 4. ローカルの開発用依存を復元"
 composer install
 DEV_DEPS_STRIPPED=0
 
-echo "✅ デプロイ完了: https://calendar.alpacasandbag.jp/"
+echo "✅ デプロイ完了${SITE_URL:+: $SITE_URL}"

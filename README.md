@@ -23,21 +23,22 @@ php artisan test
 
 YouTube API キーは `/admin/settings` から登録するか、`.env` の `YOUTUBE_API_KEY` に書きます（管理画面の値が優先）。
 
-## 本番デプロイ（CoreServer / calendar.alpacasandbag.jp）
+## 本番デプロイ（CoreServer 系の共有ホスティング）
 
 サーバーに composer / node は無いため、ローカルでビルドして rsync で送ります（ycs と同じ方式）。
 
 ### 初回のみ
 
-1. DirectAdmin で MySQL のデータベースとユーザーを作成する。
-2. サーバーの `public_html/.env` を作成する（rsync では送られない）:
+1. `cp deploy.env.example deploy.env` して、サーバーの SSH 接続先・鍵・配置パス・公開URLを記入する（`deploy.env` は git 管理外）。
+2. DirectAdmin で MySQL のデータベースとユーザーを作成する。
+3. サーバーの `public_html/.env` を作成する（rsync では送られない）:
 
    ```env
    APP_NAME="Channel Calendar"
    APP_ENV=production
    APP_KEY=                      # 空のままで可。deploy.sh が生成します
    APP_DEBUG=false
-   APP_URL=https://calendar.alpacasandbag.jp
+   APP_URL=https://your-domain.example.com
    LOG_CHANNEL=daily
    LOG_LEVEL=warning
 
@@ -59,21 +60,23 @@ YouTube API キーは `/admin/settings` から登録するか、`.env` の `YOUT
    ADMIN_PASSWORD=（管理者パスワード）  # 必須。db:seed 後に削除して良い
    ```
 
-3. `./deploy.sh` を実行する（テスト → ビルド → rsync → migrate）。
-4. 管理者ユーザーを作成する:
+4. `./deploy.sh` を実行する（テスト → ビルド → rsync → migrate。APP_KEY が空なら生成される）。
+5. 管理者ユーザーを作成する（`deploy.env` の値に読み替える）:
 
    ```bash
-   ssh -i ~/.ssh/ycs_rsa alpacasandbag@v2007.coreserver.jp \
-     'cd domains/calendar.alpacasandbag.jp/public_html && /usr/local/php81/bin/php artisan db:seed --class=AdminUserSeeder --force'
+   ssh -i "$SSH_KEY" "$SERVER" "cd $REMOTE_PATH && php artisan db:seed --class=AdminUserSeeder --force"
    ```
 
-5. DirectAdmin の cron に以下を追加する（毎分。Laravel のスケジューラが30分ごとに `streams:fetch` を起動します）:
+   その後 `.env` の `ADMIN_PASSWORD` は空にしてよい。
+
+6. サーバーの cron に以下を追加する（毎分。Laravel のスケジューラが30分ごとに `streams:fetch` を起動します）:
 
    ```
-   * * * * * cd /home/alpacasandbag/domains/calendar.alpacasandbag.jp/public_html && /usr/local/php81/bin/php artisan schedule:run >> storage/logs/cron.log 2>&1
+   * * * * * cd /path/to/public_html && php artisan schedule:run >> storage/logs/cron.log 2>&1
    ```
 
-6. `https://calendar.alpacasandbag.jp/login` でログインし、`/admin/settings` に YouTube API キーを登録して「接続テスト」。
+7. `/login` でログインし、`/admin/settings` に YouTube API キーを登録して「接続テスト」。
+8. サブドメインの SSL 証明書（Let's Encrypt）をホスティングの管理画面で発行する。
 
 ### 2回目以降
 
