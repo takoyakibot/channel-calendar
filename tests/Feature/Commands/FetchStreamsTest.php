@@ -6,6 +6,7 @@ use App\Models\Channel;
 use App\Models\Stream;
 use App\Services\YouTubeService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Log;
 use Mockery;
 use Tests\TestCase;
 
@@ -128,5 +129,102 @@ class FetchStreamsTest extends TestCase
             'video_id' => 'vid_old',
             'status' => 'completed',
         ]);
+    }
+
+    public function test_fetch_streams_marks_old_live_stream_not_returned_as_completed(): void
+    {
+        $channel = Channel::factory()->create(['channel_id' => 'UC_test']);
+        Stream::factory()->create([
+            'channel_id' => $channel->id,
+            'video_id' => 'vid_old_live',
+            'status' => 'live',
+            'scheduled_at' => now()->subHours(25),
+        ]);
+
+        $mockService = Mockery::mock(YouTubeService::class);
+        $mockService->shouldReceive('searchStreams')->andReturn([]);
+        $mockService->shouldReceive('getVideoDetails')->andReturn([]);
+
+        $this->app->instance(YouTubeService::class, $mockService);
+
+        $this->artisan('streams:fetch')->assertSuccessful();
+
+        $this->assertDatabaseHas('streams', [
+            'video_id' => 'vid_old_live',
+            'status' => 'completed',
+        ]);
+    }
+
+    public function test_fetch_streams_does_not_complete_old_stream_returned_this_run(): void
+    {
+        $oldScheduledAt = now()->subHours(25);
+
+        $channel = Channel::factory()->create(['channel_id' => 'UC_test']);
+        Stream::factory()->create([
+            'channel_id' => $channel->id,
+            'video_id' => 'vid_delayed',
+            'status' => 'upcoming',
+            'scheduled_at' => $oldScheduledAt,
+        ]);
+
+        $mockService = Mockery::mock(YouTubeService::class);
+        $mockService->shouldReceive('searchStreams')
+            ->with('UC_test', 'upcoming')
+            ->andReturn([
+                ['video_id' => 'vid_delayed', 'title' => 'Delayed Stream', 'thumbnail_url' => null],
+            ]);
+        $mockService->shouldReceive('searchStreams')
+            ->with('UC_test', 'live')
+            ->andReturn([]);
+        $mockService->shouldReceive('getVideoDetails')
+            ->with(['vid_delayed'])
+            ->andReturn([
+                [
+                    'video_id' => 'vid_delayed',
+                    'title' => 'Delayed Stream',
+                    'scheduled_at' => $oldScheduledAt->toIso8601String(),
+                    'actual_start_at' => null,
+                    'actual_end_at' => null,
+                    'status' => 'upcoming',
+                ],
+            ]);
+
+        $this->app->instance(YouTubeService::class, $mockService);
+
+        $this->artisan('streams:fetch')->assertSuccessful();
+
+        $this->assertDatabaseHas('streams', [
+            'video_id' => 'vid_delayed',
+            'status' => 'upcoming',
+        ]);
+    }
+
+    public function test_fetch_streams_does_not_sweep_streams_of_channel_whose_fetch_failed(): void
+    {
+        Log::spy();
+
+        $channel = Channel::factory()->create(['channel_id' => 'UC_failing']);
+        Stream::factory()->create([
+            'channel_id' => $channel->id,
+            'video_id' => 'vid_untouched',
+            'status' => 'upcoming',
+            'scheduled_at' => now()->subHours(25),
+        ]);
+
+        $mockService = Mockery::mock(YouTubeService::class);
+        $mockService->shouldReceive('searchStreams')
+            ->with('UC_failing', 'upcoming')
+            ->andThrow(new \RuntimeException('quota'));
+
+        $this->app->instance(YouTubeService::class, $mockService);
+
+        $this->artisan('streams:fetch')->assertSuccessful();
+
+        $this->assertDatabaseHas('streams', [
+            'video_id' => 'vid_untouched',
+            'status' => 'upcoming',
+        ]);
+
+        Log::shouldHaveReceived('error')->once();
     }
 }

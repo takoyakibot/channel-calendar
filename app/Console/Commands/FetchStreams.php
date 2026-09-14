@@ -6,11 +6,26 @@ use App\Models\Channel;
 use App\Models\Stream;
 use App\Services\YouTubeService;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Log;
 
 class FetchStreams extends Command
 {
     protected $signature = 'streams:fetch';
     protected $description = 'Fetch upcoming and live streams from YouTube for all active channels';
+
+    /**
+     * video_ids upserted during this run, across all channels.
+     *
+     * @var array<int, string>
+     */
+    private array $fetchedVideoIds = [];
+
+    /**
+     * Channel primary keys whose fetch threw during this run.
+     *
+     * @var array<int, int>
+     */
+    private array $failedChannelIds = [];
 
     public function handle(YouTubeService $youtube): int
     {
@@ -28,6 +43,8 @@ class FetchStreams extends Command
                 $this->fetchForChannel($youtube, $channel);
             } catch (\Throwable $e) {
                 $this->error("Failed for {$channel->name}: {$e->getMessage()}");
+                Log::error("streams:fetch failed for channel {$channel->channel_id}: {$e->getMessage()}");
+                $this->failedChannelIds[] = $channel->id;
             }
         }
 
@@ -72,13 +89,24 @@ class FetchStreams extends Command
                     'status' => $detail['status'],
                 ]
             );
+
+            $this->fetchedVideoIds[] = $detail['video_id'];
         }
     }
 
     private function markOldStreamsCompleted(): void
     {
-        Stream::where('status', 'upcoming')
-            ->where('scheduled_at', '<', now()->subHours(24))
-            ->update(['status' => 'completed']);
+        $query = Stream::whereIn('status', ['upcoming', 'live'])
+            ->where('scheduled_at', '<', now()->subHours(24));
+
+        if (! empty($this->fetchedVideoIds)) {
+            $query->whereNotIn('video_id', $this->fetchedVideoIds);
+        }
+
+        if (! empty($this->failedChannelIds)) {
+            $query->whereNotIn('channel_id', $this->failedChannelIds);
+        }
+
+        $query->update(['status' => 'completed']);
     }
 }
