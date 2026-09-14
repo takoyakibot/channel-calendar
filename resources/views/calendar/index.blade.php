@@ -15,6 +15,7 @@
         .view-toggle button { padding: 0.375rem 0.875rem; font-size: 0.875rem; color: #374151; background: transparent; border: 0; cursor: pointer; }
         .view-toggle button + button { border-left: 1px solid #d1d5db; }
         .view-toggle button.is-active { background: #111827; color: #fff; }
+        .group-select { font-size: 0.875rem; color: #374151; background: #fff; border: 1px solid #d1d5db; border-radius: 0.375rem; padding: 0.125rem 1.5rem 0.125rem 0.5rem; cursor: pointer; }
 
         .board-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.75rem; flex-wrap: wrap; }
         .board-toolbar .nav { display: inline-flex; gap: 0.25rem; }
@@ -68,8 +69,8 @@
         <div class="flex justify-between items-center mb-4 flex-wrap gap-3">
             <div class="flex items-baseline gap-3 flex-wrap">
                 <h1 class="text-2xl font-bold text-gray-900">{{ $group ? $group->name : 'Channel Calendar' }}</h1>
-                @if ($group)
-                    <nav class="text-sm text-gray-500 flex items-center gap-1 flex-wrap">
+                <nav class="text-sm text-gray-500 flex items-center gap-1 flex-wrap">
+                    @if ($group)
                         <a href="{{ url('/') }}" class="hover:underline">すべて</a>
                         @php($crumb = '')
                         @foreach ($group->ancestors() as $ancestor)
@@ -79,8 +80,17 @@
                         @endforeach
                         <span>›</span>
                         <span class="text-gray-700">{{ $group->name }}</span>
-                    </nav>
-                @endif
+                    @endif
+                    @if ($children->isNotEmpty())
+                        <span>›</span>
+                        <select id="group-select" class="group-select" aria-label="下位グループを選択">
+                            <option value="">全て</option>
+                            @foreach ($children as $child)
+                                <option value="{{ url('/' . $child->path) }}">{{ $child->name }}</option>
+                            @endforeach
+                        </select>
+                    @endif
+                </nav>
             </div>
             <div class="flex items-center gap-4">
                 <div class="view-toggle" role="tablist">
@@ -382,6 +392,13 @@
         toggleButtons.forEach(function (b) {
             b.addEventListener('click', function () { setView(b.dataset.view); });
         });
+
+        var groupSelect = document.getElementById('group-select');
+        if (groupSelect) {
+            groupSelect.addEventListener('change', function () {
+                if (this.value) { window.location.href = this.value; }
+            });
+        }
 
         fetch(apiUrl('/api/channels', {}), { headers: { Accept: 'application/json' } })
             .then(function (res) { return res.json(); })

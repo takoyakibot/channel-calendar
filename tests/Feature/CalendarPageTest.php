@@ -2,10 +2,13 @@
 
 namespace Tests\Feature;
 
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class CalendarPageTest extends TestCase
 {
+    use RefreshDatabase;
+
     public function test_calendar_page_loads(): void
     {
         $response = $this->get('/');

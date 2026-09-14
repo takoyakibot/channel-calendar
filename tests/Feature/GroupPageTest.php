@@ -43,6 +43,49 @@ class GroupPageTest extends TestCase
         $this->get('/aaaa/nope')->assertNotFound();
     }
 
+    public function test_parent_page_offers_child_groups_in_a_selector(): void
+    {
+        $parent = Group::factory()->create(['name' => '親', 'slug' => 'aaaa']);
+        Group::factory()->create(['name' => '子B', 'slug' => 'bbbb', 'parent_id' => $parent->id]);
+        Group::factory()->create(['name' => '子C', 'slug' => 'cccc', 'parent_id' => $parent->id]);
+        Group::factory()->create(['name' => '無関係', 'slug' => 'zzzz']);
+
+        $response = $this->get('/aaaa');
+
+        $response->assertOk();
+        $response->assertSee('id="group-select"', false);
+        $response->assertSee('value="' . url('/aaaa/bbbb') . '"', false);
+        $response->assertSee('value="' . url('/aaaa/cccc') . '"', false);
+        $response->assertSee('子B');
+        $response->assertSee('子C');
+        $response->assertDontSee('無関係');
+    }
+
+    public function test_leaf_group_page_has_no_selector(): void
+    {
+        $parent = Group::factory()->create(['slug' => 'aaaa']);
+        Group::factory()->create(['name' => '子B', 'slug' => 'bbbb', 'parent_id' => $parent->id]);
+
+        $response = $this->get('/aaaa/bbbb');
+
+        $response->assertOk();
+        $response->assertDontSee('id="group-select"', false);
+    }
+
+    public function test_root_page_offers_top_level_groups_in_a_selector(): void
+    {
+        $parent = Group::factory()->create(['name' => 'トップA', 'slug' => 'aaaa']);
+        Group::factory()->create(['name' => '子B', 'slug' => 'bbbb', 'parent_id' => $parent->id]);
+
+        $response = $this->get('/');
+
+        $response->assertOk();
+        $response->assertSee('id="group-select"', false);
+        $response->assertSee('value="' . url('/aaaa') . '"', false);
+        $response->assertSee('トップA');
+        $response->assertDontSee('子B');
+    }
+
     public function test_unknown_group_slug_returns_404(): void
     {
         $this->get('/nope')->assertNotFound();
