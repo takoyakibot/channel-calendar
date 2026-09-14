@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\ChannelController as AdminChannelController;
+use App\Http\Controllers\CalendarController;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
 
@@ -15,9 +16,7 @@ use Illuminate\Support\Facades\Route;
 |
 */
 
-Route::get('/', function () {
-    return view('welcome');
-});
+Route::get('/', [CalendarController::class, 'index']);
 
 Route::get('/dashboard', function () {
     return view('dashboard');
