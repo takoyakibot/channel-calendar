@@ -1,66 +1,84 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Channel Calendar
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+YouTube チャンネルの配信予定・配信履歴を、週ボード／月カレンダーで一覧表示する Laravel 10 アプリです。
+管理画面でチャンネル（`@handle` / URL / `UC…`）とグループを登録し、`streams:fetch` が YouTube Data API v3 から配信を取り込みます。
 
-## About Laravel
+- 公開: `/`（全チャンネル）、`/{group}`、`/{group}/{child}`（グループ別）
+- 管理: `/admin/channels` `/admin/groups` `/admin/settings`（要ログイン）
+- 取得: `php artisan streams:fetch`（スケジューラで30分ごと。管理画面の「今すぐ取得」でも実行可）
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## ローカル開発
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+```bash
+composer install
+npm install
+cp .env.example .env          # DB_CONNECTION=sqlite ならファイル DB で動きます
+php artisan key:generate
+php artisan migrate
+php artisan db:seed           # admin@example.com / password（local のみ）
+npm run build                 # または npm run dev
+php artisan serve
+php artisan test
+```
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+YouTube API キーは `/admin/settings` から登録するか、`.env` の `YOUTUBE_API_KEY` に書きます（管理画面の値が優先）。
 
-## Learning Laravel
+## 本番デプロイ（CoreServer / calendar.alpacasandbag.jp）
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+サーバーに composer / node は無いため、ローカルでビルドして rsync で送ります（ycs と同じ方式）。
 
-You may also try the [Laravel Bootcamp](https://bootcamp.laravel.com), where you will be guided through building a modern Laravel application from scratch.
+### 初回のみ
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+1. DirectAdmin で MySQL のデータベースとユーザーを作成する。
+2. サーバーの `public_html/.env` を作成する（rsync では送られない）:
 
-## Laravel Sponsors
+   ```env
+   APP_NAME="Channel Calendar"
+   APP_ENV=production
+   APP_KEY=                      # 空のままで可。deploy.sh が生成します
+   APP_DEBUG=false
+   APP_URL=https://calendar.alpacasandbag.jp
+   LOG_CHANNEL=daily
+   LOG_LEVEL=warning
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+   DB_CONNECTION=mysql
+   DB_HOST=localhost
+   DB_PORT=3306
+   DB_SOCKET=/var/lib/mysql/mysql.sock
+   DB_DATABASE=（作成したDB名）
+   DB_USERNAME=（作成したユーザー）
+   DB_PASSWORD=（パスワード）
 
-### Premium Partners
+   CACHE_DRIVER=file
+   SESSION_DRIVER=file
+   QUEUE_CONNECTION=sync
 
-- **[Vehikl](https://vehikl.com/)**
-- **[Tighten Co.](https://tighten.co)**
-- **[WebReinvent](https://webreinvent.com/)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel/)**
-- **[Cyber-Duck](https://cyber-duck.co.uk)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Jump24](https://jump24.co.uk)**
-- **[Redberry](https://redberry.international/laravel/)**
-- **[Active Logic](https://activelogic.com)**
-- **[byte5](https://byte5.de)**
-- **[OP.GG](https://op.gg)**
+   YOUTUBE_API_KEY=              # 管理画面から登録するなら空で可
+   STREAMS_BACKFILL_DAYS=14
+   ADMIN_EMAIL=（管理者メール）
+   ADMIN_PASSWORD=（管理者パスワード）  # 必須。db:seed 後に削除して良い
+   ```
 
-## Contributing
+3. `./deploy.sh` を実行する（テスト → ビルド → rsync → migrate）。
+4. 管理者ユーザーを作成する:
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+   ```bash
+   ssh -i ~/.ssh/ycs_rsa alpacasandbag@v2007.coreserver.jp \
+     'cd domains/calendar.alpacasandbag.jp/public_html && /usr/local/php81/bin/php artisan db:seed --class=AdminUserSeeder --force'
+   ```
 
-## Code of Conduct
+5. DirectAdmin の cron に以下を追加する（毎分。Laravel のスケジューラが30分ごとに `streams:fetch` を起動します）:
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+   ```
+   * * * * * cd /home/alpacasandbag/domains/calendar.alpacasandbag.jp/public_html && /usr/local/php81/bin/php artisan schedule:run >> storage/logs/cron.log 2>&1
+   ```
 
-## Security Vulnerabilities
+6. `https://calendar.alpacasandbag.jp/login` でログインし、`/admin/settings` に YouTube API キーを登録して「接続テスト」。
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+### 2回目以降
 
-## License
+```bash
+./deploy.sh
+```
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+`.exclude-list` に載っているもの（`.env`、`storage/logs`、`storage/framework`、`tests` など）は転送されません。
