@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Stream;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 
 class StreamController extends Controller
 {
@@ -16,9 +17,12 @@ class StreamController extends Controller
             'end' => 'required|date',
         ]);
 
+        $start = Carbon::parse($request->start)->startOfDay();
+        $end = Carbon::parse($request->end)->endOfDay();
+
         $streams = Stream::with('channel')
             ->whereHas('channel', fn ($q) => $q->where('is_active', true))
-            ->whereBetween('scheduled_at', [$request->start, $request->end])
+            ->whereBetween('scheduled_at', [$start, $end])
             ->orderBy('scheduled_at')
             ->get();
 

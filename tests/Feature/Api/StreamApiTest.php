@@ -74,4 +74,32 @@ class StreamApiTest extends TestCase
         $response->assertOk();
         $response->assertJsonCount(1);
     }
+
+    public function test_streams_endpoint_includes_streams_on_end_date(): void
+    {
+        $channel = Channel::factory()->create();
+        Stream::factory()->create([
+            'channel_id' => $channel->id,
+            'scheduled_at' => '2026-09-30 19:00:00',
+        ]);
+
+        $response = $this->getJson('/api/streams?start=2026-09-01&end=2026-09-30');
+
+        $response->assertOk();
+        $response->assertJsonCount(1);
+    }
+
+    public function test_streams_endpoint_excludes_streams_after_end_date(): void
+    {
+        $channel = Channel::factory()->create();
+        Stream::factory()->create([
+            'channel_id' => $channel->id,
+            'scheduled_at' => '2026-10-01 00:30:00',
+        ]);
+
+        $response = $this->getJson('/api/streams?start=2026-09-01&end=2026-09-30');
+
+        $response->assertOk();
+        $response->assertJsonCount(0);
+    }
 }
