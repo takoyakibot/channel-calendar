@@ -26,7 +26,7 @@ class YouTubeService
 
         return [
             'name' => $snippet->getTitle(),
-            'thumbnail_url' => $snippet->getThumbnails()->getDefault()->getUrl(),
+            'thumbnail_url' => $this->extractThumbnailUrl($snippet),
         ];
     }
 
@@ -45,9 +45,14 @@ class YouTubeService
             return [
                 'video_id' => $item->getId()->getVideoId(),
                 'title' => $snippet->getTitle(),
-                'thumbnail_url' => $snippet->getThumbnails()->getDefault()->getUrl(),
+                'thumbnail_url' => $this->extractThumbnailUrl($snippet),
             ];
         }, $response->getItems());
+    }
+
+    private function extractThumbnailUrl($snippet): ?string
+    {
+        return $snippet->getThumbnails()?->getDefault()?->getUrl();
     }
 
     public function getVideoDetails(array $videoIds): array

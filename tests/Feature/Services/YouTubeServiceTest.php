@@ -61,6 +61,27 @@ class YouTubeServiceTest extends TestCase
         $this->assertEquals('https://example.com/thumb.jpg', $result['thumbnail_url']);
     }
 
+    public function test_get_channel_info_returns_null_thumbnail_when_missing(): void
+    {
+        $snippet = new ChannelSnippet();
+        $snippet->setTitle('Test Channel');
+        $channel = new YouTubeChannel();
+        $channel->setSnippet($snippet);
+        $response = new ChannelListResponse();
+        $response->setItems([$channel]);
+
+        $mockChannels = Mockery::mock(Channels::class);
+        $mockChannels->shouldReceive('listChannels')
+            ->with('snippet', ['id' => 'UC_test123'])
+            ->andReturn($response);
+        $this->mockYouTube->channels = $mockChannels;
+
+        $result = $this->service->getChannelInfo('UC_test123');
+
+        $this->assertEquals('Test Channel', $result['name']);
+        $this->assertNull($result['thumbnail_url']);
+    }
+
     public function test_search_streams_returns_video_list(): void
     {
         $resourceId = new ResourceId();
@@ -93,6 +114,35 @@ class YouTubeServiceTest extends TestCase
         $this->assertCount(1, $result);
         $this->assertEquals('vid123', $result[0]['video_id']);
         $this->assertEquals('Test Stream', $result[0]['title']);
+    }
+
+    public function test_search_streams_returns_null_thumbnail_when_missing(): void
+    {
+        $resourceId = new ResourceId();
+        $resourceId->setVideoId('vid123');
+        $snippet = new SearchResultSnippet();
+        $snippet->setTitle('Test Stream');
+        $item = new SearchResult();
+        $item->setId($resourceId);
+        $item->setSnippet($snippet);
+        $response = new SearchListResponse();
+        $response->setItems([$item]);
+
+        $mockSearch = Mockery::mock(Search::class);
+        $mockSearch->shouldReceive('listSearch')
+            ->with('snippet', Mockery::on(function ($params) {
+                return $params['channelId'] === 'UC_test123'
+                    && $params['type'] === 'video'
+                    && $params['eventType'] === 'upcoming';
+            }))
+            ->andReturn($response);
+        $this->mockYouTube->search = $mockSearch;
+
+        $result = $this->service->searchStreams('UC_test123', 'upcoming');
+
+        $this->assertCount(1, $result);
+        $this->assertEquals('vid123', $result[0]['video_id']);
+        $this->assertNull($result[0]['thumbnail_url']);
     }
 
     public function test_get_video_details_returns_streaming_info(): void
