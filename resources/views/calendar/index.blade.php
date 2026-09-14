@@ -15,7 +15,29 @@
         .view-toggle button { padding: 0.375rem 0.875rem; font-size: 0.875rem; color: #374151; background: transparent; border: 0; cursor: pointer; }
         .view-toggle button + button { border-left: 1px solid #d1d5db; }
         .view-toggle button.is-active { background: #111827; color: #fff; }
-        .group-select { font-size: 0.875rem; color: #374151; background: #fff; border: 1px solid #d1d5db; border-radius: 0.375rem; padding: 0.125rem 1.5rem 0.125rem 0.5rem; cursor: pointer; }
+
+        .page-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.25rem; }
+        .page-head-main { min-width: 0; }
+        .page-head-actions { display: flex; align-items: center; gap: 1rem; }
+        .crumbs { display: flex; align-items: center; gap: 0.375rem; font-size: 0.8125rem; color: #6b7280; margin-bottom: 0.375rem; flex-wrap: wrap; }
+        .crumbs a { color: #6b7280; text-decoration: none; }
+        .crumbs a:hover { color: #111827; text-decoration: underline; }
+        .crumbs .current { color: #374151; }
+        .sep { color: #9ca3af; }
+        .title-row { display: flex; align-items: center; gap: 0.625rem; flex-wrap: wrap; }
+        .title-row h1 { font-size: 1.5rem; font-weight: 700; color: #111827; line-height: 1.2; margin: 0; }
+        .group-picker { display: inline-flex; align-items: center; gap: 0.5rem; }
+        .group-picker .sep { font-size: 1.25rem; line-height: 1; }
+        .title-row .group-select {
+            appearance: none; -webkit-appearance: none;
+            height: 2rem; padding: 0 1.9rem 0 0.75rem; font-size: 0.875rem; line-height: 2rem; color: #374151;
+            border: 1px solid #d1d5db; border-radius: 0.5rem; cursor: pointer;
+            background: #fff url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%236b7280' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'><path d='M6 8l4 4 4-4'/></svg>") no-repeat right 0.55rem center / 0.9rem;
+        }
+        .title-row .group-select:hover { border-color: #9ca3af; }
+        .title-row .group-select:focus { outline: 2px solid #111827; outline-offset: 1px; }
+        .admin-link { font-size: 0.875rem; color: #2563eb; text-decoration: none; }
+        .admin-link:hover { text-decoration: underline; }
 
         .board-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.75rem; flex-wrap: wrap; }
         .board-toolbar .nav { display: inline-flex; gap: 0.25rem; }
@@ -66,42 +88,46 @@
 </head>
 <body class="bg-gray-50">
     <div class="max-w-screen-2xl mx-auto px-4 py-8">
-        <div class="flex justify-between items-center mb-4 flex-wrap gap-3">
-            <div class="flex items-baseline gap-3 flex-wrap">
-                <h1 class="text-2xl font-bold text-gray-900">{{ $group ? $group->name : 'Channel Calendar' }}</h1>
-                <nav class="text-sm text-gray-500 flex items-center gap-1 flex-wrap">
-                    @if ($group)
-                        <a href="{{ url('/') }}" class="hover:underline">すべて</a>
+        <header class="page-head">
+            <div class="page-head-main">
+                @if ($group)
+                    <nav class="crumbs" aria-label="パンくず">
+                        <a href="{{ url('/') }}">すべて</a>
                         @php($crumb = '')
                         @foreach ($group->ancestors() as $ancestor)
                             @php($crumb .= '/' . $ancestor->slug)
-                            <span>›</span>
-                            <a href="{{ url($crumb) }}" class="hover:underline">{{ $ancestor->name }}</a>
+                            <span class="sep">›</span>
+                            <a href="{{ url($crumb) }}">{{ $ancestor->name }}</a>
                         @endforeach
-                        <span>›</span>
-                        <span class="text-gray-700">{{ $group->name }}</span>
-                    @endif
+                        <span class="sep">›</span>
+                        <span class="current">{{ $group->name }}</span>
+                    </nav>
+                @endif
+                <div class="title-row">
+                    <h1>{{ $group ? $group->name : 'Channel Calendar' }}</h1>
                     @if ($children->isNotEmpty())
-                        <span>›</span>
-                        <select id="group-select" class="group-select" aria-label="下位グループを選択">
-                            <option value="">全て</option>
-                            @foreach ($children as $child)
-                                <option value="{{ url('/' . $child->path) }}">{{ $child->name }}</option>
-                            @endforeach
-                        </select>
+                        <label class="group-picker">
+                            <span class="sep">›</span>
+                            <select id="group-select" class="group-select" aria-label="下位グループを選択">
+                                <option value="">全て</option>
+                                @foreach ($children as $child)
+                                    <option value="{{ url('/' . $child->path) }}">{{ $child->name }}</option>
+                                @endforeach
+                            </select>
+                        </label>
                     @endif
-                </nav>
+                </div>
             </div>
-            <div class="flex items-center gap-4">
+            <div class="page-head-actions">
                 <div class="view-toggle" role="tablist">
                     <button type="button" data-view="board" class="is-active">週ボード</button>
                     <button type="button" data-view="month">月</button>
                 </div>
                 @auth
-                    <a href="{{ url('/admin/channels') }}" class="text-sm text-blue-600 hover:underline">管理画面</a>
+                    <a href="{{ url('/admin/channels') }}" class="admin-link">管理画面</a>
                 @endauth
             </div>
-        </div>
+        </header>
 
         <div id="channel-filter" class="channel-filter"></div>
 
