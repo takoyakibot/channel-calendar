@@ -11,7 +11,12 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->singleton(\App\Services\YouTubeService::class, function ($app) {
+            $client = new \Google\Client();
+            $client->setDeveloperKey(config('services.youtube.api_key'));
+            $youtube = new \Google\Service\YouTube($client);
+            return new \App\Services\YouTubeService($youtube);
+        });
     }
 
     /**
