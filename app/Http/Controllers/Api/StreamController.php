@@ -50,6 +50,7 @@ class StreamController extends Controller
             'extendedProps' => [
                 'channel_id' => $stream->channel_id,
                 'channel_name' => $stream->channel->name,
+                'channel_thumbnail_url' => $stream->channel->thumbnail_url,
                 'thumbnail_url' => $stream->thumbnail_url,
                 'status' => $stream->status,
             ],

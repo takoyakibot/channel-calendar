@@ -13,7 +13,11 @@ class StreamApiTest extends TestCase
 
     public function test_streams_endpoint_returns_fullcalendar_format(): void
     {
-        $channel = Channel::factory()->create(['name' => 'Test Ch', 'color' => '#FF0000']);
+        $channel = Channel::factory()->create([
+            'name' => 'Test Ch',
+            'color' => '#FF0000',
+            'thumbnail_url' => 'https://example.com/ch.jpg',
+        ]);
         Stream::factory()->create([
             'channel_id' => $channel->id,
             'video_id' => 'vid1',
@@ -32,9 +36,10 @@ class StreamApiTest extends TestCase
         ]);
         $response->assertJsonFragment([
             'channel_id' => $channel->id,
+            'channel_thumbnail_url' => 'https://example.com/ch.jpg',
         ]);
         $response->assertJsonStructure([
-            ['id', 'title', 'start', 'url', 'color', 'extendedProps' => ['channel_name', 'channel_id', 'status']],
+            ['id', 'title', 'start', 'url', 'color', 'extendedProps' => ['channel_name', 'channel_id', 'channel_thumbnail_url', 'status']],
         ]);
     }
 

@@ -13,5 +13,8 @@ class CalendarPageTest extends TestCase
         $response->assertOk();
         $response->assertSee('Channel Calendar');
         $response->assertSee('fullcalendar');
+        $response->assertSee('id="board"', false);
+        $response->assertSee('週ボード');
+        $response->assertSee('data-view="month"', false);
     }
 }
