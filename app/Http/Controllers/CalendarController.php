@@ -11,8 +11,11 @@ class CalendarController extends Controller
         return view('calendar.index', ['group' => null]);
     }
 
-    public function show(Group $group)
+    public function show(string $path)
     {
+        $group = Group::resolvePath($path);
+        abort_unless($group, 404);
+
         return view('calendar.index', ['group' => $group]);
     }
 }

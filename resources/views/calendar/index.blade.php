@@ -68,7 +68,17 @@
             <div class="flex items-baseline gap-3 flex-wrap">
                 <h1 class="text-2xl font-bold text-gray-900">{{ $group ? $group->name : 'Channel Calendar' }}</h1>
                 @if ($group)
-                    <a href="{{ url('/') }}" class="text-sm text-gray-500 hover:underline">すべてのチャンネル</a>
+                    <nav class="text-sm text-gray-500 flex items-center gap-1 flex-wrap">
+                        <a href="{{ url('/') }}" class="hover:underline">すべて</a>
+                        @php($crumb = '')
+                        @foreach ($group->ancestors() as $ancestor)
+                            @php($crumb .= '/' . $ancestor->slug)
+                            <span>›</span>
+                            <a href="{{ url($crumb) }}" class="hover:underline">{{ $ancestor->name }}</a>
+                        @endforeach
+                        <span>›</span>
+                        <span class="text-gray-700">{{ $group->name }}</span>
+                    </nav>
                 @endif
             </div>
             <div class="flex items-center gap-4">
@@ -106,7 +116,7 @@
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@fullcalendar/core@6.1.11/locales/ja.global.min.js"></script>
     <script>
-    var GROUP_SLUG = @json($group?->slug);
+    var GROUP_SLUG = @json($group?->path, JSON_UNESCAPED_SLASHES);
 
     function apiUrl(path, params) {
         var parts = Object.keys(params).map(function (k) {

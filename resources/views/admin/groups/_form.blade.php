@@ -10,19 +10,29 @@
            class="w-full border-gray-300 rounded-md shadow-sm" required>
 </div>
 
-<div class="mb-6">
-    <label for="slug" class="block text-sm font-medium text-gray-700 mb-1">スラッグ（公開URL）</label>
-    <div class="flex items-center gap-1">
-        <span class="text-gray-500 text-sm">{{ url('/') }}/</span>
-        <input type="text" name="slug" id="slug" value="{{ old('slug', $group?->slug) }}"
-               class="border-gray-300 rounded-md shadow-sm" pattern="[a-z0-9]([a-z0-9-]*[a-z0-9])?" maxlength="50" required
-               placeholder="aaaa">
-    </div>
-    <p class="text-xs text-gray-500 mt-1">半角英小文字・数字・ハイフン。例: <code>aaaa</code> → {{ url('/aaaa') }}</p>
+<div class="mb-4">
+    <label for="parent_id" class="block text-sm font-medium text-gray-700 mb-1">親グループ</label>
+    <select name="parent_id" id="parent_id" class="border-gray-300 rounded-md shadow-sm">
+        <option value="">（なし・トップレベル）</option>
+        @foreach ($parents as $parent)
+            <option value="{{ $parent->id }}" {{ (string) old('parent_id', $group?->parent_id) === (string) $parent->id ? 'selected' : '' }}>
+                /{{ $parent->path }} — {{ $parent->name }}
+            </option>
+        @endforeach
+    </select>
+    <p class="text-xs text-gray-500 mt-1">親を選ぶと URL は <code>/親/このスラッグ</code> になります。</p>
 </div>
 
 <div class="mb-6">
-    <p class="block text-sm font-medium text-gray-700 mb-2">所属チャンネル</p>
+    <label for="slug" class="block text-sm font-medium text-gray-700 mb-1">スラッグ（公開URL）</label>
+    <input type="text" name="slug" id="slug" value="{{ old('slug', $group?->slug) }}"
+           class="border-gray-300 rounded-md shadow-sm" pattern="[a-z0-9]([a-z0-9-]*[a-z0-9])?" maxlength="50" required
+           placeholder="aaaa">
+    <p class="text-xs text-gray-500 mt-1">半角英小文字・数字・ハイフン。同じ親の中で重複不可。</p>
+</div>
+
+<div class="mb-6">
+    <p class="block text-sm font-medium text-gray-700 mb-2">直接所属するチャンネル</p>
     @if ($channels->isEmpty())
         <p class="text-sm text-gray-400">チャンネルがまだ登録されていません。</p>
     @else
@@ -40,5 +50,6 @@
                 </label>
             @endforeach
         </div>
+        <p class="text-xs text-gray-500 mt-2">配下のグループに所属するチャンネルは自動的に含まれるため、ここで選ぶ必要はありません。</p>
     @endif
 </div>

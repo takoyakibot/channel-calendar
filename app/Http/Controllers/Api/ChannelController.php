@@ -12,14 +12,17 @@ class ChannelController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $request->validate(['group' => 'nullable|string|max:50']);
+        $request->validate(['group' => 'nullable|string|max:255']);
 
-        $group = $request->filled('group')
-            ? Group::where('slug', $request->group)->firstOrFail()
-            : null;
+        $groupIds = null;
+        if ($request->filled('group')) {
+            $group = Group::resolvePath($request->group);
+            abort_unless($group, 404);
+            $groupIds = $group->subtreeIds();
+        }
 
         $channels = Channel::active()
-            ->when($group, fn ($q) => $q->whereHas('groups', fn ($g) => $g->where('groups.id', $group->id)))
+            ->when($groupIds !== null, fn ($q) => $q->whereHas('groups', fn ($g) => $g->whereIn('groups.id', $groupIds)))
             ->select('id', 'name', 'color', 'thumbnail_url')
             ->orderBy('name')
             ->get();

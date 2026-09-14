@@ -12,21 +12,26 @@ class GroupController extends Controller
 {
     public function index()
     {
-        $groups = Group::withCount('channels')->orderBy('name')->get();
+        $groups = Group::with('parent')->withCount('channels')->get()->sortBy('path')->values();
 
         return view('admin.groups.index', compact('groups'));
     }
 
     public function create()
     {
-        $channels = Channel::orderBy('name')->get();
-
-        return view('admin.groups.create', compact('channels'));
+        return view('admin.groups.create', [
+            'channels' => Channel::orderBy('name')->get(),
+            'parents' => $this->parentOptions(),
+        ]);
     }
 
     public function store(StoreGroupRequest $request)
     {
-        $group = Group::create($request->only('name', 'slug'));
+        $group = Group::create([
+            'name' => $request->name,
+            'slug' => $request->slug,
+            'parent_id' => $request->input('parent_id') ?: null,
+        ]);
         $group->channels()->sync($request->input('channels', []));
 
         return redirect('/admin/groups')->with('success', 'グループを追加しました。');
@@ -34,15 +39,21 @@ class GroupController extends Controller
 
     public function edit(Group $group)
     {
-        $channels = Channel::orderBy('name')->get();
-        $selected = $group->channels()->pluck('channels.id')->all();
-
-        return view('admin.groups.edit', compact('group', 'channels', 'selected'));
+        return view('admin.groups.edit', [
+            'group' => $group,
+            'channels' => Channel::orderBy('name')->get(),
+            'selected' => $group->channels()->pluck('channels.id')->all(),
+            'parents' => $this->parentOptions($group),
+        ]);
     }
 
     public function update(UpdateGroupRequest $request, Group $group)
     {
-        $group->update($request->only('name', 'slug'));
+        $group->update([
+            'name' => $request->name,
+            'slug' => $request->slug,
+            'parent_id' => $request->input('parent_id') ?: null,
+        ]);
         $group->channels()->sync($request->input('channels', []));
 
         return redirect('/admin/groups')->with('success', 'グループを更新しました。');
@@ -53,5 +64,17 @@ class GroupController extends Controller
         $group->delete();
 
         return redirect('/admin/groups')->with('success', 'グループを削除しました。');
+    }
+
+    /** Groups that may be chosen as a parent: everything except the group itself and its descendants. */
+    private function parentOptions(?Group $exclude = null)
+    {
+        $groups = Group::with('parent')->get();
+        if ($exclude) {
+            $excluded = $exclude->subtreeIds();
+            $groups = $groups->reject(fn (Group $g) => in_array($g->id, $excluded, true));
+        }
+
+        return $groups->sortBy('path')->values();
     }
 }

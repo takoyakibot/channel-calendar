@@ -16,12 +16,15 @@ class StreamController extends Controller
         $request->validate([
             'start' => 'required|date',
             'end' => 'required|date',
-            'group' => 'nullable|string|max:50',
+            'group' => 'nullable|string|max:255',
         ]);
 
-        $group = $request->filled('group')
-            ? Group::where('slug', $request->group)->firstOrFail()
-            : null;
+        $groupIds = null;
+        if ($request->filled('group')) {
+            $group = Group::resolvePath($request->group);
+            abort_unless($group, 404);
+            $groupIds = $group->subtreeIds();
+        }
 
         $start = Carbon::parse($request->start);
         $end = Carbon::parse($request->end);
@@ -41,10 +44,10 @@ class StreamController extends Controller
         $end = $end->utc();
 
         $streams = Stream::with('channel')
-            ->whereHas('channel', function ($q) use ($group) {
+            ->whereHas('channel', function ($q) use ($groupIds) {
                 $q->where('is_active', true);
-                if ($group) {
-                    $q->whereHas('groups', fn ($g) => $g->where('groups.id', $group->id));
+                if ($groupIds !== null) {
+                    $q->whereHas('groups', fn ($g) => $g->whereIn('groups.id', $groupIds));
                 }
             })
             ->whereBetween('scheduled_at', [$start, $end])

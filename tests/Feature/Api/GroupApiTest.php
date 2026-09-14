@@ -63,4 +63,43 @@ class GroupApiTest extends TestCase
     {
         $this->getJson('/api/channels?group=nope')->assertNotFound();
     }
+
+    public function test_parent_group_includes_descendant_channels(): void
+    {
+        $child = Group::factory()->create(['slug' => 'bbbb', 'parent_id' => $this->group->id]);
+        $grandchild = Group::factory()->create(['slug' => 'cccc', 'parent_id' => $child->id]);
+        $childChannel = Channel::factory()->create(['name' => 'Child Ch']);
+        $grandchildChannel = Channel::factory()->create(['name' => 'Grandchild Ch']);
+        $child->channels()->attach($childChannel);
+        $grandchild->channels()->attach($grandchildChannel);
+        Stream::factory()->create(['channel_id' => $childChannel->id, 'scheduled_at' => '2026-09-16 19:00:00']);
+        Stream::factory()->create(['channel_id' => $grandchildChannel->id, 'scheduled_at' => '2026-09-17 19:00:00']);
+
+        $this->getJson('/api/channels?group=aaaa')
+            ->assertOk()
+            ->assertJsonCount(3);
+
+        $this->getJson('/api/streams?start=2026-09-01&end=2026-09-30&group=aaaa')
+            ->assertOk()
+            ->assertJsonCount(3);
+    }
+
+    public function test_nested_group_path_shows_only_its_subtree(): void
+    {
+        $child = Group::factory()->create(['slug' => 'bbbb', 'parent_id' => $this->group->id]);
+        $childChannel = Channel::factory()->create(['name' => 'Child Ch']);
+        $child->channels()->attach($childChannel);
+        Stream::factory()->create(['channel_id' => $childChannel->id, 'scheduled_at' => '2026-09-16 19:00:00']);
+
+        $this->getJson('/api/channels?group=aaaa/bbbb')
+            ->assertOk()
+            ->assertJsonCount(1)
+            ->assertJsonFragment(['name' => 'Child Ch']);
+
+        $this->getJson('/api/streams?start=2026-09-01&end=2026-09-30&group=aaaa/bbbb')
+            ->assertOk()
+            ->assertJsonCount(1);
+
+        $this->getJson('/api/channels?group=bbbb')->assertNotFound();
+    }
 }

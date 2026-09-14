@@ -37,8 +37,8 @@ Route::middleware('auth')->prefix('admin')->group(function () {
 
 require __DIR__.'/auth.php';
 
-// Public group calendar. Registered last so every named route above wins.
-// Reserved slugs are excluded from the pattern so e.g. POST /register stays a
-// 404 instead of becoming a 405 against this GET route.
-Route::get('/{group}', [CalendarController::class, 'show'])
-    ->where('group', '(?!(?:' . implode('|', Group::RESERVED_SLUGS) . ')$)[a-z0-9-]+');
+// Public group calendar, one or more slug segments (/aaaa, /aaaa/bbbb, ...).
+// Registered last so every named route above wins. Reserved first segments are
+// excluded so e.g. POST /register stays a 404 instead of a 405 on this GET route.
+Route::get('/{path}', [CalendarController::class, 'show'])
+    ->where('path', '(?!(?:' . implode('|', Group::RESERVED_SLUGS) . ')(?:/|$))' . Group::SLUG_PATTERN . '(?:/' . Group::SLUG_PATTERN . ')*');
