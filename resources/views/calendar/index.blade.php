@@ -39,6 +39,11 @@
         .admin-link { font-size: 0.875rem; color: #2563eb; text-decoration: none; }
         .admin-link:hover { text-decoration: underline; }
 
+        .site-footer { margin-top: 2.5rem; padding-top: 1rem; border-top: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; font-size: 0.75rem; color: #6b7280; }
+        .site-footer nav { display: flex; gap: 1rem; flex: none; }
+        .site-footer a { color: #6b7280; text-decoration: none; }
+        .site-footer a:hover { color: #111827; text-decoration: underline; }
+
         .board-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.75rem; flex-wrap: wrap; }
         .board-toolbar .nav { display: inline-flex; gap: 0.25rem; }
         .board-toolbar .nav button { padding: 0.375rem 0.75rem; font-size: 0.875rem; border: 1px solid #d1d5db; border-radius: 0.375rem; background: #fff; color: #374151; cursor: pointer; }
@@ -146,6 +151,15 @@
         <section id="month-view" hidden>
             <div id="calendar"></div>
         </section>
+
+        <footer class="site-footer">
+            <span>配信情報は YouTube Data API を利用して取得しています。各配信・チャンネルの権利はそれぞれの運営者および YouTube に帰属します。</span>
+            <nav>
+                <a href="{{ url('/terms') }}">利用規約</a>
+                <a href="{{ url('/privacy') }}">プライバシーポリシー</a>
+                <a href="https://www.youtube.com/t/terms" target="_blank" rel="noopener noreferrer">YouTube 利用規約</a>
+            </nav>
+        </footer>
     </div>
 
     <div id="tooltip" class="tooltip" hidden></div>

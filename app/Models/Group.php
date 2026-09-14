@@ -16,7 +16,7 @@ class Group extends Model
     public const RESERVED_SLUGS = [
         'admin', 'api', 'login', 'logout', 'dashboard', 'profile', 'register',
         'forgot-password', 'reset-password', 'verify-email', 'email',
-        'confirm-password', 'up', 'storage', 'build',
+        'confirm-password', 'up', 'storage', 'build', 'privacy', 'terms',
     ];
 
     public const SLUG_PATTERN = '[a-z0-9](?:[a-z0-9-]*[a-z0-9])?';

@@ -21,6 +21,8 @@ use Illuminate\Support\Facades\Route;
 */
 
 Route::get('/', [CalendarController::class, 'index']);
+Route::view('/privacy', 'legal.privacy');
+Route::view('/terms', 'legal.terms');
 
 Route::get('/dashboard', function () {
     return view('dashboard');
