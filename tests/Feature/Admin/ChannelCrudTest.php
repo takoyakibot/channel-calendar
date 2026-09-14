@@ -58,6 +58,26 @@ class ChannelCrudTest extends TestCase
         ]);
     }
 
+    public function test_create_channel_shows_error_when_youtube_lookup_fails(): void
+    {
+        $mockService = Mockery::mock(YouTubeService::class);
+        $mockService->shouldReceive('getChannelInfo')
+            ->with('UC_bad')
+            ->andThrow(new \RuntimeException('Channel not found: UC_bad'));
+        $this->app->instance(YouTubeService::class, $mockService);
+
+        $response = $this->actingAs($this->admin)
+            ->from('/admin/channels/create')
+            ->post('/admin/channels', [
+                'channel_id' => 'UC_bad',
+                'color' => '#FF0000',
+            ]);
+
+        $response->assertRedirect('/admin/channels/create');
+        $response->assertSessionHasErrors('channel_id');
+        $this->assertDatabaseMissing('channels', ['channel_id' => 'UC_bad']);
+    }
+
     public function test_admin_can_update_channel(): void
     {
         $channel = Channel::factory()->create();

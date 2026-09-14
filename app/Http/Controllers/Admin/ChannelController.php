@@ -7,6 +7,7 @@ use App\Http\Requests\StoreChannelRequest;
 use App\Http\Requests\UpdateChannelRequest;
 use App\Models\Channel;
 use App\Services\YouTubeService;
+use Illuminate\Support\Facades\Log;
 
 class ChannelController extends Controller
 {
@@ -23,7 +24,13 @@ class ChannelController extends Controller
 
     public function store(StoreChannelRequest $request, YouTubeService $youtube)
     {
-        $info = $youtube->getChannelInfo($request->channel_id);
+        try {
+            $info = $youtube->getChannelInfo($request->channel_id);
+        } catch (\Throwable $e) {
+            Log::warning("Channel lookup failed for {$request->channel_id}: {$e->getMessage()}");
+
+            return back()->withInput()->withErrors(['channel_id' => 'チャンネル情報を取得できませんでした。チャンネルIDを確認してください。']);
+        }
 
         Channel::create([
             'channel_id' => $request->channel_id,
