@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Channel Calendar</title>
+    <title>{{ $group ? $group->name . ' | Channel Calendar' : 'Channel Calendar' }}</title>
     @vite(['resources/css/app.css'])
     <style>
         .channel-filter { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; }
@@ -65,7 +65,12 @@
 <body class="bg-gray-50">
     <div class="max-w-7xl mx-auto px-4 py-8">
         <div class="flex justify-between items-center mb-4 flex-wrap gap-3">
-            <h1 class="text-2xl font-bold text-gray-900">Channel Calendar</h1>
+            <div class="flex items-baseline gap-3 flex-wrap">
+                <h1 class="text-2xl font-bold text-gray-900">{{ $group ? $group->name : 'Channel Calendar' }}</h1>
+                @if ($group)
+                    <a href="{{ url('/') }}" class="text-sm text-gray-500 hover:underline">すべてのチャンネル</a>
+                @endif
+            </div>
             <div class="flex items-center gap-4">
                 <div class="view-toggle" role="tablist">
                     <button type="button" data-view="board" class="is-active">週ボード</button>
@@ -101,6 +106,18 @@
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@fullcalendar/core@6.1.11/locales/ja.global.min.js"></script>
     <script>
+    var GROUP_SLUG = @json($group?->slug);
+
+    function apiUrl(path, params) {
+        var parts = Object.keys(params).map(function (k) {
+            return k + '=' + encodeURIComponent(params[k]);
+        });
+        if (GROUP_SLUG) {
+            parts.push('group=' + encodeURIComponent(GROUP_SLUG));
+        }
+        return path + '?' + parts.join('&');
+    }
+
     document.addEventListener('DOMContentLoaded', function () {
         var WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'];
         var BOARD_DAYS = 7;
@@ -258,7 +275,7 @@
 
         function loadBoard() {
             var end = addDays(boardStart, BOARD_DAYS);
-            fetch('/api/streams?start=' + encodeURIComponent(boardStart.toISOString()) + '&end=' + encodeURIComponent(end.toISOString()), { headers: { Accept: 'application/json' } })
+            fetch(apiUrl('/api/streams', { start: boardStart.toISOString(), end: end.toISOString() }), { headers: { Accept: 'application/json' } })
                 .then(function (res) { if (!res.ok) { throw new Error(res.status); } return res.json(); })
                 .then(function (events) { boardEvents = events; renderBoard(); })
                 .catch(function () { boardEvents = []; renderBoard(); });
@@ -286,7 +303,7 @@
                 dayMaxEvents: false,
                 displayEventTime: false,
                 events: function (info, successCallback, failureCallback) {
-                    fetch('/api/streams?start=' + encodeURIComponent(info.startStr) + '&end=' + encodeURIComponent(info.endStr), { headers: { Accept: 'application/json' } })
+                    fetch(apiUrl('/api/streams', { start: info.startStr, end: info.endStr }), { headers: { Accept: 'application/json' } })
                         .then(function (res) { if (!res.ok) { throw new Error(res.status); } return res.json(); })
                         .then(function (events) { successCallback(events.filter(isVisible)); })
                         .catch(failureCallback);
@@ -354,7 +371,7 @@
             b.addEventListener('click', function () { setView(b.dataset.view); });
         });
 
-        fetch('/api/channels', { headers: { Accept: 'application/json' } })
+        fetch(apiUrl('/api/channels', {}), { headers: { Accept: 'application/json' } })
             .then(function (res) { return res.json(); })
             .then(function (channels) {
                 channels.forEach(function (ch) {

@@ -1,8 +1,10 @@
 <?php
 
 use App\Http\Controllers\Admin\ChannelController as AdminChannelController;
+use App\Http\Controllers\Admin\GroupController as AdminGroupController;
 use App\Http\Controllers\CalendarController;
 use App\Http\Controllers\ProfileController;
+use App\Models\Group;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -30,6 +32,13 @@ Route::middleware('auth')->group(function () {
 
 Route::middleware('auth')->prefix('admin')->group(function () {
     Route::resource('channels', AdminChannelController::class)->except(['show']);
+    Route::resource('groups', AdminGroupController::class)->except(['show']);
 });
 
 require __DIR__.'/auth.php';
+
+// Public group calendar. Registered last so every named route above wins.
+// Reserved slugs are excluded from the pattern so e.g. POST /register stays a
+// 404 instead of becoming a 405 against this GET route.
+Route::get('/{group}', [CalendarController::class, 'show'])
+    ->where('group', '(?!(?:' . implode('|', Group::RESERVED_SLUGS) . ')$)[a-z0-9-]+');

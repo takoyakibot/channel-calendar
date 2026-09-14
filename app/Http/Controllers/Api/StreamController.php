@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Group;
 use App\Models\Stream;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -15,7 +16,12 @@ class StreamController extends Controller
         $request->validate([
             'start' => 'required|date',
             'end' => 'required|date',
+            'group' => 'nullable|string|max:50',
         ]);
+
+        $group = $request->filled('group')
+            ? Group::where('slug', $request->group)->firstOrFail()
+            : null;
 
         $start = Carbon::parse($request->start);
         $end = Carbon::parse($request->end);
@@ -35,7 +41,12 @@ class StreamController extends Controller
         $end = $end->utc();
 
         $streams = Stream::with('channel')
-            ->whereHas('channel', fn ($q) => $q->where('is_active', true))
+            ->whereHas('channel', function ($q) use ($group) {
+                $q->where('is_active', true);
+                if ($group) {
+                    $q->whereHas('groups', fn ($g) => $g->where('groups.id', $group->id));
+                }
+            })
             ->whereBetween('scheduled_at', [$start, $end])
             ->orderBy('scheduled_at')
             ->get();
