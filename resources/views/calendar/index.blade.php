@@ -22,8 +22,9 @@
         .board-toolbar .nav button:hover { background: #f3f4f6; }
         .board-toolbar .range { font-weight: 600; color: #111827; }
 
-        .board { display: grid; grid-template-columns: repeat(7, minmax(220px, 1fr)); gap: 0.5rem; overflow-x: auto; padding-bottom: 0.5rem; scroll-snap-type: x proximity; }
-        .day-col { background: #fff; border: 1px solid #e5e7eb; border-radius: 0.5rem; display: flex; flex-direction: column; min-height: 12rem; scroll-snap-align: start; }
+        .board { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 0.5rem; padding-bottom: 0.5rem; }
+        @media (max-width: 767px) { .board { grid-template-columns: 1fr; } .day-col { min-height: 0; } }
+        .day-col { background: #fff; border: 1px solid #e5e7eb; border-radius: 0.5rem; display: flex; flex-direction: column; min-height: 12rem; min-width: 0; }
         .day-col.is-today { border-color: #111827; box-shadow: 0 0 0 1px #111827 inset; }
         .day-col.is-past { opacity: 0.7; }
         .day-head { padding: 0.5rem 0.75rem; border-bottom: 1px solid #e5e7eb; display: flex; align-items: baseline; gap: 0.375rem; }
@@ -35,16 +36,16 @@
         .day-body { padding: 0.5rem; display: flex; flex-direction: column; gap: 0.5rem; }
         .day-body .empty { color: #9ca3af; font-size: 0.8125rem; text-align: center; padding: 1rem 0; }
 
-        .card { display: block; text-decoration: none; color: inherit; border: 1px solid #e5e7eb; border-left: 4px solid #9ca3af; border-radius: 0.375rem; padding: 0.5rem 0.625rem; background: #fff; }
+        .card { display: block; min-width: 0; text-decoration: none; color: inherit; border: 1px solid #e5e7eb; border-left: 4px solid #9ca3af; border-radius: 0.375rem; padding: 0.5rem; background: #fff; }
         .card:hover { background: #f9fafb; border-color: #d1d5db; }
         .card.is-done { opacity: 0.55; }
-        .card-head { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.375rem; }
-        .avatar { width: 2rem; height: 2rem; border-radius: 50%; object-fit: cover; flex: none; background: #e5e7eb; }
-        .avatar-fallback { width: 2rem; height: 2rem; border-radius: 50%; flex: none; display: inline-flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 0.875rem; }
-        .card-meta { min-width: 0; display: flex; flex-direction: column; }
-        .card-meta .time { font-weight: 700; font-size: 0.9375rem; color: #111827; line-height: 1.2; }
-        .card-meta .ch { font-size: 0.75rem; color: #6b7280; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .card-title { font-size: 0.8125rem; line-height: 1.4; color: #1f2937; white-space: normal; overflow-wrap: anywhere; }
+        .card-head { display: flex; align-items: center; gap: 0.375rem; margin-bottom: 0.3rem; min-width: 0; }
+        .avatar { width: 1.75rem; height: 1.75rem; border-radius: 50%; object-fit: cover; flex: none; background: #e5e7eb; }
+        .avatar-fallback { width: 1.75rem; height: 1.75rem; border-radius: 50%; flex: none; display: inline-flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 0.8125rem; }
+        .card-meta { min-width: 0; display: flex; flex-direction: column; flex: 1 1 auto; }
+        .card-meta .time { font-weight: 700; font-size: 0.875rem; color: #111827; line-height: 1.2; }
+        .card-meta .ch { font-size: 0.6875rem; color: #6b7280; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .card-title { font-size: 0.78rem; line-height: 1.35; color: #1f2937; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; }
         .badge { display: inline-block; padding: 0.0625rem 0.4rem; border-radius: 9999px; font-size: 0.625rem; font-weight: 700; margin-left: auto; flex: none; }
         .badge.live { background: #dc2626; color: #fff; }
         .badge.done { background: #e5e7eb; color: #6b7280; }
@@ -63,7 +64,7 @@
     </style>
 </head>
 <body class="bg-gray-50">
-    <div class="max-w-7xl mx-auto px-4 py-8">
+    <div class="max-w-screen-2xl mx-auto px-4 py-8">
         <div class="flex justify-between items-center mb-4 flex-wrap gap-3">
             <div class="flex items-baseline gap-3 flex-wrap">
                 <h1 class="text-2xl font-bold text-gray-900">{{ $group ? $group->name : 'Channel Calendar' }}</h1>
@@ -191,6 +192,7 @@
             a.href = ev.url;
             a.target = '_blank';
             a.rel = 'noopener noreferrer';
+            a.title = props.channel_name + ' ' + fmtTime(start) + '\n' + ev.title;
             a.style.borderLeftColor = ev.color || '#9ca3af';
 
             var head = document.createElement('div');
