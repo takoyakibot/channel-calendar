@@ -5,17 +5,17 @@ namespace Tests\Feature\Services;
 use App\Services\YouTubeService;
 use Google\Service\YouTube;
 use Google\Service\YouTube\Resource\Channels;
-use Google\Service\YouTube\Resource\Search;
+use Google\Service\YouTube\Resource\PlaylistItems;
 use Google\Service\YouTube\Resource\Videos;
 use Google\Service\YouTube\ChannelListResponse;
 use Google\Service\YouTube\Channel as YouTubeChannel;
 use Google\Service\YouTube\ChannelSnippet;
 use Google\Service\YouTube\ThumbnailDetails;
 use Google\Service\YouTube\Thumbnail;
-use Google\Service\YouTube\SearchListResponse;
-use Google\Service\YouTube\SearchResult;
+use Google\Service\YouTube\PlaylistItem;
+use Google\Service\YouTube\PlaylistItemListResponse;
+use Google\Service\YouTube\PlaylistItemSnippet;
 use Google\Service\YouTube\ResourceId;
-use Google\Service\YouTube\SearchResultSnippet;
 use Google\Service\YouTube\VideoListResponse;
 use Google\Service\YouTube\Video;
 use Google\Service\YouTube\VideoSnippet;
@@ -139,67 +139,42 @@ class YouTubeServiceTest extends TestCase
         $this->assertNull($result['thumbnail_url']);
     }
 
-    public function test_search_streams_returns_video_list(): void
+    public function test_list_recent_upload_ids_reads_the_uploads_playlist(): void
     {
-        $resourceId = new ResourceId();
-        $resourceId->setVideoId('vid123');
-        $snippet = new SearchResultSnippet();
-        $snippet->setTitle('Test Stream');
-        $thumbDetail = new ThumbnailDetails();
-        $thumb = new Thumbnail();
-        $thumb->setUrl('https://example.com/stream.jpg');
-        $thumbDetail->setDefault($thumb);
-        $snippet->setThumbnails($thumbDetail);
-        $item = new SearchResult();
-        $item->setId($resourceId);
-        $item->setSnippet($snippet);
-        $response = new SearchListResponse();
-        $response->setItems([$item]);
+        $items = [];
+        foreach (['vidA', 'vidB'] as $id) {
+            $resourceId = new ResourceId();
+            $resourceId->setVideoId($id);
+            $snippet = new PlaylistItemSnippet();
+            $snippet->setResourceId($resourceId);
+            $item = new PlaylistItem();
+            $item->setSnippet($snippet);
+            $items[] = $item;
+        }
+        $response = new PlaylistItemListResponse();
+        $response->setItems($items);
 
-        $mockSearch = Mockery::mock(Search::class);
-        $mockSearch->shouldReceive('listSearch')
-            ->with('snippet', Mockery::on(function ($params) {
-                return $params['channelId'] === 'UC_test123'
-                    && $params['type'] === 'video'
-                    && $params['eventType'] === 'upcoming';
-            }))
+        $mockPlaylistItems = Mockery::mock(PlaylistItems::class);
+        $mockPlaylistItems->shouldReceive('listPlaylistItems')
+            ->with('snippet', ['playlistId' => 'UU_test123', 'maxResults' => 50])
             ->andReturn($response);
-        $this->mockYouTube->search = $mockSearch;
+        $this->mockYouTube->playlistItems = $mockPlaylistItems;
 
-        $result = $this->service->searchStreams('UC_test123', 'upcoming');
+        $result = $this->service->listRecentUploadIds('UC_test123');
 
-        $this->assertCount(1, $result);
-        $this->assertEquals('vid123', $result[0]['video_id']);
-        $this->assertEquals('Test Stream', $result[0]['title']);
+        $this->assertSame(['vidA', 'vidB'], $result);
     }
 
-    public function test_search_streams_returns_null_thumbnail_when_missing(): void
+    public function test_list_recent_upload_ids_returns_empty_for_channel_without_uploads(): void
     {
-        $resourceId = new ResourceId();
-        $resourceId->setVideoId('vid123');
-        $snippet = new SearchResultSnippet();
-        $snippet->setTitle('Test Stream');
-        $item = new SearchResult();
-        $item->setId($resourceId);
-        $item->setSnippet($snippet);
-        $response = new SearchListResponse();
-        $response->setItems([$item]);
+        $response = new PlaylistItemListResponse();
+        $response->setItems([]);
 
-        $mockSearch = Mockery::mock(Search::class);
-        $mockSearch->shouldReceive('listSearch')
-            ->with('snippet', Mockery::on(function ($params) {
-                return $params['channelId'] === 'UC_test123'
-                    && $params['type'] === 'video'
-                    && $params['eventType'] === 'upcoming';
-            }))
-            ->andReturn($response);
-        $this->mockYouTube->search = $mockSearch;
+        $mockPlaylistItems = Mockery::mock(PlaylistItems::class);
+        $mockPlaylistItems->shouldReceive('listPlaylistItems')->andReturn($response);
+        $this->mockYouTube->playlistItems = $mockPlaylistItems;
 
-        $result = $this->service->searchStreams('UC_test123', 'upcoming');
-
-        $this->assertCount(1, $result);
-        $this->assertEquals('vid123', $result[0]['video_id']);
-        $this->assertNull($result[0]['thumbnail_url']);
+        $this->assertSame([], $this->service->listRecentUploadIds('UC_test123'));
     }
 
     public function test_get_video_details_returns_streaming_info(): void
@@ -229,5 +204,37 @@ class YouTubeServiceTest extends TestCase
         $this->assertEquals('vid123', $result[0]['video_id']);
         $this->assertEquals('2026-09-15T19:00:00Z', $result[0]['scheduled_at']);
         $this->assertEquals('upcoming', $result[0]['status']);
+        $this->assertArrayHasKey('thumbnail_url', $result[0]);
+        $this->assertNull($result[0]['thumbnail_url']);
+    }
+
+    public function test_get_video_details_includes_video_thumbnail(): void
+    {
+        $thumb = new Thumbnail();
+        $thumb->setUrl('https://example.com/video.jpg');
+        $thumbs = new ThumbnailDetails();
+        $thumbs->setDefault($thumb);
+        $snippet = new VideoSnippet();
+        $snippet->setTitle('Ended Stream');
+        $snippet->setThumbnails($thumbs);
+        $details = new VideoLiveStreamingDetails();
+        $details->setScheduledStartTime('2026-09-10T19:00:00Z');
+        $details->setActualStartTime('2026-09-10T19:01:00Z');
+        $details->setActualEndTime('2026-09-10T20:30:00Z');
+        $video = new Video();
+        $video->setId('vid_ended');
+        $video->setSnippet($snippet);
+        $video->setLiveStreamingDetails($details);
+        $response = new VideoListResponse();
+        $response->setItems([$video]);
+
+        $mockVideos = Mockery::mock(Videos::class);
+        $mockVideos->shouldReceive('listVideos')->andReturn($response);
+        $this->mockYouTube->videos = $mockVideos;
+
+        $result = $this->service->getVideoDetails(['vid_ended']);
+
+        $this->assertEquals('https://example.com/video.jpg', $result[0]['thumbnail_url']);
+        $this->assertEquals('completed', $result[0]['status']);
     }
 }

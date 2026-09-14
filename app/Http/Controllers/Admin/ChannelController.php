@@ -2,8 +2,11 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Console\Commands\FetchStreams;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreChannelRequest;
+use App\Models\Setting;
+use Illuminate\Support\Carbon;
 use App\Http\Requests\UpdateChannelRequest;
 use App\Models\Channel;
 use App\Services\YouTubeService;
@@ -15,7 +18,10 @@ class ChannelController extends Controller
     public function index()
     {
         $channels = Channel::orderBy('name')->get();
-        return view('admin.channels.index', compact('channels'));
+        $lastFetchedAt = Setting::get(FetchStreams::LAST_FETCHED_AT_KEY);
+        $lastFetchedAt = $lastFetchedAt ? Carbon::parse($lastFetchedAt)->setTimezone('Asia/Tokyo') : null;
+
+        return view('admin.channels.index', compact('channels', 'lastFetchedAt'));
     }
 
     public function create()

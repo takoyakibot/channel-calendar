@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\ChannelController as AdminChannelController;
+use App\Http\Controllers\Admin\FetchController as AdminFetchController;
 use App\Http\Controllers\Admin\GroupController as AdminGroupController;
 use App\Http\Controllers\Admin\SettingController as AdminSettingController;
 use App\Http\Controllers\CalendarController;
@@ -37,6 +38,7 @@ Route::middleware('auth')->prefix('admin')->group(function () {
     Route::get('settings', [AdminSettingController::class, 'edit']);
     Route::put('settings', [AdminSettingController::class, 'update']);
     Route::post('settings/test', [AdminSettingController::class, 'test']);
+    Route::post('streams/fetch', [AdminFetchController::class, 'fetch']);
 });
 
 require __DIR__.'/auth.php';

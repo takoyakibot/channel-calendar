@@ -3,15 +3,19 @@
 namespace App\Console\Commands;
 
 use App\Models\Channel;
+use App\Models\Setting;
 use App\Models\Stream;
 use App\Services\YouTubeService;
 use Illuminate\Console\Command;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 
 class FetchStreams extends Command
 {
+    public const LAST_FETCHED_AT_KEY = 'streams_last_fetched_at';
+
     protected $signature = 'streams:fetch';
-    protected $description = 'Fetch upcoming and live streams from YouTube for all active channels';
+    protected $description = 'Fetch upcoming, live and recently ended streams from YouTube for all active channels';
 
     /**
      * video_ids upserted during this run, across all channels.
@@ -33,14 +37,19 @@ class FetchStreams extends Command
 
         if ($channels->isEmpty()) {
             $this->info('No active channels found.');
+            Setting::set(self::LAST_FETCHED_AT_KEY, now()->toIso8601String());
+
             return self::SUCCESS;
         }
+
+        $backfillSince = now()->subDays((int) config('services.youtube.backfill_days', 14));
 
         foreach ($channels as $channel) {
             $this->info("Fetching streams for: {$channel->name}");
 
             try {
-                $this->fetchForChannel($youtube, $channel);
+                $count = $this->fetchForChannel($youtube, $channel, $backfillSince);
+                $this->line("  {$count} stream(s) upserted");
             } catch (\Throwable $e) {
                 $this->error("Failed for {$channel->name}: {$e->getMessage()}");
                 Log::error("streams:fetch failed for channel {$channel->channel_id}: {$e->getMessage()}");
@@ -49,35 +58,36 @@ class FetchStreams extends Command
         }
 
         $this->markOldStreamsCompleted();
+        Setting::set(self::LAST_FETCHED_AT_KEY, now()->toIso8601String());
 
         $this->info('Done.');
+
         return self::SUCCESS;
     }
 
-    private function fetchForChannel(YouTubeService $youtube, Channel $channel): void
+    private function fetchForChannel(YouTubeService $youtube, Channel $channel, Carbon $backfillSince): int
     {
-        $upcoming = $youtube->searchStreams($channel->channel_id, 'upcoming');
-        $live = $youtube->searchStreams($channel->channel_id, 'live');
-
-        $allResults = array_merge($upcoming, $live);
-        if (empty($allResults)) {
-            return;
+        $videoIds = array_values(array_unique($youtube->listRecentUploadIds($channel->channel_id)));
+        if (empty($videoIds)) {
+            return 0;
         }
-
-        $videoIds = array_values(array_unique(array_column($allResults, 'video_id')));
 
         $details = [];
         foreach (array_chunk($videoIds, 50) as $chunk) {
             $details = array_merge($details, $youtube->getVideoDetails($chunk));
         }
 
-        $thumbnailMap = [];
-        foreach ($allResults as $result) {
-            $thumbnailMap[$result['video_id']] = $result['thumbnail_url'];
-        }
-
+        $count = 0;
         foreach ($details as $detail) {
+            // Plain uploads have no liveStreamingDetails — they are not streams.
             if ($detail['scheduled_at'] === null) {
+                continue;
+            }
+
+            // Keep every upcoming/live broadcast, but only backfill ended ones
+            // from the recent window so the board shows history without
+            // importing the whole archive.
+            if ($detail['status'] === 'completed' && Carbon::parse($detail['scheduled_at'])->lt($backfillSince)) {
                 continue;
             }
 
@@ -86,7 +96,7 @@ class FetchStreams extends Command
                 [
                     'channel_id' => $channel->id,
                     'title' => $detail['title'],
-                    'thumbnail_url' => $thumbnailMap[$detail['video_id']] ?? null,
+                    'thumbnail_url' => $detail['thumbnail_url'],
                     'scheduled_at' => $detail['scheduled_at'],
                     'actual_start_at' => $detail['actual_start_at'],
                     'actual_end_at' => $detail['actual_end_at'],
@@ -95,7 +105,10 @@ class FetchStreams extends Command
             );
 
             $this->fetchedVideoIds[] = $detail['video_id'];
+            $count++;
         }
+
+        return $count;
     }
 
     private function markOldStreamsCompleted(): void

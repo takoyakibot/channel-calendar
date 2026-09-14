@@ -58,24 +58,27 @@ class YouTubeService
         ];
     }
 
-    public function searchStreams(string $channelId, string $eventType): array
+    /**
+     * Newest video ids from the channel's uploads playlist, most recent first.
+     * Scheduled and live broadcasts appear here too, and the call costs 1 quota
+     * unit versus 100 for search.list.
+     *
+     * @return array<int, string>
+     */
+    public function listRecentUploadIds(string $channelId, int $max = 50): array
     {
-        $response = $this->youtube->search->listSearch('snippet', [
-            'channelId' => $channelId,
-            'type' => 'video',
-            'eventType' => $eventType,
-            'order' => 'date',
-            'maxResults' => 50,
+        // Every channel's uploads playlist id is its channel id with "UC" swapped for "UU".
+        $playlistId = 'UU' . substr($channelId, 2);
+
+        $response = $this->youtube->playlistItems->listPlaylistItems('snippet', [
+            'playlistId' => $playlistId,
+            'maxResults' => $max,
         ]);
 
-        return array_map(function ($item) {
-            $snippet = $item->getSnippet();
-            return [
-                'video_id' => $item->getId()->getVideoId(),
-                'title' => $snippet->getTitle(),
-                'thumbnail_url' => $this->extractThumbnailUrl($snippet),
-            ];
-        }, $response->getItems());
+        return array_values(array_filter(array_map(
+            fn ($item) => $item->getSnippet()?->getResourceId()?->getVideoId(),
+            $response->getItems() ?? []
+        )));
     }
 
     private function extractThumbnailUrl($snippet): ?string
@@ -109,6 +112,7 @@ class YouTubeService
             return [
                 'video_id' => $video->getId(),
                 'title' => $video->getSnippet()->getTitle(),
+                'thumbnail_url' => $this->extractThumbnailUrl($video->getSnippet()),
                 'scheduled_at' => $details?->getScheduledStartTime(),
                 'actual_start_at' => $actualStart,
                 'actual_end_at' => $actualEnd,

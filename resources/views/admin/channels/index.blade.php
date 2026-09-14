@@ -1,11 +1,24 @@
 <x-app-layout>
     <x-slot name="header">
-        <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap;">
             <h2 class="font-semibold text-xl text-gray-800 leading-tight">チャンネル管理</h2>
-            <a href="{{ url('/admin/channels/create') }}"
-               class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm">
-                チャンネル追加
-            </a>
+            <div class="flex items-center gap-3">
+                <span class="text-xs text-gray-500">
+                    最終取得: {{ $lastFetchedAt ? $lastFetchedAt->format('Y/m/d H:i') . ' (JST)' : 'まだ取得していません' }}
+                </span>
+                <form method="POST" action="{{ url('/admin/streams/fetch') }}">
+                    @csrf
+                    <button type="submit"
+                            class="inline-flex items-center px-4 py-2 bg-gray-800 text-white rounded hover:bg-gray-900 text-sm"
+                            onclick="this.disabled=true;this.textContent='取得中…';this.form.submit();">
+                        今すぐ取得
+                    </button>
+                </form>
+                <a href="{{ url('/admin/channels/create') }}"
+                   class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm">
+                    チャンネル追加
+                </a>
+            </div>
         </div>
     </x-slot>
 
@@ -13,6 +26,9 @@
         <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
             @if (session('success'))
                 <div class="mb-4 p-4 bg-green-100 text-green-700 rounded">{{ session('success') }}</div>
+            @endif
+            @if (session('error'))
+                <div class="mb-4 p-4 bg-red-100 text-red-700 rounded">{{ session('error') }}</div>
             @endif
 
             <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">

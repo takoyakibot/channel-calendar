@@ -33,6 +33,9 @@ return [
 
     'youtube' => [
         'api_key' => env('YOUTUBE_API_KEY'),
+        // How many days of already-ended streams to import so a freshly added
+        // channel shows recent history on the board.
+        'backfill_days' => (int) env('STREAMS_BACKFILL_DAYS', 14),
     ],
 
 ];
