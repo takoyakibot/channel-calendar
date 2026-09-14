@@ -64,6 +64,9 @@
         },
         "audit": {
             "abandoned": "ignore"
+        },
+        "platform": {
+            "php": "8.1.32"
         }
     },
     "minimum-stability": "stable",
