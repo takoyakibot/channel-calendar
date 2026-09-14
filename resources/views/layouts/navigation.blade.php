@@ -21,6 +21,9 @@
                     <x-nav-link :href="url('/admin/groups')" :active="request()->is('admin/groups*')">
                         {{ __('グループ管理') }}
                     </x-nav-link>
+                    <x-nav-link :href="url('/admin/settings')" :active="request()->is('admin/settings*')">
+                        {{ __('設定') }}
+                    </x-nav-link>
                 </div>
             </div>
 
@@ -81,6 +84,9 @@
             </x-responsive-nav-link>
             <x-responsive-nav-link :href="url('/admin/groups')" :active="request()->is('admin/groups*')">
                 {{ __('グループ管理') }}
+            </x-responsive-nav-link>
+            <x-responsive-nav-link :href="url('/admin/settings')" :active="request()->is('admin/settings*')">
+                {{ __('設定') }}
             </x-responsive-nav-link>
         </div>
 

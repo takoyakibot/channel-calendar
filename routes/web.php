@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin\ChannelController as AdminChannelController;
 use App\Http\Controllers\Admin\GroupController as AdminGroupController;
+use App\Http\Controllers\Admin\SettingController as AdminSettingController;
 use App\Http\Controllers\CalendarController;
 use App\Http\Controllers\ProfileController;
 use App\Models\Group;
@@ -33,6 +34,9 @@ Route::middleware('auth')->group(function () {
 Route::middleware('auth')->prefix('admin')->group(function () {
     Route::resource('channels', AdminChannelController::class)->except(['show']);
     Route::resource('groups', AdminGroupController::class)->except(['show']);
+    Route::get('settings', [AdminSettingController::class, 'edit']);
+    Route::put('settings', [AdminSettingController::class, 'update']);
+    Route::post('settings/test', [AdminSettingController::class, 'test']);
 });
 
 require __DIR__.'/auth.php';
