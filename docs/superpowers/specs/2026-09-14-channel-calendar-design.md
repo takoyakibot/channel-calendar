@@ -109,7 +109,9 @@ php artisan streams:fetch
 
 ### Public
 
-- `GET /api/streams?start={Y-m-d}&end={Y-m-d}` — Returns streams in FullCalendar event format
+- `GET /api/streams?start={date}&end={date}` — Returns streams in FullCalendar event format.
+  `start`/`end` accept `Y-m-d` (treated as whole days in the app timezone) or ISO-8601 with an
+  offset (treated as exact instants).
 - `GET /api/channels` — Returns active channels (for filter UI)
 
 ### Admin (auth required)
@@ -123,6 +125,8 @@ php artisan streams:fetch
 
 ```
 YOUTUBE_API_KEY=          # YouTube Data API v3 key
+ADMIN_EMAIL=admin@example.com   # Admin login created by `php artisan db:seed`. ADMIN_PASSWORD is required outside local/testing.
+ADMIN_PASSWORD=
 ```
 
 Added to `.env.example` alongside standard Laravel env vars.
@@ -135,7 +139,7 @@ Same server as ycs. Standard Laravel deployment:
 composer install --no-dev
 npm install && npm run build
 php artisan migrate
-php artisan db:seed  # creates admin user
+php artisan db:seed  # creates admin user; ADMIN_PASSWORD must be set in .env before running this outside local/testing
 ```
 
 ## Out of Scope

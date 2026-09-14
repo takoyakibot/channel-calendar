@@ -199,6 +199,39 @@ class FetchStreamsTest extends TestCase
         ]);
     }
 
+    public function test_fetch_streams_dedupes_and_chunks_video_ids(): void
+    {
+        $channel = Channel::factory()->create(['channel_id' => 'UC_test']);
+
+        // 30 upcoming (v1..v30) and 30 live (v21..v50) overlap on v21..v30 (10 ids),
+        // for 50 unique ids total.
+        $upcoming = [];
+        for ($i = 1; $i <= 30; $i++) {
+            $upcoming[] = ['video_id' => "v{$i}", 'title' => "Video {$i}", 'thumbnail_url' => null];
+        }
+
+        $live = [];
+        for ($i = 21; $i <= 50; $i++) {
+            $live[] = ['video_id' => "v{$i}", 'title' => "Video {$i}", 'thumbnail_url' => null];
+        }
+
+        $mockService = Mockery::mock(YouTubeService::class);
+        $mockService->shouldReceive('searchStreams')
+            ->with('UC_test', 'upcoming')
+            ->andReturn($upcoming);
+        $mockService->shouldReceive('searchStreams')
+            ->with('UC_test', 'live')
+            ->andReturn($live);
+        $mockService->shouldReceive('getVideoDetails')
+            ->once()
+            ->with(Mockery::on(fn ($ids) => count($ids) === 50 && count(array_unique($ids)) === 50))
+            ->andReturn([]);
+
+        $this->app->instance(YouTubeService::class, $mockService);
+
+        $this->artisan('streams:fetch')->assertSuccessful();
+    }
+
     public function test_fetch_streams_does_not_sweep_streams_of_channel_whose_fetch_failed(): void
     {
         Log::spy();

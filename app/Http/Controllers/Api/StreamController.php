@@ -17,8 +17,22 @@ class StreamController extends Controller
             'end' => 'required|date',
         ]);
 
-        $start = Carbon::parse($request->start)->startOfDay();
-        $end = Carbon::parse($request->end)->endOfDay();
+        $start = Carbon::parse($request->start);
+        $end = Carbon::parse($request->end);
+
+        if (strlen($request->start) <= 10) {
+            $start = $start->startOfDay();
+        }
+
+        if (strlen($request->end) <= 10) {
+            $end = $end->endOfDay();
+        }
+
+        // Query bindings serialize a Carbon instance using its own timezone, not
+        // the app's — an ISO-8601 string with an explicit offset (e.g. +09:00)
+        // would otherwise be compared against UTC-stored timestamps unconverted.
+        $start = $start->utc();
+        $end = $end->utc();
 
         $streams = Stream::with('channel')
             ->whereHas('channel', fn ($q) => $q->where('is_active', true))

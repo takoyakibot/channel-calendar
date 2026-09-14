@@ -85,7 +85,7 @@
                 right: 'dayGridMonth,timeGridWeek,timeGridDay'
             },
             events: function (info, successCallback, failureCallback) {
-                fetch('/api/streams?start=' + info.startStr.slice(0, 10) + '&end=' + info.endStr.slice(0, 10))
+                fetch('/api/streams?start=' + encodeURIComponent(info.startStr) + '&end=' + encodeURIComponent(info.endStr))
                     .then(function (res) { return res.json(); })
                     .then(function (events) {
                         var filtered = events.filter(function (ev) {

@@ -102,4 +102,27 @@ class StreamApiTest extends TestCase
         $response->assertOk();
         $response->assertJsonCount(0);
     }
+
+    public function test_streams_endpoint_accepts_iso8601_start_with_offset(): void
+    {
+        $channel = Channel::factory()->create();
+        // 2026-08-29 20:00:00 UTC = 2026-08-30 05:00:00 JST (inside the grid).
+        Stream::factory()->create([
+            'channel_id' => $channel->id,
+            'scheduled_at' => '2026-08-29 20:00:00',
+        ]);
+        // 2026-08-29 10:00:00 UTC = 2026-08-29 19:00:00 JST (before the grid).
+        Stream::factory()->create([
+            'channel_id' => $channel->id,
+            'scheduled_at' => '2026-08-29 10:00:00',
+        ]);
+
+        $response = $this->getJson(
+            '/api/streams?start=' . urlencode('2026-08-30T00:00:00+09:00')
+            . '&end=' . urlencode('2026-10-05T00:00:00+09:00')
+        );
+
+        $response->assertOk();
+        $response->assertJsonCount(1);
+    }
 }

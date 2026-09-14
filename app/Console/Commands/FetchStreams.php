@@ -64,8 +64,12 @@ class FetchStreams extends Command
             return;
         }
 
-        $videoIds = array_column($allResults, 'video_id');
-        $details = $youtube->getVideoDetails($videoIds);
+        $videoIds = array_values(array_unique(array_column($allResults, 'video_id')));
+
+        $details = [];
+        foreach (array_chunk($videoIds, 50) as $chunk) {
+            $details = array_merge($details, $youtube->getVideoDetails($chunk));
+        }
 
         $thumbnailMap = [];
         foreach ($allResults as $result) {
