@@ -18,7 +18,9 @@
                     @endif
                     <div>
                         <p class="font-medium text-lg">{{ $channel->name }}</p>
-                        <p class="text-sm text-gray-500">{{ $channel->channel_id }}</p>
+                        <p class="text-sm text-gray-500">
+                            @if ($channel->handle){{ $channel->handle }} · @endif<span class="font-mono">{{ $channel->channel_id }}</span>
+                        </p>
                     </div>
                 </div>
 

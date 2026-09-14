@@ -30,6 +30,34 @@ class YouTubeService
         ];
     }
 
+    /**
+     * Look a channel up by resolved input type ("id" => UC… id, "handle" => "@name")
+     * and return its canonical id plus display data.
+     *
+     * @return array{channel_id: string, handle: ?string, name: string, thumbnail_url: ?string}
+     */
+    public function findChannel(string $type, string $value): array
+    {
+        $params = $type === 'id' ? ['id' => $value] : ['forHandle' => $value];
+        $response = $this->youtube->channels->listChannels('snippet', $params);
+
+        $items = $response->getItems();
+        if (empty($items)) {
+            throw new \RuntimeException("Channel not found: {$value}");
+        }
+
+        $channel = $items[0];
+        $snippet = $channel->getSnippet();
+        $customUrl = $snippet->getCustomUrl();
+
+        return [
+            'channel_id' => $channel->getId(),
+            'handle' => $customUrl ? '@' . ltrim($customUrl, '@') : null,
+            'name' => $snippet->getTitle(),
+            'thumbnail_url' => $this->extractThumbnailUrl($snippet),
+        ];
+    }
+
     public function searchStreams(string $channelId, string $eventType): array
     {
         $response = $this->youtube->search->listSearch('snippet', [

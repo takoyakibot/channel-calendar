@@ -14,7 +14,7 @@ class StoreChannelRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'channel_id' => 'required|string|max:255|unique:channels,channel_id',
+            'channel' => 'required|string|max:255',
             'color' => 'required|string|regex:/^#[0-9A-Fa-f]{6}$/',
         ];
     }

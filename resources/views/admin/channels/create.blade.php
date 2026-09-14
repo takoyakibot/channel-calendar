@@ -15,9 +15,13 @@
                 <form method="POST" action="{{ url('/admin/channels') }}">
                     @csrf
                     <div class="mb-4">
-                        <label for="channel_id" class="block text-sm font-medium text-gray-700 mb-1">YouTubeチャンネルID</label>
-                        <input type="text" name="channel_id" id="channel_id" value="{{ old('channel_id') }}"
-                               class="w-full border-gray-300 rounded-md shadow-sm" placeholder="UC..." required>
+                        <label for="channel" class="block text-sm font-medium text-gray-700 mb-1">YouTube チャンネル</label>
+                        <input type="text" name="channel" id="channel" value="{{ old('channel') }}"
+                               class="w-full border-gray-300 rounded-md shadow-sm" placeholder="@handle" required autofocus>
+                        <p class="text-xs text-gray-500 mt-1">
+                            ハンドル（<code>@example</code>）、チャンネルURL（<code>https://www.youtube.com/@example</code>）、
+                            チャンネルID（<code>UC...</code>）のいずれでも登録できます。名前とアイコンは自動取得します。
+                        </p>
                     </div>
                     <div class="mb-6">
                         <label for="color" class="block text-sm font-medium text-gray-700 mb-1">カレンダー表示色</label>

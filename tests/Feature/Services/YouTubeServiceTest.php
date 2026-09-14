@@ -35,6 +35,63 @@ class YouTubeServiceTest extends TestCase
         $this->service = new YouTubeService($this->mockYouTube);
     }
 
+    private function channelListResponse(string $id, string $title, ?string $customUrl): ChannelListResponse
+    {
+        $snippet = new ChannelSnippet();
+        $snippet->setTitle($title);
+        $snippet->setCustomUrl($customUrl);
+        $channel = new YouTubeChannel();
+        $channel->setId($id);
+        $channel->setSnippet($snippet);
+        $response = new ChannelListResponse();
+        $response->setItems([$channel]);
+
+        return $response;
+    }
+
+    public function test_find_channel_by_handle_uses_for_handle_and_returns_resolved_id(): void
+    {
+        $mockChannels = Mockery::mock(Channels::class);
+        $mockChannels->shouldReceive('listChannels')
+            ->with('snippet', ['forHandle' => '@some_channel'])
+            ->andReturn($this->channelListResponse('UC_resolved', 'Some Channel', '@some_channel'));
+        $this->mockYouTube->channels = $mockChannels;
+
+        $result = $this->service->findChannel('handle', '@some_channel');
+
+        $this->assertSame('UC_resolved', $result['channel_id']);
+        $this->assertSame('@some_channel', $result['handle']);
+        $this->assertSame('Some Channel', $result['name']);
+        $this->assertNull($result['thumbnail_url']);
+    }
+
+    public function test_find_channel_by_id_uses_id_and_returns_handle_from_custom_url(): void
+    {
+        $mockChannels = Mockery::mock(Channels::class);
+        $mockChannels->shouldReceive('listChannels')
+            ->with('snippet', ['id' => 'UC_test123'])
+            ->andReturn($this->channelListResponse('UC_test123', 'Test Channel', '@testchannel'));
+        $this->mockYouTube->channels = $mockChannels;
+
+        $result = $this->service->findChannel('id', 'UC_test123');
+
+        $this->assertSame('UC_test123', $result['channel_id']);
+        $this->assertSame('@testchannel', $result['handle']);
+    }
+
+    public function test_find_channel_throws_when_nothing_matches(): void
+    {
+        $response = new ChannelListResponse();
+        $response->setItems([]);
+        $mockChannels = Mockery::mock(Channels::class);
+        $mockChannels->shouldReceive('listChannels')->andReturn($response);
+        $this->mockYouTube->channels = $mockChannels;
+
+        $this->expectException(\RuntimeException::class);
+
+        $this->service->findChannel('handle', '@nobody');
+    }
+
     public function test_get_channel_info_returns_name_and_thumbnail(): void
     {
         $thumbnail = new Thumbnail();

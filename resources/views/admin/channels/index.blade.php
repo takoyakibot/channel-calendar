@@ -34,7 +34,15 @@
                                     <img src="{{ $channel->thumbnail_url }}" alt="" class="w-10 h-10 rounded-full">
                                 @endif
                             </td>
-                            <td class="px-6 py-4 font-medium">{{ $channel->name }}</td>
+                            <td class="px-6 py-4">
+                                <div class="font-medium">{{ $channel->name }}</div>
+                                @if ($channel->handle)
+                                    <a href="https://www.youtube.com/{{ $channel->handle }}" target="_blank" rel="noopener noreferrer"
+                                       class="text-xs text-gray-500 hover:underline">{{ $channel->handle }}</a>
+                                @else
+                                    <div class="text-xs text-gray-400">{{ $channel->channel_id }}</div>
+                                @endif
+                            </td>
                             <td class="px-6 py-4">
                                 <span class="inline-block w-6 h-6 rounded" style="background-color:{{ $channel->color }}"></span>
                                 {{ $channel->color }}
