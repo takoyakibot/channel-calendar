@@ -54,6 +54,13 @@ class GoogleController extends Controller
             return redirect('/')->with('error', 'アカウントが停止されています。');
         }
 
+        $adminEmails = array_filter(array_map('trim', explode(',', config('app.admin_emails', ''))));
+        $shouldBeAdmin = in_array($user->email, $adminEmails, true);
+        if ($user->is_admin !== $shouldBeAdmin) {
+            $user->is_admin = $shouldBeAdmin;
+            $user->save();
+        }
+
         Auth::login($user, remember: true);
 
         return redirect()->intended('/');
