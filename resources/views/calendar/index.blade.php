@@ -61,6 +61,7 @@
         .subgroup-toggles button { padding: 0.3rem 0.75rem; font-size: 0.8125rem; border: 1px solid #d1d5db; border-radius: 9999px; background: #fff; color: #374151; cursor: pointer; transition: background 0.1s, color 0.1s; }
         .subgroup-toggles button:hover { background: #f3f4f6; }
         .subgroup-toggles button.is-active { background: #111827; color: #fff; border-color: #111827; }
+        .subgroup-hint { align-self: center; font-size: 0.75rem; color: #6b7280; margin-left: 0.25rem; }
         .admin-link { font-size: 0.875rem; color: #2563eb; text-decoration: none; }
         .admin-link:hover { text-decoration: underline; }
         .share-buttons { display: inline-flex; gap: 0.375rem; }
@@ -193,6 +194,7 @@
                     @foreach ($children as $child)
                         <button type="button" data-group-id="{{ $child->id }}">{{ $child->name }}</button>
                     @endforeach
+                    <span class="subgroup-hint" id="subgroup-hint" aria-live="polite">クリックすると、そのグループだけに絞り込みます</span>
                 </div>
             @endif
         @endif
@@ -665,10 +667,16 @@
                 if (calendar) { calendar.refetchEvents(); }
             }
             var subgroupButtons = Array.from(subgroupContainer.querySelectorAll('button[data-group-id]'));
+            var subgroupHint = document.getElementById('subgroup-hint');
             function syncSubgroupButtons() {
                 subgroupButtons.forEach(function (b) {
                     b.classList.toggle('is-active', !!activeSubgroups[Number(b.dataset.groupId)]);
                 });
+                if (subgroupHint) {
+                    subgroupHint.textContent = allSubgroupsActive()
+                        ? 'クリックすると、そのグループだけに絞り込みます'
+                        : 'クリックで追加・解除。すべて外すと全表示に戻ります';
+                }
             }
             function allSubgroupsActive() {
                 return CHILD_GROUPS.every(function (g) { return !!activeSubgroups[g.id]; });
