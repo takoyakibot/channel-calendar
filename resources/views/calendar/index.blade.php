@@ -21,6 +21,10 @@
     <meta name="twitter:description" content="{{ $pageDescription }}">
     @vite(['resources/css/app.css'])
     <style>
+        /* Class rules below (e.g. .modal-overlay { display:flex }) would otherwise
+           outrank the preflight [hidden] rule and keep hidden elements visible. */
+        [hidden] { display: none !important; }
+
         .filter-section { margin-bottom: 1rem; }
         .filter-toggle { display: inline-flex; align-items: center; gap: 0.375rem; padding: 0.25rem 0; font-size: 0.875rem; font-weight: 600; color: #374151; background: none; border: none; cursor: pointer; }
         .filter-toggle:hover { color: #111827; }
