@@ -149,7 +149,7 @@
             <div class="page-head-main">
                 @if ($group)
                     <nav class="crumbs" aria-label="パンくず">
-                        <a href="{{ url('/') }}">すべて</a>
+                        <a href="{{ url('/') }}">トップ</a>
                         @php($crumb = '')
                         @foreach ($group->ancestors() as $ancestor)
                             @php($crumb .= '/' . $ancestor->slug)
