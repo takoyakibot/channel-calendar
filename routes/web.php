@@ -1,11 +1,12 @@
 <?php
 
+use App\Http\Controllers\Admin\ActivityLogController as AdminActivityLogController;
 use App\Http\Controllers\Admin\ChannelController as AdminChannelController;
 use App\Http\Controllers\Admin\FetchController as AdminFetchController;
 use App\Http\Controllers\Admin\GroupController as AdminGroupController;
 use App\Http\Controllers\Admin\SettingController as AdminSettingController;
+use App\Http\Controllers\Admin\UserController as AdminUserController;
 use App\Http\Controllers\CalendarController;
-use App\Http\Controllers\ProfileController;
 use App\Models\Group;
 use Illuminate\Support\Facades\Route;
 
@@ -21,24 +22,19 @@ use Illuminate\Support\Facades\Route;
 */
 
 Route::get('/', [CalendarController::class, 'index']);
+Route::view('/privacy', 'legal.privacy');
+Route::view('/terms', 'legal.terms');
 
-Route::get('/dashboard', function () {
-    return view('dashboard');
-})->middleware(['auth', 'verified'])->name('dashboard');
-
-Route::middleware('auth')->group(function () {
-    Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
-    Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
-    Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
-});
-
-Route::middleware('auth')->prefix('admin')->group(function () {
+Route::middleware(['auth', 'admin'])->prefix('admin')->group(function () {
     Route::resource('channels', AdminChannelController::class)->except(['show']);
     Route::resource('groups', AdminGroupController::class)->except(['show']);
     Route::get('settings', [AdminSettingController::class, 'edit']);
     Route::put('settings', [AdminSettingController::class, 'update']);
     Route::post('settings/test', [AdminSettingController::class, 'test']);
     Route::post('streams/fetch', [AdminFetchController::class, 'fetch']);
+    Route::get('users', [AdminUserController::class, 'index']);
+    Route::patch('users/{user}/toggle-ban', [AdminUserController::class, 'toggleBan']);
+    Route::get('activity-logs', [AdminActivityLogController::class, 'index']);
 });
 
 require __DIR__.'/auth.php';

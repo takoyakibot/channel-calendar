@@ -115,20 +115,93 @@ class FetchStreamsTest extends TestCase
         $this->artisan('streams:fetch')->assertSuccessful();
     }
 
-    public function test_fetch_streams_marks_old_upcoming_and_live_not_returned_as_completed(): void
+    public function test_fetch_streams_marks_stale_upcoming_and_live_outside_window_as_completed(): void
     {
+        config(['services.youtube.backfill_days' => 14]);
         $channel = Channel::factory()->create(['channel_id' => 'UC_test']);
-        Stream::factory()->create(['channel_id' => $channel->id, 'video_id' => 'vid_old', 'status' => 'upcoming', 'scheduled_at' => now()->subHours(25)]);
-        Stream::factory()->create(['channel_id' => $channel->id, 'video_id' => 'vid_old_live', 'status' => 'live', 'scheduled_at' => now()->subHours(25)]);
+        Stream::factory()->create(['channel_id' => $channel->id, 'video_id' => 'vid_old', 'status' => 'upcoming', 'scheduled_at' => now()->subDays(20)]);
+        Stream::factory()->create(['channel_id' => $channel->id, 'video_id' => 'vid_old_live', 'status' => 'live', 'scheduled_at' => now()->subDays(20)]);
 
         $mockService = Mockery::mock(YouTubeService::class);
         $mockService->shouldReceive('listRecentUploadIds')->andReturn([]);
+        $mockService->shouldNotReceive('getVideoDetails');
         $this->app->instance(YouTubeService::class, $mockService);
 
         $this->artisan('streams:fetch')->assertSuccessful();
 
         $this->assertDatabaseHas('streams', ['video_id' => 'vid_old', 'status' => 'completed']);
         $this->assertDatabaseHas('streams', ['video_id' => 'vid_old_live', 'status' => 'completed']);
+    }
+
+    public function test_fetch_streams_deletes_upcoming_stream_removed_from_youtube(): void
+    {
+        $channel = Channel::factory()->create(['channel_id' => 'UC_test']);
+        Stream::factory()->create(['channel_id' => $channel->id, 'video_id' => 'vid_cancelled', 'status' => 'upcoming', 'scheduled_at' => now()->addDays(2)]);
+
+        $mockService = Mockery::mock(YouTubeService::class);
+        $mockService->shouldReceive('listRecentUploadIds')->with('UC_test')->andReturn([]);
+        $mockService->shouldReceive('getVideoDetails')->once()->with(['vid_cancelled'])->andReturn([]);
+        $this->app->instance(YouTubeService::class, $mockService);
+
+        $this->artisan('streams:fetch')->assertSuccessful();
+
+        $this->assertDatabaseMissing('streams', ['video_id' => 'vid_cancelled']);
+    }
+
+    public function test_fetch_streams_deletes_recent_completed_stream_removed_from_youtube(): void
+    {
+        config(['services.youtube.backfill_days' => 14]);
+        $channel = Channel::factory()->create(['channel_id' => 'UC_test']);
+        Stream::factory()->create(['channel_id' => $channel->id, 'video_id' => 'vid_privated', 'status' => 'completed', 'scheduled_at' => now()->subDays(3)]);
+
+        $mockService = Mockery::mock(YouTubeService::class);
+        $mockService->shouldReceive('listRecentUploadIds')->with('UC_test')->andReturn([]);
+        $mockService->shouldReceive('getVideoDetails')->once()->with(['vid_privated'])->andReturn([]);
+        $this->app->instance(YouTubeService::class, $mockService);
+
+        $this->artisan('streams:fetch')->assertSuccessful();
+
+        $this->assertDatabaseMissing('streams', ['video_id' => 'vid_privated']);
+    }
+
+    public function test_fetch_streams_keeps_and_refreshes_stream_that_fell_off_the_uploads_list(): void
+    {
+        config(['services.youtube.backfill_days' => 14]);
+        $channel = Channel::factory()->create(['channel_id' => 'UC_test']);
+        Stream::factory()->create(['channel_id' => $channel->id, 'video_id' => 'vid_buried', 'title' => 'Old Title', 'status' => 'upcoming', 'scheduled_at' => now()->subDays(5)]);
+
+        $mockService = Mockery::mock(YouTubeService::class);
+        $mockService->shouldReceive('listRecentUploadIds')->with('UC_test')->andReturn([]);
+        $mockService->shouldReceive('getVideoDetails')->once()->with(['vid_buried'])->andReturn([
+            $this->detail('vid_buried', [
+                'title' => 'Still Here',
+                'scheduled_at' => now()->subDays(5)->toIso8601String(),
+                'actual_start_at' => now()->subDays(5)->toIso8601String(),
+                'actual_end_at' => now()->subDays(5)->addHour()->toIso8601String(),
+                'status' => 'completed',
+            ]),
+        ]);
+        $this->app->instance(YouTubeService::class, $mockService);
+
+        $this->artisan('streams:fetch')->assertSuccessful();
+
+        $this->assertDatabaseHas('streams', ['video_id' => 'vid_buried', 'title' => 'Still Here', 'status' => 'completed']);
+    }
+
+    public function test_fetch_streams_does_not_verify_or_delete_history_outside_window(): void
+    {
+        config(['services.youtube.backfill_days' => 14]);
+        $channel = Channel::factory()->create(['channel_id' => 'UC_test']);
+        Stream::factory()->create(['channel_id' => $channel->id, 'video_id' => 'vid_ancient', 'status' => 'completed', 'scheduled_at' => now()->subDays(40)]);
+
+        $mockService = Mockery::mock(YouTubeService::class);
+        $mockService->shouldReceive('listRecentUploadIds')->with('UC_test')->andReturn([]);
+        $mockService->shouldNotReceive('getVideoDetails');
+        $this->app->instance(YouTubeService::class, $mockService);
+
+        $this->artisan('streams:fetch')->assertSuccessful();
+
+        $this->assertDatabaseHas('streams', ['video_id' => 'vid_ancient', 'status' => 'completed']);
     }
 
     public function test_fetch_streams_does_not_complete_old_stream_returned_this_run(): void
@@ -171,6 +244,7 @@ class FetchStreamsTest extends TestCase
 
         $mockService = Mockery::mock(YouTubeService::class);
         $mockService->shouldReceive('listRecentUploadIds')->with('UC_failing')->andThrow(new \RuntimeException('quota'));
+        $mockService->shouldNotReceive('getVideoDetails');
         $this->app->instance(YouTubeService::class, $mockService);
 
         $this->artisan('streams:fetch')->assertSuccessful();

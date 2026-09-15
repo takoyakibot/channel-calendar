@@ -33,6 +33,16 @@ class UserFactory extends Factory
     }
 
     /**
+     * Grant the user admin rights (the app authorises admins via the is_admin flag).
+     */
+    public function admin(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'is_admin' => true,
+        ]);
+    }
+
+    /**
      * Indicate that the model's email address should be unverified.
      */
     public function unverified(): static

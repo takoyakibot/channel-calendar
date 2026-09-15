@@ -16,12 +16,12 @@ class FetchNowTest extends TestCase
 
     public function test_guest_cannot_trigger_fetch(): void
     {
-        $this->post('/admin/streams/fetch')->assertRedirect('/login');
+        $this->post('/admin/streams/fetch')->assertRedirect(route('auth.google'));
     }
 
     public function test_admin_can_trigger_fetch_now(): void
     {
-        $admin = User::factory()->create();
+        $admin = User::factory()->admin()->create();
         Channel::factory()->create(['channel_id' => 'UC_test']);
 
         $mockService = Mockery::mock(YouTubeService::class);
@@ -37,7 +37,7 @@ class FetchNowTest extends TestCase
 
     public function test_channel_list_shows_last_fetched_time_and_fetch_button(): void
     {
-        $admin = User::factory()->create();
+        $admin = User::factory()->admin()->create();
         Setting::set('streams_last_fetched_at', '2026-09-15T10:00:00+00:00');
 
         $response = $this->actingAs($admin)->get('/admin/channels');

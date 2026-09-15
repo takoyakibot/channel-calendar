@@ -21,6 +21,9 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'google_id',
+        'avatar_url',
+        'preferences',
     ];
 
     /**
@@ -41,5 +44,8 @@ class User extends Authenticatable
     protected $casts = [
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
+        'is_admin' => 'boolean',
+        'is_banned' => 'boolean',
+        'preferences' => 'array',
     ];
 }

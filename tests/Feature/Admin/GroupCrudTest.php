@@ -17,12 +17,12 @@ class GroupCrudTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->admin = User::factory()->create();
+        $this->admin = User::factory()->admin()->create();
     }
 
     public function test_guest_cannot_access_admin_groups(): void
     {
-        $this->get('/admin/groups')->assertRedirect('/login');
+        $this->get('/admin/groups')->assertRedirect(route('auth.google'));
     }
 
     public function test_admin_can_view_group_list_with_full_paths(): void

@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\Channel;
+use App\Models\ManualSchedule;
 use App\Models\Setting;
 use App\Models\Stream;
 use App\Services\YouTubeService;
@@ -42,14 +43,14 @@ class FetchStreams extends Command
             return self::SUCCESS;
         }
 
-        $backfillSince = now()->subDays((int) config('services.youtube.backfill_days', 14));
+        $windowStart = now()->subDays((int) config('services.youtube.backfill_days', 14));
 
         foreach ($channels as $channel) {
             $this->info("Fetching streams for: {$channel->name}");
 
             try {
-                $count = $this->fetchForChannel($youtube, $channel, $backfillSince);
-                $this->line("  {$count} stream(s) upserted");
+                [$upserted, $deleted] = $this->syncChannel($youtube, $channel, $windowStart);
+                $this->line("  {$upserted} stream(s) upserted, {$deleted} removed");
             } catch (\Throwable $e) {
                 $this->error("Failed for {$channel->name}: {$e->getMessage()}");
                 Log::error("streams:fetch failed for channel {$channel->channel_id}: {$e->getMessage()}");
@@ -58,6 +59,8 @@ class FetchStreams extends Command
         }
 
         $this->markOldStreamsCompleted();
+        $this->removeOverlappingManualSchedules();
+        $this->removePastManualSchedules();
         Setting::set(self::LAST_FETCHED_AT_KEY, now()->toIso8601String());
 
         $this->info('Done.');
@@ -65,52 +68,101 @@ class FetchStreams extends Command
         return self::SUCCESS;
     }
 
-    private function fetchForChannel(YouTubeService $youtube, Channel $channel, Carbon $backfillSince): int
+    /**
+     * Pull the channel's recent uploads, then reconcile every stream we hold
+     * inside the observable window against YouTube so deletions are followed.
+     *
+     * @return array{0: int, 1: int} [upserted, deleted]
+     */
+    private function syncChannel(YouTubeService $youtube, Channel $channel, Carbon $windowStart): array
     {
+        $upserted = 0;
+        $seen = [];
+
         $videoIds = array_values(array_unique($youtube->listRecentUploadIds($channel->channel_id)));
-        if (empty($videoIds)) {
-            return 0;
+        foreach ($this->fetchDetails($youtube, $videoIds) as $detail) {
+            $seen[] = $detail['video_id'];
+            if ($this->upsertDetail($channel, $detail, $windowStart)) {
+                $upserted++;
+            }
         }
 
+        // Streams inside the window that the uploads list did not mention: either
+        // they fell off the top of the list (still exist → refresh) or YouTube no
+        // longer serves them (deleted / private → drop them too).
+        $unseen = Stream::where('channel_id', $channel->id)
+            ->where('scheduled_at', '>=', $windowStart)
+            ->whereNotIn('video_id', $seen)
+            ->pluck('video_id')
+            ->all();
+
+        $deleted = 0;
+        if (! empty($unseen)) {
+            $stillThere = [];
+            foreach ($this->fetchDetails($youtube, $unseen) as $detail) {
+                $stillThere[] = $detail['video_id'];
+                if ($this->upsertDetail($channel, $detail, $windowStart)) {
+                    $upserted++;
+                }
+            }
+
+            $gone = array_values(array_diff($unseen, $stillThere));
+            if (! empty($gone)) {
+                $deleted = Stream::where('channel_id', $channel->id)->whereIn('video_id', $gone)->delete();
+                Log::info("streams:fetch removed {$deleted} stream(s) no longer on YouTube for channel {$channel->channel_id}: " . implode(',', $gone));
+            }
+        }
+
+        return [$upserted, $deleted];
+    }
+
+    /** videos.list accepts at most 50 ids per call. */
+    private function fetchDetails(YouTubeService $youtube, array $videoIds): array
+    {
         $details = [];
         foreach (array_chunk($videoIds, 50) as $chunk) {
             $details = array_merge($details, $youtube->getVideoDetails($chunk));
         }
 
-        $count = 0;
-        foreach ($details as $detail) {
-            // Plain uploads have no liveStreamingDetails — they are not streams.
-            if ($detail['scheduled_at'] === null) {
-                continue;
-            }
-
-            // Keep every upcoming/live broadcast, but only backfill ended ones
-            // from the recent window so the board shows history without
-            // importing the whole archive.
-            if ($detail['status'] === 'completed' && Carbon::parse($detail['scheduled_at'])->lt($backfillSince)) {
-                continue;
-            }
-
-            Stream::updateOrCreate(
-                ['video_id' => $detail['video_id']],
-                [
-                    'channel_id' => $channel->id,
-                    'title' => $detail['title'],
-                    'thumbnail_url' => $detail['thumbnail_url'],
-                    'scheduled_at' => $detail['scheduled_at'],
-                    'actual_start_at' => $detail['actual_start_at'],
-                    'actual_end_at' => $detail['actual_end_at'],
-                    'status' => $detail['status'],
-                ]
-            );
-
-            $this->fetchedVideoIds[] = $detail['video_id'];
-            $count++;
-        }
-
-        return $count;
+        return $details;
     }
 
+    private function upsertDetail(Channel $channel, array $detail, Carbon $windowStart): bool
+    {
+        // Plain uploads have no liveStreamingDetails — they are not streams.
+        if ($detail['scheduled_at'] === null) {
+            return false;
+        }
+
+        // Keep every upcoming/live broadcast, but only backfill ended ones from
+        // the recent window so the board shows history without importing the
+        // whole archive.
+        if ($detail['status'] === 'completed' && Carbon::parse($detail['scheduled_at'])->lt($windowStart)) {
+            return false;
+        }
+
+        Stream::updateOrCreate(
+            ['video_id' => $detail['video_id']],
+            [
+                'channel_id' => $channel->id,
+                'title' => $detail['title'],
+                'thumbnail_url' => $detail['thumbnail_url'],
+                'scheduled_at' => $detail['scheduled_at'],
+                'actual_start_at' => $detail['actual_start_at'],
+                'actual_end_at' => $detail['actual_end_at'],
+                'status' => $detail['status'],
+            ]
+        );
+
+        $this->fetchedVideoIds[] = $detail['video_id'];
+
+        return true;
+    }
+
+    /**
+     * Streams older than the window are never re-verified, so an upcoming/live
+     * row that was never confirmed as ended is closed out here by age.
+     */
     private function markOldStreamsCompleted(): void
     {
         $query = Stream::whereIn('status', ['upcoming', 'live'])
@@ -125,5 +177,41 @@ class FetchStreams extends Command
         }
 
         $query->update(['status' => 'completed']);
+    }
+
+    /**
+     * Remove manual schedules when a real stream exists for the same channel
+     * within a 1-hour window of the manual schedule's time.
+     */
+    private function removeOverlappingManualSchedules(): void
+    {
+        // Manual schedules are few, so one existence query per row keeps this
+        // portable across MySQL and SQLite instead of relying on DATE_SUB/INTERVAL.
+        $overlapping = ManualSchedule::query()
+            ->get(['id', 'channel_id', 'scheduled_at'])
+            ->filter(function (ManualSchedule $manual) {
+                $at = Carbon::parse($manual->scheduled_at);
+
+                return Stream::where('channel_id', $manual->channel_id)
+                    ->whereBetween('scheduled_at', [$at->copy()->subHour(), $at->copy()->addHour()])
+                    ->exists();
+            })
+            ->pluck('id')
+            ->all();
+
+        if (empty($overlapping)) {
+            return;
+        }
+
+        $removed = ManualSchedule::whereIn('id', $overlapping)->delete();
+        $this->line("  {$removed} overlapping manual schedule(s) removed");
+    }
+
+    private function removePastManualSchedules(): void
+    {
+        $removed = ManualSchedule::where('scheduled_at', '<', now())->delete();
+        if ($removed > 0) {
+            $this->line("  {$removed} past manual schedule(s) removed");
+        }
     }
 }

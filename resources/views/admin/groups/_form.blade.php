@@ -23,6 +23,13 @@
     <p class="text-xs text-gray-500 mt-1">親を選ぶと URL は <code>/親/このスラッグ</code> になります。</p>
 </div>
 
+<div class="mb-4">
+    <label for="thumbnail_url" class="block text-sm font-medium text-gray-700 mb-1">サムネイルURL</label>
+    <input type="url" name="thumbnail_url" id="thumbnail_url" value="{{ old('thumbnail_url', $group?->thumbnail_url) }}"
+           class="w-full border-gray-300 rounded-md shadow-sm" placeholder="https://...">
+    <p class="text-xs text-gray-500 mt-1">トップページのカード表示に使用されます。空欄の場合はデフォルト表示になります。</p>
+</div>
+
 <div class="mb-6">
     <label for="slug" class="block text-sm font-medium text-gray-700 mb-1">スラッグ（公開URL）</label>
     <input type="text" name="slug" id="slug" value="{{ old('slug', $group?->slug) }}"

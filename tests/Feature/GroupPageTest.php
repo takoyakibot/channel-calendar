@@ -43,7 +43,7 @@ class GroupPageTest extends TestCase
         $this->get('/aaaa/nope')->assertNotFound();
     }
 
-    public function test_parent_page_offers_child_groups_in_a_selector(): void
+    public function test_parent_page_offers_child_groups_as_toggles(): void
     {
         $parent = Group::factory()->create(['name' => '親', 'slug' => 'aaaa']);
         Group::factory()->create(['name' => '子B', 'slug' => 'bbbb', 'parent_id' => $parent->id]);
@@ -53,15 +53,13 @@ class GroupPageTest extends TestCase
         $response = $this->get('/aaaa');
 
         $response->assertOk();
-        $response->assertSee('id="group-select"', false);
-        $response->assertSee('value="' . url('/aaaa/bbbb') . '"', false);
-        $response->assertSee('value="' . url('/aaaa/cccc') . '"', false);
+        $response->assertSee('id="subgroup-toggles"', false);
         $response->assertSee('子B');
         $response->assertSee('子C');
         $response->assertDontSee('無関係');
     }
 
-    public function test_leaf_group_page_has_no_selector(): void
+    public function test_leaf_group_page_has_no_subgroup_toggles(): void
     {
         $parent = Group::factory()->create(['slug' => 'aaaa']);
         Group::factory()->create(['name' => '子B', 'slug' => 'bbbb', 'parent_id' => $parent->id]);
@@ -69,10 +67,10 @@ class GroupPageTest extends TestCase
         $response = $this->get('/aaaa/bbbb');
 
         $response->assertOk();
-        $response->assertDontSee('id="group-select"', false);
+        $response->assertDontSee('id="subgroup-toggles"', false);
     }
 
-    public function test_root_page_offers_top_level_groups_in_a_selector(): void
+    public function test_root_page_shows_top_level_groups_as_cards(): void
     {
         $parent = Group::factory()->create(['name' => 'トップA', 'slug' => 'aaaa']);
         Group::factory()->create(['name' => '子B', 'slug' => 'bbbb', 'parent_id' => $parent->id]);
@@ -80,8 +78,7 @@ class GroupPageTest extends TestCase
         $response = $this->get('/');
 
         $response->assertOk();
-        $response->assertSee('id="group-select"', false);
-        $response->assertSee('value="' . url('/aaaa') . '"', false);
+        $response->assertSee('class="group-card"', false);
         $response->assertSee('トップA');
         $response->assertDontSee('子B');
     }
@@ -91,8 +88,10 @@ class GroupPageTest extends TestCase
         $this->get('/nope')->assertNotFound();
     }
 
-    public function test_group_route_does_not_shadow_login(): void
+    public function test_group_route_does_not_shadow_auth_routes(): void
     {
-        $this->get('/login')->assertOk();
+        // /auth/google is a reserved first segment; it must reach Socialite (a redirect), not the group catch-all (404).
+        $this->get('/auth/google')->assertStatus(302);
+        $this->get('/admin/channels')->assertRedirect(route('auth.google'));
     }
 }
