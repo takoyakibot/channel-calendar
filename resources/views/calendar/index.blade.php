@@ -200,11 +200,12 @@
         @endif
 
         <div class="filter-section">
-            <button type="button" id="filter-toggle" class="filter-toggle">
-                <span class="arrow" id="filter-arrow">▼</span>
+            {{-- Rendered collapsed so the list does not flash open before the script applies the saved state. --}}
+            <button type="button" id="filter-toggle" class="filter-toggle" aria-expanded="false" aria-controls="channel-filter">
+                <span class="arrow collapsed" id="filter-arrow">▼</span>
                 チャンネル
             </button>
-            <div id="channel-filter" class="channel-filter"></div>
+            <div id="channel-filter" class="channel-filter" hidden></div>
         </div>
 
         <section id="board-view">
@@ -305,13 +306,20 @@
         var boardStart = startOfDay(new Date());
         var highlightEventId = null;  // event id to flash after the next render (newly added schedule)
         var channelList = [];         // active channels from /api/channels, used by the filter and the schedule modal
-        var filterCollapsed = false;
-        try { filterCollapsed = localStorage.getItem('cc.filterCollapsed') === '1'; } catch (e) {}
-        if (filterCollapsed) { filterEl.hidden = true; filterArrow.classList.add('collapsed'); }
+        // Collapsed by default; an explicit choice (this browser, or server prefs for
+        // logged-in users applied later) wins.
+        var filterCollapsed = true;
+        try {
+            var savedFilterState = localStorage.getItem('cc.filterCollapsed');
+            if (savedFilterState !== null) { filterCollapsed = savedFilterState === '1'; }
+        } catch (e) {}
+        filterEl.hidden = filterCollapsed;
+        filterArrow.classList.toggle('collapsed', filterCollapsed);
         filterToggleBtn.addEventListener('click', function () {
             filterCollapsed = !filterCollapsed;
             filterEl.hidden = filterCollapsed;
             filterArrow.classList.toggle('collapsed', filterCollapsed);
+            filterToggleBtn.setAttribute('aria-expanded', String(!filterCollapsed));
             try { localStorage.setItem('cc.filterCollapsed', filterCollapsed ? '1' : '0'); } catch (e) {}
             syncPrefsToServer();
         });

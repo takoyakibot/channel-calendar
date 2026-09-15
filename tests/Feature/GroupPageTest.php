@@ -20,6 +20,9 @@ class GroupPageTest extends TestCase
         $response->assertSee('テストグループ');
         $response->assertSee('id="board"', false);
         $response->assertSee('"aaaa"', false);
+        // Channel filter starts collapsed.
+        $response->assertSee('id="channel-filter" class="channel-filter" hidden', false);
+        $response->assertSee('class="arrow collapsed"', false);
     }
 
     public function test_nested_group_page_resolves_by_path(): void
