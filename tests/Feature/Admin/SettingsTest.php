@@ -20,12 +20,12 @@ class SettingsTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->admin = User::factory()->create();
+        $this->admin = User::factory()->admin()->create();
     }
 
     public function test_guest_cannot_access_settings(): void
     {
-        $this->get('/admin/settings')->assertRedirect('/login');
+        $this->get('/admin/settings')->assertRedirect(route('auth.google'));
     }
 
     public function test_admin_can_view_settings_page(): void

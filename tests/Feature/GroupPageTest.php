@@ -88,8 +88,10 @@ class GroupPageTest extends TestCase
         $this->get('/nope')->assertNotFound();
     }
 
-    public function test_group_route_does_not_shadow_login(): void
+    public function test_group_route_does_not_shadow_auth_routes(): void
     {
-        $this->get('/login')->assertOk();
+        // /auth/google is a reserved first segment; it must reach Socialite (a redirect), not the group catch-all (404).
+        $this->get('/auth/google')->assertStatus(302);
+        $this->get('/admin/channels')->assertRedirect(route('auth.google'));
     }
 }

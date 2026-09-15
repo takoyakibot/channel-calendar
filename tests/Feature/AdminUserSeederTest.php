@@ -5,42 +5,40 @@ namespace Tests\Feature;
 use App\Models\User;
 use Database\Seeders\AdminUserSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
 class AdminUserSeederTest extends TestCase
 {
     use RefreshDatabase;
 
-    protected function tearDown(): void
+    public function test_seeder_grants_admin_to_every_configured_email(): void
     {
-        putenv('ADMIN_EMAIL');
-        putenv('ADMIN_PASSWORD');
-        $this->app['env'] = 'testing';
+        config(['app.admin_emails' => 'ops@example.com, second@example.com']);
 
-        parent::tearDown();
+        $this->seed(AdminUserSeeder::class);
+
+        $this->assertDatabaseHas('users', ['email' => 'ops@example.com', 'is_admin' => true]);
+        $this->assertDatabaseHas('users', ['email' => 'second@example.com', 'is_admin' => true]);
+        $this->assertDatabaseCount('users', 2);
     }
 
-    public function test_seeder_creates_admin_from_env(): void
+    public function test_seeder_promotes_an_existing_user_without_duplicating(): void
     {
-        $this->app['env'] = 'production';
-        putenv('ADMIN_EMAIL=ops@example.com');
-        putenv('ADMIN_PASSWORD=s3cret!');
+        $existing = User::factory()->create(['email' => 'ops@example.com', 'is_admin' => false]);
+        config(['app.admin_emails' => 'ops@example.com']);
 
-        $this->artisan('db:seed', ['--class' => AdminUserSeeder::class, '--force' => true])
-            ->assertSuccessful();
+        $this->seed(AdminUserSeeder::class);
 
-        $this->assertDatabaseHas('users', ['email' => 'ops@example.com']);
-        $this->assertTrue(Hash::check('s3cret!', User::where('email', 'ops@example.com')->first()->password));
+        $this->assertDatabaseCount('users', 1);
+        $this->assertTrue($existing->fresh()->is_admin);
     }
 
-    public function test_seeder_fails_without_password_outside_local(): void
+    public function test_seeder_does_nothing_when_no_admin_emails_configured(): void
     {
-        $this->app['env'] = 'production';
-        putenv('ADMIN_PASSWORD');
+        config(['app.admin_emails' => '']);
 
-        $this->expectException(\RuntimeException::class);
+        $this->seed(AdminUserSeeder::class);
 
-        $this->artisan('db:seed', ['--class' => AdminUserSeeder::class, '--force' => true]);
+        $this->assertDatabaseCount('users', 0);
     }
 }

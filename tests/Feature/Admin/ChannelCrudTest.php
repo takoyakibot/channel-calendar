@@ -18,13 +18,13 @@ class ChannelCrudTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->admin = User::factory()->create();
+        $this->admin = User::factory()->admin()->create();
     }
 
     public function test_guest_cannot_access_admin_channels(): void
     {
         $response = $this->get('/admin/channels');
-        $response->assertRedirect('/login');
+        $response->assertRedirect(route('auth.google'));
     }
 
     public function test_admin_can_view_channel_list(): void

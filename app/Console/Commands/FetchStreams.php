@@ -185,15 +185,26 @@ class FetchStreams extends Command
      */
     private function removeOverlappingManualSchedules(): void
     {
-        $removed = ManualSchedule::whereExists(function ($query) {
-            $query->from('streams')
-                ->whereColumn('streams.channel_id', 'manual_schedules.channel_id')
-                ->whereRaw('streams.scheduled_at BETWEEN DATE_SUB(manual_schedules.scheduled_at, INTERVAL 1 HOUR) AND DATE_ADD(manual_schedules.scheduled_at, INTERVAL 1 HOUR)');
-        })->delete();
+        // Manual schedules are few, so one existence query per row keeps this
+        // portable across MySQL and SQLite instead of relying on DATE_SUB/INTERVAL.
+        $overlapping = ManualSchedule::query()
+            ->get(['id', 'channel_id', 'scheduled_at'])
+            ->filter(function (ManualSchedule $manual) {
+                $at = Carbon::parse($manual->scheduled_at);
 
-        if ($removed > 0) {
-            $this->line("  {$removed} overlapping manual schedule(s) removed");
+                return Stream::where('channel_id', $manual->channel_id)
+                    ->whereBetween('scheduled_at', [$at->copy()->subHour(), $at->copy()->addHour()])
+                    ->exists();
+            })
+            ->pluck('id')
+            ->all();
+
+        if (empty($overlapping)) {
+            return;
         }
+
+        $removed = ManualSchedule::whereIn('id', $overlapping)->delete();
+        $this->line("  {$removed} overlapping manual schedule(s) removed");
     }
 
     private function removePastManualSchedules(): void

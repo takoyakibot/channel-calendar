@@ -182,7 +182,13 @@
         </header>
 
         @if ($children->isNotEmpty())
-            <div id="subgroup-toggles" class="subgroup-toggles"></div>
+            @if ($children->isNotEmpty())
+                <div id="subgroup-toggles" class="subgroup-toggles" role="group" aria-label="サブグループで絞り込み">
+                    @foreach ($children as $child)
+                        <button type="button" data-group-id="{{ $child->id }}">{{ $child->name }}</button>
+                    @endforeach
+                </div>
+            @endif
         @endif
 
         <div class="filter-section">
@@ -615,23 +621,21 @@
             b.addEventListener('click', function () { setView(b.dataset.view); syncPrefsToServer(); });
         });
 
+        // Toggle buttons are rendered server-side; wire them up here.
         var subgroupContainer = document.getElementById('subgroup-toggles');
-        if (subgroupContainer && CHILD_GROUPS.length > 0) {
+        if (subgroupContainer) {
             function refreshSubgroupUI() {
                 renderBoard();
                 if (calendar) { calendar.refetchEvents(); }
             }
-            CHILD_GROUPS.forEach(function (g) {
-                var btn = document.createElement('button');
-                btn.type = 'button';
-                btn.textContent = g.name;
-                btn.classList.toggle('is-active', !!activeSubgroups[g.id]);
+            subgroupContainer.querySelectorAll('button[data-group-id]').forEach(function (btn) {
+                var id = Number(btn.dataset.groupId);
+                btn.classList.toggle('is-active', !!activeSubgroups[id]);
                 btn.addEventListener('click', function () {
-                    activeSubgroups[g.id] = !activeSubgroups[g.id];
-                    btn.classList.toggle('is-active', activeSubgroups[g.id]);
+                    activeSubgroups[id] = !activeSubgroups[id];
+                    btn.classList.toggle('is-active', activeSubgroups[id]);
                     refreshSubgroupUI();
                 });
-                subgroupContainer.appendChild(btn);
             });
         }
 

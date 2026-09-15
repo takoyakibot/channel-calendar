@@ -46,7 +46,7 @@ class LegalPagesTest extends TestCase
 
     public function test_legal_slugs_are_reserved_for_groups(): void
     {
-        $admin = User::factory()->create();
+        $admin = User::factory()->admin()->create();
 
         foreach (['privacy', 'terms'] as $slug) {
             $response = $this->actingAs($admin)->post('/admin/groups', ['name' => 'X', 'slug' => $slug]);
