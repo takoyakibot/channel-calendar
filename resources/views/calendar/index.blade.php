@@ -337,6 +337,8 @@
 
         function isVisibleBySubgroup(channelId) {
             if (!hasSubgroups) return true;
+            // All subgroups active = no filter: also show channels attached directly to this group.
+            if (CHILD_GROUPS.every(function (g) { return !!activeSubgroups[g.id]; })) return true;
             for (var gid in activeSubgroups) {
                 if (!activeSubgroups[gid]) continue;
                 var chs = CHILD_CHANNEL_MAP[gid] || [];
@@ -662,15 +664,37 @@
                 renderBoard();
                 if (calendar) { calendar.refetchEvents(); }
             }
-            subgroupContainer.querySelectorAll('button[data-group-id]').forEach(function (btn) {
+            var subgroupButtons = Array.from(subgroupContainer.querySelectorAll('button[data-group-id]'));
+            function syncSubgroupButtons() {
+                subgroupButtons.forEach(function (b) {
+                    b.classList.toggle('is-active', !!activeSubgroups[Number(b.dataset.groupId)]);
+                });
+            }
+            function allSubgroupsActive() {
+                return CHILD_GROUPS.every(function (g) { return !!activeSubgroups[g.id]; });
+            }
+            function noSubgroupActive() {
+                return CHILD_GROUPS.every(function (g) { return !activeSubgroups[g.id]; });
+            }
+            subgroupButtons.forEach(function (btn) {
                 var id = Number(btn.dataset.groupId);
-                btn.classList.toggle('is-active', !!activeSubgroups[id]);
                 btn.addEventListener('click', function () {
-                    activeSubgroups[id] = !activeSubgroups[id];
-                    btn.classList.toggle('is-active', activeSubgroups[id]);
+                    if (allSubgroupsActive()) {
+                        // "Everything shown" is the neutral state: the first click narrows to just this group.
+                        CHILD_GROUPS.forEach(function (g) { activeSubgroups[g.id] = false; });
+                        activeSubgroups[id] = true;
+                    } else {
+                        activeSubgroups[id] = !activeSubgroups[id];
+                        // Deselecting the last group would show nothing; fall back to everything.
+                        if (noSubgroupActive()) {
+                            CHILD_GROUPS.forEach(function (g) { activeSubgroups[g.id] = true; });
+                        }
+                    }
+                    syncSubgroupButtons();
                     refreshSubgroupUI();
                 });
             });
+            syncSubgroupButtons();
         }
 
         function saveHiddenChannels() {
