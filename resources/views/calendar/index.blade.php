@@ -639,6 +639,18 @@
                         msChannel.appendChild(opt);
                     }
                 });
+                var msChannel = document.getElementById('ms-channel');
+                if (msChannel) {
+                    try {
+                        var saved = localStorage.getItem('cc.lastChannel');
+                        if (saved && msChannel.querySelector('option[value="' + saved + '"]')) {
+                            msChannel.value = saved;
+                        }
+                    } catch (e) {}
+                    msChannel.addEventListener('change', function () {
+                        try { localStorage.setItem('cc.lastChannel', msChannel.value); } catch (e) {}
+                    });
+                }
             });
 
         var msSubmit = document.getElementById('ms-submit');
@@ -646,9 +658,11 @@
             msSubmit.addEventListener('click', function () {
                 var errEl = document.getElementById('ms-error');
                 errEl.hidden = true;
-                var channelId = document.getElementById('ms-channel').value;
+                var msChannelEl = document.getElementById('ms-channel');
+                var channelId = msChannelEl.value;
                 var title = document.getElementById('ms-title').value.trim();
                 var datetime = document.getElementById('ms-datetime').value;
+                try { localStorage.setItem('cc.lastChannel', channelId); } catch (e) {}
                 if (!channelId || !title || !datetime) {
                     errEl.textContent = 'すべての項目を入力してください。';
                     errEl.hidden = false;
