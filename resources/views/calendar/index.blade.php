@@ -124,6 +124,23 @@
         .tooltip .channel-name { font-weight: 600; margin-bottom: 0.25rem; }
         .tooltip .stream-title { color: #374151; overflow-wrap: anywhere; }
         .tooltip .stream-time { color: #6b7280; font-size: 0.75rem; margin-top: 0.25rem; }
+
+        .add-btn { display: flex; align-items: center; justify-content: center; width: 100%; padding: 0.25rem 0; margin-top: auto; border: 1px dashed #d1d5db; border-radius: 0.375rem; background: transparent; color: #9ca3af; font-size: 1rem; cursor: pointer; transition: background 0.1s, color 0.1s; }
+        .add-btn:hover { background: #f3f4f6; color: #374151; border-color: #9ca3af; }
+
+        .modal-overlay { position: fixed; inset: 0; z-index: 100; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; padding: 1rem; }
+        .modal { background: #fff; border-radius: 0.75rem; box-shadow: 0 20px 60px rgb(0 0 0 / 0.15); width: 100%; max-width: 24rem; padding: 1.5rem; }
+        .modal h3 { font-size: 1rem; font-weight: 700; color: #111827; margin: 0 0 1rem; }
+        .modal .modal-field { display: flex; flex-direction: column; gap: 0.25rem; margin-bottom: 0.75rem; }
+        .modal .modal-field label { font-size: 0.75rem; font-weight: 600; color: #6b7280; }
+        .modal .modal-field input, .modal .modal-field select { padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 0.375rem; font-size: 0.875rem; }
+        .modal .modal-actions { display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 1rem; }
+        .modal .modal-actions button { padding: 0.5rem 1rem; border-radius: 0.375rem; font-size: 0.875rem; cursor: pointer; }
+        .modal .btn-cancel { background: #fff; border: 1px solid #d1d5db; color: #374151; }
+        .modal .btn-cancel:hover { background: #f3f4f6; }
+        .modal .btn-submit { background: #111827; border: none; color: #fff; }
+        .modal .btn-submit:hover { background: #374151; }
+        .modal .modal-error { color: #dc2626; font-size: 0.75rem; margin-top: 0.5rem; }
     </style>
 </head>
 <body class="bg-gray-50">
@@ -236,6 +253,31 @@
     </div>
 
     <div id="tooltip" class="tooltip" hidden></div>
+
+    @auth
+    <div id="schedule-modal" class="modal-overlay" hidden>
+        <div class="modal">
+            <h3>予定を登録 — <span id="modal-date-label"></span></h3>
+            <div class="modal-field">
+                <label for="modal-channel">チャンネル</label>
+                <select id="modal-channel"></select>
+            </div>
+            <div class="modal-field">
+                <label for="modal-title">タイトル</label>
+                <input type="text" id="modal-title" placeholder="配信タイトル" maxlength="255">
+            </div>
+            <div class="modal-field">
+                <label for="modal-time">時間</label>
+                <input type="time" id="modal-time" value="20:00">
+            </div>
+            <p id="modal-error" class="modal-error" hidden></p>
+            <div class="modal-actions">
+                <button type="button" class="btn-cancel" id="modal-cancel">キャンセル</button>
+                <button type="button" class="btn-submit" id="modal-submit">登録</button>
+            </div>
+        </div>
+    </div>
+    @endauth
 
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@fullcalendar/core@6.1.11/locales/ja.global.min.js"></script>
@@ -459,6 +501,16 @@
                 } else {
                     list.forEach(function (ev) { body.appendChild(buildCard(ev)); });
                 }
+                if (IS_LOGGED_IN) {
+                    var addBtn = document.createElement('button');
+                    addBtn.type = 'button';
+                    addBtn.className = 'add-btn';
+                    addBtn.textContent = '+';
+                    addBtn.title = '予定を追加';
+                    addBtn.dataset.date = key;
+                    addBtn.addEventListener('click', function () { openModal(this.dataset.date); });
+                    body.appendChild(addBtn);
+                }
                 col.appendChild(body);
                 boardEl.appendChild(col);
             }
@@ -676,6 +728,84 @@
                     if (res.ok) {
                         document.getElementById('ms-title').value = '';
                         document.getElementById('ms-datetime').value = '';
+                        loadBoard();
+                        if (calendar) calendar.refetchEvents();
+                    } else {
+                        return res.json().then(function (data) {
+                            errEl.textContent = data.message || 'エラーが発生しました。';
+                            errEl.hidden = false;
+                        });
+                    }
+                }).catch(function () {
+                    errEl.textContent = 'エラーが発生しました。';
+                    errEl.hidden = false;
+                });
+            });
+        }
+
+        var modalOverlay = document.getElementById('schedule-modal');
+        var modalDate = '';
+        function openModal(dateStr) {
+            if (!modalOverlay) return;
+            modalDate = dateStr;
+            var parts = dateStr.split('-');
+            document.getElementById('modal-date-label').textContent = parts[1] + '/' + parts[2];
+            document.getElementById('modal-error').hidden = true;
+            document.getElementById('modal-title').value = '';
+
+            var modalChannel = document.getElementById('modal-channel');
+            if (modalChannel.options.length === 0) {
+                var msChannel = document.getElementById('ms-channel');
+                if (msChannel) {
+                    Array.from(msChannel.options).forEach(function (opt) {
+                        var o = document.createElement('option');
+                        o.value = opt.value;
+                        o.textContent = opt.textContent;
+                        modalChannel.appendChild(o);
+                    });
+                }
+            }
+            try {
+                var saved = localStorage.getItem('cc.lastChannel');
+                if (saved && modalChannel.querySelector('option[value="' + saved + '"]')) {
+                    modalChannel.value = saved;
+                }
+            } catch (e) {}
+
+            modalOverlay.hidden = false;
+            document.getElementById('modal-title').focus();
+        }
+        function closeModal() {
+            if (modalOverlay) modalOverlay.hidden = true;
+        }
+        if (modalOverlay) {
+            modalOverlay.addEventListener('click', function (e) {
+                if (e.target === modalOverlay) closeModal();
+            });
+            document.getElementById('modal-cancel').addEventListener('click', closeModal);
+            document.addEventListener('keydown', function (e) {
+                if (e.key === 'Escape' && !modalOverlay.hidden) closeModal();
+            });
+            document.getElementById('modal-submit').addEventListener('click', function () {
+                var errEl = document.getElementById('modal-error');
+                errEl.hidden = true;
+                var channelId = document.getElementById('modal-channel').value;
+                var title = document.getElementById('modal-title').value.trim();
+                var time = document.getElementById('modal-time').value;
+                if (!channelId || !title || !time) {
+                    errEl.textContent = 'すべての項目を入力してください。';
+                    errEl.hidden = false;
+                    return;
+                }
+                try { localStorage.setItem('cc.lastChannel', channelId); } catch (e) {}
+                var datetime = modalDate + 'T' + time;
+                fetch('/api/manual-schedules', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN, Accept: 'application/json' },
+                    body: JSON.stringify({ channel_id: Number(channelId), title: title, scheduled_at: datetime }),
+                }).then(function (res) {
+                    if (res.ok) {
+                        closeModal();
                         loadBoard();
                         if (calendar) calendar.refetchEvents();
                     } else {
