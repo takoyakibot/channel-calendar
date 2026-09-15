@@ -21,7 +21,7 @@ class Group extends Model
 
     public const SLUG_PATTERN = '[a-z0-9](?:[a-z0-9-]*[a-z0-9])?';
 
-    protected $fillable = ['name', 'slug', 'parent_id'];
+    protected $fillable = ['name', 'slug', 'parent_id', 'thumbnail_url'];
 
     // SQLite cannot add a foreign key via ALTER TABLE, so the DB-level cascade
     // on parent_id only exists on MySQL; cascade in the model to stay portable.

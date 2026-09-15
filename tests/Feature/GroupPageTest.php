@@ -70,7 +70,7 @@ class GroupPageTest extends TestCase
         $response->assertDontSee('id="subgroup-toggles"', false);
     }
 
-    public function test_root_page_offers_top_level_groups_as_toggles(): void
+    public function test_root_page_shows_top_level_groups_as_cards(): void
     {
         $parent = Group::factory()->create(['name' => 'トップA', 'slug' => 'aaaa']);
         Group::factory()->create(['name' => '子B', 'slug' => 'bbbb', 'parent_id' => $parent->id]);
@@ -78,7 +78,7 @@ class GroupPageTest extends TestCase
         $response = $this->get('/');
 
         $response->assertOk();
-        $response->assertSee('id="subgroup-toggles"', false);
+        $response->assertSee('class="group-card"', false);
         $response->assertSee('トップA');
         $response->assertDontSee('子B');
     }

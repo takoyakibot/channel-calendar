@@ -28,6 +28,7 @@ class StoreGroupRequest extends FormRequest
                 Rule::notIn(Group::RESERVED_SLUGS),
                 Rule::unique('groups', 'slug')->where('parent_id', $parentId),
             ],
+            'thumbnail_url' => 'nullable|url|max:2048',
             'channels' => 'nullable|array',
             'channels.*' => 'integer|exists:channels,id',
         ];

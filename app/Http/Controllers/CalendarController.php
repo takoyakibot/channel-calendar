@@ -10,13 +10,16 @@ class CalendarController extends Controller
 {
     public function index()
     {
-        $children = Group::whereNull('parent_id')->orderBy('name')->get();
+        $groups = Group::whereNull('parent_id')
+            ->withCount('channels')
+            ->orderBy('name')
+            ->get();
 
-        return view('calendar.index', [
-            'group' => null,
-            'children' => $children,
-            'childChannelMap' => $this->buildChildChannelMap($children),
-        ]);
+        foreach ($groups as $group) {
+            $group->loadMissing('channels');
+        }
+
+        return view('landing', compact('groups'));
     }
 
     public function show(string $path)

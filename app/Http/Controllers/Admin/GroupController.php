@@ -31,6 +31,7 @@ class GroupController extends Controller
             'name' => $request->name,
             'slug' => $request->slug,
             'parent_id' => $request->input('parent_id') ?: null,
+            'thumbnail_url' => $request->input('thumbnail_url') ?: null,
         ]);
         $group->channels()->sync($request->input('channels', []));
 
@@ -53,6 +54,7 @@ class GroupController extends Controller
             'name' => $request->name,
             'slug' => $request->slug,
             'parent_id' => $request->input('parent_id') ?: null,
+            'thumbnail_url' => $request->input('thumbnail_url') ?: null,
         ]);
         $group->channels()->sync($request->input('channels', []));
 
