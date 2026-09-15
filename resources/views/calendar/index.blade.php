@@ -60,6 +60,20 @@
         .share-btn.line { background: #06c755; color: #fff; border-color: #06c755; }
         .share-btn.line:hover { background: #05b34c; }
 
+        .manual-badge { display: inline-block; padding: 0.0625rem 0.4rem; border-radius: 9999px; font-size: 0.625rem; font-weight: 700; background: #dbeafe; color: #1d4ed8; margin-left: auto; flex: none; }
+        .card .delete-btn { display: none; position: absolute; top: 0.25rem; right: 0.25rem; width: 1.25rem; height: 1.25rem; border-radius: 50%; border: none; background: #ef4444; color: #fff; font-size: 0.625rem; cursor: pointer; line-height: 1; padding: 0; }
+        .card:hover .delete-btn { display: flex; align-items: center; justify-content: center; }
+        .card { position: relative; }
+
+        .schedule-form { background: #fff; border: 1px solid #e5e7eb; border-radius: 0.5rem; padding: 1rem; margin-bottom: 1rem; }
+        .schedule-form h3 { font-size: 0.875rem; font-weight: 600; margin: 0 0 0.75rem; color: #111827; }
+        .schedule-form .form-row { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: flex-end; }
+        .schedule-form .form-group { display: flex; flex-direction: column; gap: 0.25rem; }
+        .schedule-form label { font-size: 0.75rem; color: #6b7280; }
+        .schedule-form input, .schedule-form select { padding: 0.375rem 0.5rem; border: 1px solid #d1d5db; border-radius: 0.375rem; font-size: 0.875rem; }
+        .schedule-form button[type="submit"] { padding: 0.375rem 1rem; background: #111827; color: #fff; border: none; border-radius: 0.375rem; font-size: 0.875rem; cursor: pointer; }
+        .schedule-form button[type="submit"]:hover { background: #374151; }
+
         .site-footer { margin-top: 2.5rem; padding-top: 1rem; border-top: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; font-size: 0.75rem; color: #6b7280; }
         .site-footer nav { display: flex; gap: 1rem; flex: none; }
         .site-footer a { color: #6b7280; text-decoration: none; }
@@ -173,6 +187,28 @@
             <div id="channel-filter" class="channel-filter"></div>
         </div>
 
+        @auth
+            <div class="schedule-form" id="schedule-form">
+                <h3>予定を登録</h3>
+                <div class="form-row">
+                    <div class="form-group" style="flex:1;min-width:120px;">
+                        <label for="ms-channel">チャンネル</label>
+                        <select id="ms-channel"></select>
+                    </div>
+                    <div class="form-group" style="flex:2;min-width:160px;">
+                        <label for="ms-title">タイトル</label>
+                        <input type="text" id="ms-title" placeholder="配信タイトル" maxlength="255">
+                    </div>
+                    <div class="form-group">
+                        <label for="ms-datetime">日時</label>
+                        <input type="datetime-local" id="ms-datetime">
+                    </div>
+                    <button type="submit" id="ms-submit">登録</button>
+                </div>
+                <p id="ms-error" style="color:#dc2626;font-size:0.75rem;margin-top:0.5rem;" hidden></p>
+            </div>
+        @endauth
+
         <section id="board-view">
             <div class="board-toolbar">
                 <div class="nav">
@@ -207,6 +243,9 @@
     var GROUP_SLUG = @json($group?->path, JSON_UNESCAPED_SLASHES);
     var CHILD_GROUPS = @json($children->map(fn ($c) => ['id' => $c->id, 'name' => $c->name])->values());
     var CHILD_CHANNEL_MAP = @json($childChannelMap);
+    var IS_LOGGED_IN = @json(Auth::check());
+    var CSRF_TOKEN = @json(csrf_token());
+    var CURRENT_USER_ID = @json(Auth::id());
 
     function apiUrl(path, params) {
         var parts = Object.keys(params).map(function (k) {
@@ -336,6 +375,11 @@
                 done.className = 'badge done';
                 done.textContent = '終了';
                 head.appendChild(done);
+            } else if (props.status === 'manual') {
+                var manual = document.createElement('span');
+                manual.className = 'manual-badge';
+                manual.textContent = '手動';
+                head.appendChild(manual);
             }
 
             var title = document.createElement('div');
@@ -344,6 +388,27 @@
 
             a.appendChild(head);
             a.appendChild(title);
+
+            if (props.status === 'manual' && IS_LOGGED_IN && props.manual_schedule_id) {
+                if (!ev.url) { a.removeAttribute('href'); a.style.cursor = 'default'; }
+                var delBtn = document.createElement('button');
+                delBtn.className = 'delete-btn';
+                delBtn.textContent = '×';
+                delBtn.title = '削除';
+                delBtn.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (!confirm('この予定を削除しますか？')) return;
+                    fetch('/api/manual-schedules/' + props.manual_schedule_id, {
+                        method: 'DELETE',
+                        headers: { 'X-CSRF-TOKEN': CSRF_TOKEN, Accept: 'application/json' },
+                    }).then(function (res) {
+                        if (res.ok) { loadBoard(); if (calendar) calendar.refetchEvents(); }
+                    });
+                });
+                a.appendChild(delBtn);
+            }
+
             return a;
         }
 
@@ -402,10 +467,14 @@
 
         function loadBoard() {
             var end = addDays(boardStart, BOARD_DAYS);
-            fetch(apiUrl('/api/streams', { start: boardStart.toISOString(), end: end.toISOString() }), { headers: { Accept: 'application/json' } })
-                .then(function (res) { if (!res.ok) { throw new Error(res.status); } return res.json(); })
-                .then(function (events) { boardEvents = events; renderBoard(); })
-                .catch(function () { boardEvents = []; renderBoard(); });
+            var params = { start: boardStart.toISOString(), end: end.toISOString() };
+            Promise.all([
+                fetch(apiUrl('/api/streams', params), { headers: { Accept: 'application/json' } }).then(function (r) { return r.ok ? r.json() : []; }),
+                fetch(apiUrl('/api/manual-schedules', params), { headers: { Accept: 'application/json' } }).then(function (r) { return r.ok ? r.json() : []; }),
+            ]).then(function (results) {
+                boardEvents = results[0].concat(results[1]);
+                renderBoard();
+            }).catch(function () { boardEvents = []; renderBoard(); });
         }
 
         document.getElementById('board-prev').addEventListener('click', function () {
@@ -430,10 +499,13 @@
                 dayMaxEvents: false,
                 displayEventTime: false,
                 events: function (info, successCallback, failureCallback) {
-                    fetch(apiUrl('/api/streams', { start: info.startStr, end: info.endStr }), { headers: { Accept: 'application/json' } })
-                        .then(function (res) { if (!res.ok) { throw new Error(res.status); } return res.json(); })
-                        .then(function (events) { successCallback(events.filter(isVisible)); })
-                        .catch(failureCallback);
+                    var p = { start: info.startStr, end: info.endStr };
+                    Promise.all([
+                        fetch(apiUrl('/api/streams', p), { headers: { Accept: 'application/json' } }).then(function (r) { return r.ok ? r.json() : []; }),
+                        fetch(apiUrl('/api/manual-schedules', p), { headers: { Accept: 'application/json' } }).then(function (r) { return r.ok ? r.json() : []; }),
+                    ]).then(function (results) {
+                        successCallback(results[0].concat(results[1]).filter(isVisible));
+                    }).catch(failureCallback);
                 },
                 eventContent: function (arg) {
                     var props = arg.event.extendedProps;
@@ -556,8 +628,52 @@
                     }
                     label.appendChild(document.createTextNode(ch.name));
                     filterEl.appendChild(label);
+
+                    var msChannel = document.getElementById('ms-channel');
+                    if (msChannel) {
+                        var opt = document.createElement('option');
+                        opt.value = ch.id;
+                        opt.textContent = ch.name;
+                        msChannel.appendChild(opt);
+                    }
                 });
             });
+
+        var msSubmit = document.getElementById('ms-submit');
+        if (msSubmit) {
+            msSubmit.addEventListener('click', function () {
+                var errEl = document.getElementById('ms-error');
+                errEl.hidden = true;
+                var channelId = document.getElementById('ms-channel').value;
+                var title = document.getElementById('ms-title').value.trim();
+                var datetime = document.getElementById('ms-datetime').value;
+                if (!channelId || !title || !datetime) {
+                    errEl.textContent = 'すべての項目を入力してください。';
+                    errEl.hidden = false;
+                    return;
+                }
+                fetch('/api/manual-schedules', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN, Accept: 'application/json' },
+                    body: JSON.stringify({ channel_id: Number(channelId), title: title, scheduled_at: datetime }),
+                }).then(function (res) {
+                    if (res.ok) {
+                        document.getElementById('ms-title').value = '';
+                        document.getElementById('ms-datetime').value = '';
+                        loadBoard();
+                        if (calendar) calendar.refetchEvents();
+                    } else {
+                        return res.json().then(function (data) {
+                            errEl.textContent = data.message || 'エラーが発生しました。';
+                            errEl.hidden = false;
+                        });
+                    }
+                }).catch(function () {
+                    errEl.textContent = 'エラーが発生しました。';
+                    errEl.hidden = false;
+                });
+            });
+        }
 
         var copyUrlBtn = document.getElementById('copy-url-btn');
         if (copyUrlBtn) {
