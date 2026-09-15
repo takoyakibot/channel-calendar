@@ -185,22 +185,11 @@ class FetchStreams extends Command
      */
     private function removeOverlappingManualSchedules(): void
     {
-        $schedules = ManualSchedule::with('channel')->get();
-        $removed = 0;
-
-        foreach ($schedules as $schedule) {
-            $overlap = Stream::where('channel_id', $schedule->channel_id)
-                ->whereBetween('scheduled_at', [
-                    $schedule->scheduled_at->copy()->subHour(),
-                    $schedule->scheduled_at->copy()->addHour(),
-                ])
-                ->exists();
-
-            if ($overlap) {
-                $schedule->delete();
-                $removed++;
-            }
-        }
+        $removed = ManualSchedule::whereExists(function ($query) {
+            $query->from('streams')
+                ->whereColumn('streams.channel_id', 'manual_schedules.channel_id')
+                ->whereRaw('streams.scheduled_at BETWEEN DATE_SUB(manual_schedules.scheduled_at, INTERVAL 1 HOUR) AND DATE_ADD(manual_schedules.scheduled_at, INTERVAL 1 HOUR)');
+        })->delete();
 
         if ($removed > 0) {
             $this->line("  {$removed} overlapping manual schedule(s) removed");

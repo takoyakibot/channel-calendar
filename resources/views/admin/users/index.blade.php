@@ -40,7 +40,7 @@
                                 </td>
                                 <td class="py-2 px-2">
                                     @unless ($user->is_admin)
-                                        <form method="POST" action="{{ url("/admin/users/{$user->id}/toggle-ban") }}" class="inline">
+                                        <form method="POST" action="{{ url("/admin/users/{$user->id}/toggle-ban") }}" class="inline" onsubmit="return confirm('本当に{{ $user->is_banned ? 'BAN解除' : 'BAN' }}しますか？')">
                                             @csrf
                                             @method('PATCH')
                                             <button type="submit" class="text-xs {{ $user->is_banned ? 'text-green-600 hover:text-green-800' : 'text-red-600 hover:text-red-800' }} underline">

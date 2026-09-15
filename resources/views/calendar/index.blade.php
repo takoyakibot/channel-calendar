@@ -723,6 +723,7 @@
                     errEl.hidden = false;
                     return;
                 }
+                msSubmit.disabled = true;
                 fetch('/api/manual-schedules', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN, Accept: 'application/json' },
@@ -742,7 +743,7 @@
                 }).catch(function () {
                     errEl.textContent = 'エラーが発生しました。';
                     errEl.hidden = false;
-                });
+                }).finally(function () { msSubmit.disabled = false; });
             });
         }
 
@@ -789,7 +790,8 @@
             document.addEventListener('keydown', function (e) {
                 if (e.key === 'Escape' && !modalOverlay.hidden) closeModal();
             });
-            document.getElementById('modal-submit').addEventListener('click', function () {
+            var modalSubmitBtn = document.getElementById('modal-submit');
+            modalSubmitBtn.addEventListener('click', function () {
                 var errEl = document.getElementById('modal-error');
                 errEl.hidden = true;
                 var channelId = document.getElementById('modal-channel').value;
@@ -800,6 +802,7 @@
                     errEl.hidden = false;
                     return;
                 }
+                modalSubmitBtn.disabled = true;
                 try { localStorage.setItem('cc.lastChannel', channelId); } catch (e) {}
                 var datetime = modalDate + 'T' + time;
                 fetch('/api/manual-schedules', {
@@ -820,7 +823,7 @@
                 }).catch(function () {
                     errEl.textContent = 'エラーが発生しました。';
                     errEl.hidden = false;
-                });
+                }).finally(function () { modalSubmitBtn.disabled = false; });
             });
         }
 
