@@ -14,6 +14,7 @@ class ManualSchedule extends Model
         'user_id',
         'channel_id',
         'title',
+        'source_url',
         'scheduled_at',
     ];
 

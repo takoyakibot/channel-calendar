@@ -24,6 +24,8 @@
         /* Class rules below (e.g. .modal-overlay { display:flex }) would otherwise
            outrank the preflight [hidden] rule and keep hidden elements visible. */
         [hidden] { display: none !important; }
+        .card-source { margin-top: 0.3rem; font-size: 0.6875rem; color: #2563eb; }
+        .card:hover .card-source { text-decoration: underline; }
 
         .filter-section { margin-bottom: 1rem; }
         .filter-toggle { display: inline-flex; align-items: center; gap: 0.375rem; padding: 0.25rem 0; font-size: 0.875rem; font-weight: 600; color: #374151; background: none; border: none; cursor: pointer; }
@@ -219,6 +221,10 @@
                         <label for="ms-datetime">日時</label>
                         <input type="datetime-local" id="ms-datetime">
                     </div>
+                    <div class="form-group" style="flex:2;min-width:180px;">
+                        <label for="ms-source-url">情報元URL（任意）</label>
+                        <input type="url" id="ms-source-url" placeholder="https://x.com/... 告知ツイートなど" maxlength="2048">
+                    </div>
                     <button type="submit" id="ms-submit">登録</button>
                 </div>
                 <p id="ms-error" style="color:#dc2626;font-size:0.75rem;margin-top:0.5rem;" hidden></p>
@@ -269,6 +275,10 @@
             <div class="modal-field">
                 <label for="modal-time">時間</label>
                 <input type="time" id="modal-time" value="20:00">
+            </div>
+            <div class="modal-field">
+                <label for="modal-source-url">情報元URL（任意）</label>
+                <input type="url" id="modal-source-url" placeholder="https://x.com/... 告知ツイートなど" maxlength="2048">
             </div>
             <p id="modal-error" class="modal-error" hidden></p>
             <div class="modal-actions">
@@ -433,8 +443,21 @@
             a.appendChild(head);
             a.appendChild(title);
 
+            if (props.status === 'manual') {
+                if (props.source_url) {
+                    // A manual entry has no YouTube URL; link the card to its source instead.
+                    a.href = props.source_url;
+                    var source = document.createElement('div');
+                    source.className = 'card-source';
+                    source.textContent = '情報元を見る ↗';
+                    a.appendChild(source);
+                } else if (!ev.url) {
+                    a.removeAttribute('href');
+                    a.style.cursor = 'default';
+                }
+            }
+
             if (props.status === 'manual' && IS_LOGGED_IN && props.manual_schedule_id) {
-                if (!ev.url) { a.removeAttribute('href'); a.style.cursor = 'default'; }
                 var delBtn = document.createElement('button');
                 delBtn.className = 'delete-btn';
                 delBtn.textContent = '×';
@@ -716,6 +739,7 @@
                 var channelId = msChannelEl.value;
                 var title = document.getElementById('ms-title').value.trim();
                 var datetime = document.getElementById('ms-datetime').value;
+                var sourceUrl = document.getElementById('ms-source-url').value.trim();
                 try { localStorage.setItem('cc.lastChannel', channelId); } catch (e) {}
                 if (!channelId || !title || !datetime) {
                     errEl.textContent = 'すべての項目を入力してください。';
@@ -726,11 +750,13 @@
                 fetch('/api/manual-schedules', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN, Accept: 'application/json' },
-                    body: JSON.stringify({ channel_id: Number(channelId), title: title, scheduled_at: datetime }),
+                    // datetime-local values carry no offset; send the absolute instant instead.
+                    body: JSON.stringify({ channel_id: Number(channelId), title: title, source_url: sourceUrl || null, scheduled_at: new Date(datetime).toISOString() }),
                 }).then(function (res) {
                     if (res.ok) {
                         document.getElementById('ms-title').value = '';
                         document.getElementById('ms-datetime').value = '';
+                        document.getElementById('ms-source-url').value = '';
                         loadBoard();
                         if (calendar) calendar.refetchEvents();
                     } else {
@@ -755,6 +781,7 @@
             document.getElementById('modal-date-label').textContent = parts[1] + '/' + parts[2];
             document.getElementById('modal-error').hidden = true;
             document.getElementById('modal-title').value = '';
+            document.getElementById('modal-source-url').value = '';
 
             var modalChannel = document.getElementById('modal-channel');
             if (modalChannel.options.length === 0) {
@@ -796,6 +823,7 @@
                 var channelId = document.getElementById('modal-channel').value;
                 var title = document.getElementById('modal-title').value.trim();
                 var time = document.getElementById('modal-time').value;
+                var sourceUrl = document.getElementById('modal-source-url').value.trim();
                 if (!channelId || !title || !time) {
                     errEl.textContent = 'すべての項目を入力してください。';
                     errEl.hidden = false;
@@ -803,11 +831,13 @@
                 }
                 modalSubmitBtn.disabled = true;
                 try { localStorage.setItem('cc.lastChannel', channelId); } catch (e) {}
-                var datetime = modalDate + 'T' + time;
+                // "YYYY-MM-DDTHH:MM" without an offset is parsed as browser-local time;
+                // send the absolute instant so the server does not read it as UTC.
+                var datetime = new Date(modalDate + 'T' + time).toISOString();
                 fetch('/api/manual-schedules', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN, Accept: 'application/json' },
-                    body: JSON.stringify({ channel_id: Number(channelId), title: title, scheduled_at: datetime }),
+                    body: JSON.stringify({ channel_id: Number(channelId), title: title, source_url: sourceUrl || null, scheduled_at: datetime }),
                 }).then(function (res) {
                     if (res.ok) {
                         closeModal();

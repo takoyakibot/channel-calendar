@@ -54,6 +54,7 @@ class ManualScheduleController extends Controller
                 'status' => 'manual',
                 'registered_by' => $s->user->name,
                 'manual_schedule_id' => $s->id,
+                'source_url' => $s->source_url,
             ],
         ]);
 
@@ -69,6 +70,7 @@ class ManualScheduleController extends Controller
         $validated = $request->validate([
             'channel_id' => 'required|integer|exists:channels,id',
             'title' => 'required|string|max:255',
+            'source_url' => 'nullable|url:http,https|max:2048',
             'scheduled_at' => 'required|date|after:now',
         ]);
 
@@ -76,12 +78,14 @@ class ManualScheduleController extends Controller
             'user_id' => $request->user()->id,
             'channel_id' => $validated['channel_id'],
             'title' => $validated['title'],
+            'source_url' => $validated['source_url'] ?? null,
             'scheduled_at' => Carbon::parse($validated['scheduled_at'])->utc(),
         ]);
 
         ActivityLog::record($request->user()->id, 'create_schedule', ManualSchedule::class, $schedule->id, [
             'title' => $schedule->title,
             'channel_id' => $schedule->channel_id,
+            'source_url' => $schedule->source_url,
             'scheduled_at' => $schedule->scheduled_at->toIso8601String(),
         ]);
 
