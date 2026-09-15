@@ -25,6 +25,7 @@ class User extends Authenticatable
         'avatar_url',
         'is_admin',
         'is_banned',
+        'preferences',
     ];
 
     /**
@@ -47,5 +48,6 @@ class User extends Authenticatable
         'password' => 'hashed',
         'is_admin' => 'boolean',
         'is_banned' => 'boolean',
+        'preferences' => 'array',
     ];
 }

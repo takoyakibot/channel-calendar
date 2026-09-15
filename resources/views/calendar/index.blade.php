@@ -282,6 +282,7 @@
             filterEl.hidden = filterCollapsed;
             filterArrow.classList.toggle('collapsed', filterCollapsed);
             try { localStorage.setItem('cc.filterCollapsed', filterCollapsed ? '1' : '0'); } catch (e) {}
+            syncPrefsToServer();
         });
         var boardEvents = [];
         var calendar = null;
@@ -567,7 +568,7 @@
             try { localStorage.setItem('cc.view', isBoard ? 'board' : 'month'); } catch (e) {}
         }
         toggleButtons.forEach(function (b) {
-            b.addEventListener('click', function () { setView(b.dataset.view); });
+            b.addEventListener('click', function () { setView(b.dataset.view); syncPrefsToServer(); });
         });
 
         var subgroupContainer = document.getElementById('subgroup-toggles');
@@ -612,6 +613,7 @@
                     checkbox.addEventListener('change', function () {
                         if (this.checked) { delete hiddenChannels[ch.id]; } else { hiddenChannels[ch.id] = true; }
                         saveHiddenChannels();
+                        syncPrefsToServer();
                         renderBoard();
                         if (calendar) { calendar.refetchEvents(); }
                     });
@@ -685,10 +687,55 @@
             });
         }
 
-        var savedView = 'board';
-        try { savedView = localStorage.getItem('cc.view') || 'board'; } catch (e) {}
-        setView(savedView);
-        loadBoard();
+        function syncPrefsToServer() {
+            if (!IS_LOGGED_IN) return;
+            var data = {
+                hidden_channels: Object.keys(hiddenChannels).map(Number),
+                view: document.querySelector('.view-toggle button.is-active')?.dataset.view || 'board',
+                filter_collapsed: filterCollapsed,
+            };
+            fetch('/api/preferences', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN, Accept: 'application/json' },
+                body: JSON.stringify(data),
+            }).catch(function () {});
+        }
+
+        function initFromPrefs() {
+            if (!IS_LOGGED_IN) {
+                var savedView = 'board';
+                try { savedView = localStorage.getItem('cc.view') || 'board'; } catch (e) {}
+                setView(savedView);
+                loadBoard();
+                return;
+            }
+            fetch('/api/preferences', { headers: { Accept: 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN } })
+                .then(function (r) { return r.ok ? r.json() : {}; })
+                .then(function (prefs) {
+                    if (prefs.hidden_channels && prefs.hidden_channels.length) {
+                        hiddenChannels = {};
+                        prefs.hidden_channels.forEach(function (id) { hiddenChannels[id] = true; });
+                        try { localStorage.setItem('cc.hiddenChannels', JSON.stringify(prefs.hidden_channels.map(String))); } catch (e) {}
+                        filterEl.querySelectorAll('input[type=checkbox]').forEach(function (cb) {
+                            var chId = Number(cb.closest('label')?.dataset?.channelId);
+                            if (chId) cb.checked = !hiddenChannels[chId];
+                        });
+                    }
+                    if (prefs.filter_collapsed !== undefined && prefs.filter_collapsed !== null) {
+                        filterCollapsed = prefs.filter_collapsed;
+                        filterEl.hidden = filterCollapsed;
+                        filterArrow.classList.toggle('collapsed', filterCollapsed);
+                    }
+                    setView(prefs.view || 'board');
+                    loadBoard();
+                })
+                .catch(function () {
+                    setView('board');
+                    loadBoard();
+                });
+        }
+
+        initFromPrefs();
     });
     </script>
 </body>
