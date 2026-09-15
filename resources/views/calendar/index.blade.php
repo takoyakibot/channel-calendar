@@ -76,14 +76,6 @@
         .card:hover .delete-btn { display: flex; align-items: center; justify-content: center; }
         .card { position: relative; }
 
-        .schedule-form { background: #fff; border: 1px solid #e5e7eb; border-radius: 0.5rem; padding: 1rem; margin-bottom: 1rem; }
-        .schedule-form h3 { font-size: 0.875rem; font-weight: 600; margin: 0 0 0.75rem; color: #111827; }
-        .schedule-form .form-row { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: flex-end; }
-        .schedule-form .form-group { display: flex; flex-direction: column; gap: 0.25rem; }
-        .schedule-form label { font-size: 0.75rem; color: #6b7280; }
-        .schedule-form input, .schedule-form select { padding: 0.375rem 0.5rem; border: 1px solid #d1d5db; border-radius: 0.375rem; font-size: 0.875rem; }
-        .schedule-form button[type="submit"] { padding: 0.375rem 1rem; background: #111827; color: #fff; border: none; border-radius: 0.375rem; font-size: 0.875rem; cursor: pointer; }
-        .schedule-form button[type="submit"]:hover { background: #374151; }
 
         .site-footer { margin-top: 2.5rem; padding-top: 1rem; border-top: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; font-size: 0.75rem; color: #6b7280; }
         .site-footer nav { display: flex; gap: 1rem; flex: none; }
@@ -213,32 +205,6 @@
             <div id="channel-filter" class="channel-filter"></div>
         </div>
 
-        @auth
-            <div class="schedule-form" id="schedule-form">
-                <h3>予定を登録</h3>
-                <div class="form-row">
-                    <div class="form-group" style="flex:1;min-width:120px;">
-                        <label for="ms-channel">チャンネル</label>
-                        <select id="ms-channel"></select>
-                    </div>
-                    <div class="form-group" style="flex:2;min-width:160px;">
-                        <label for="ms-title">タイトル</label>
-                        <input type="text" id="ms-title" placeholder="配信タイトル" maxlength="255">
-                    </div>
-                    <div class="form-group">
-                        <label for="ms-datetime">日時</label>
-                        <input type="datetime-local" id="ms-datetime">
-                    </div>
-                    <div class="form-group" style="flex:2;min-width:180px;">
-                        <label for="ms-source-url">情報元URL（任意）</label>
-                        <input type="url" id="ms-source-url" placeholder="https://x.com/... 告知ツイートなど" maxlength="2048">
-                    </div>
-                    <button type="submit" id="ms-submit">登録</button>
-                </div>
-                <p id="ms-error" style="color:#dc2626;font-size:0.75rem;margin-top:0.5rem;" hidden></p>
-            </div>
-        @endauth
-
         <section id="board-view">
             <div class="board-toolbar">
                 <div class="nav">
@@ -336,6 +302,7 @@
         var hiddenChannels = {};
         var boardStart = startOfDay(new Date());
         var highlightEventId = null;  // event id to flash after the next render (newly added schedule)
+        var channelList = [];         // active channels from /api/channels, used by the filter and the schedule modal
         var filterCollapsed = false;
         try { filterCollapsed = localStorage.getItem('cc.filterCollapsed') === '1'; } catch (e) {}
         if (filterCollapsed) { filterEl.hidden = true; filterArrow.classList.add('collapsed'); }
@@ -746,70 +713,10 @@
                     }
                     label.appendChild(document.createTextNode(ch.name));
                     filterEl.appendChild(label);
-
-                    var msChannel = document.getElementById('ms-channel');
-                    if (msChannel) {
-                        var opt = document.createElement('option');
-                        opt.value = ch.id;
-                        opt.textContent = ch.name;
-                        msChannel.appendChild(opt);
-                    }
                 });
-                var msChannel = document.getElementById('ms-channel');
-                if (msChannel) {
-                    try {
-                        var saved = localStorage.getItem('cc.lastChannel');
-                        if (saved && msChannel.querySelector('option[value="' + saved + '"]')) {
-                            msChannel.value = saved;
-                        }
-                    } catch (e) {}
-                    msChannel.addEventListener('change', function () {
-                        try { localStorage.setItem('cc.lastChannel', msChannel.value); } catch (e) {}
-                    });
-                }
+                channelList = channels;
                 initFromPrefs();
             }).catch(function () { initFromPrefs(); });
-
-        var msSubmit = document.getElementById('ms-submit');
-        if (msSubmit) {
-            msSubmit.addEventListener('click', function () {
-                var errEl = document.getElementById('ms-error');
-                errEl.hidden = true;
-                var msChannelEl = document.getElementById('ms-channel');
-                var channelId = msChannelEl.value;
-                var title = document.getElementById('ms-title').value.trim();
-                var datetime = document.getElementById('ms-datetime').value;
-                var sourceUrl = document.getElementById('ms-source-url').value.trim();
-                try { localStorage.setItem('cc.lastChannel', channelId); } catch (e) {}
-                if (!channelId || !title || !datetime) {
-                    errEl.textContent = 'すべての項目を入力してください。';
-                    errEl.hidden = false;
-                    return;
-                }
-                msSubmit.disabled = true;
-                fetch('/api/manual-schedules', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN, Accept: 'application/json' },
-                    // datetime-local values carry no offset; send the absolute instant instead.
-                    body: JSON.stringify({ channel_id: Number(channelId), title: title, source_url: sourceUrl || null, scheduled_at: new Date(datetime).toISOString() }),
-                }).then(function (res) {
-                    if (res.ok) {
-                        document.getElementById('ms-title').value = '';
-                        document.getElementById('ms-datetime').value = '';
-                        document.getElementById('ms-source-url').value = '';
-                        return res.json().then(focusNewSchedule);
-                    } else {
-                        return res.json().then(function (data) {
-                            errEl.textContent = data.message || 'エラーが発生しました。';
-                            errEl.hidden = false;
-                        });
-                    }
-                }).catch(function () {
-                    errEl.textContent = 'エラーが発生しました。';
-                    errEl.hidden = false;
-                }).finally(function () { msSubmit.disabled = false; });
-            });
-        }
 
         var modalOverlay = document.getElementById('schedule-modal');
         var modalDate = '';
@@ -824,15 +731,12 @@
 
             var modalChannel = document.getElementById('modal-channel');
             if (modalChannel.options.length === 0) {
-                var msChannel = document.getElementById('ms-channel');
-                if (msChannel) {
-                    Array.from(msChannel.options).forEach(function (opt) {
-                        var o = document.createElement('option');
-                        o.value = opt.value;
-                        o.textContent = opt.textContent;
-                        modalChannel.appendChild(o);
-                    });
-                }
+                channelList.forEach(function (ch) {
+                    var o = document.createElement('option');
+                    o.value = ch.id;
+                    o.textContent = ch.name;
+                    modalChannel.appendChild(o);
+                });
             }
             try {
                 var saved = localStorage.getItem('cc.lastChannel');
