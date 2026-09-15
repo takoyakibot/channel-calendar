@@ -106,6 +106,12 @@
         .card { display: block; min-width: 0; text-decoration: none; color: inherit; border: 1px solid #e5e7eb; border-left: 4px solid #9ca3af; border-radius: 0.375rem; padding: 0.5rem; background: #fff; }
         .card:hover { background: #f9fafb; border-color: #d1d5db; }
         .card.is-done { opacity: 0.55; }
+        /* Manually entered schedules: dashed, slightly muted, so they read as "unofficial". */
+        .card.is-manual { border-style: dashed; border-width: 1px 1px 1px 4px; background: #fafafa; }
+        .card.is-manual:hover { background: #f3f4f6; }
+        .card.is-manual .card-title { color: #4b5563; }
+        .card.is-manual .card-meta .time { color: #374151; }
+        .fc-ev.is-manual { outline: 1px dashed #9ca3af; outline-offset: -1px; border-radius: 0.25rem; opacity: 0.85; }
         .card-head { display: flex; align-items: center; gap: 0.375rem; margin-bottom: 0.3rem; min-width: 0; }
         .avatar { width: 1.75rem; height: 1.75rem; border-radius: 50%; object-fit: cover; flex: none; background: #e5e7eb; }
         .avatar-fallback { width: 1.75rem; height: 1.75rem; border-radius: 50%; flex: none; display: inline-flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 0.8125rem; }
@@ -384,7 +390,9 @@
             var props = ev.extendedProps;
             var start = new Date(ev.start);
             var a = document.createElement('a');
-            a.className = 'card' + (props.status === 'completed' ? ' is-done' : '');
+            a.className = 'card'
+                + (props.status === 'completed' ? ' is-done' : '')
+                + (props.status === 'manual' ? ' is-manual' : '');
             a.dataset.eventId = String(ev.id);
             a.href = ev.url;
             a.target = '_blank';
@@ -607,7 +615,9 @@
                 eventContent: function (arg) {
                     var props = arg.event.extendedProps;
                     var wrap = document.createElement('div');
-                    wrap.className = 'fc-ev' + (props.status === 'completed' ? ' is-done' : '');
+                    wrap.className = 'fc-ev'
+                        + (props.status === 'completed' ? ' is-done' : '')
+                        + (props.status === 'manual' ? ' is-manual' : '');
                     wrap.appendChild(avatarNode(props, arg.event.backgroundColor || arg.event.borderColor, 'fc-ev-img'));
                     var t = document.createElement('span');
                     t.className = 'fc-ev-time';
