@@ -23,8 +23,6 @@ class User extends Authenticatable
         'password',
         'google_id',
         'avatar_url',
-        'is_admin',
-        'is_banned',
         'preferences',
     ];
 

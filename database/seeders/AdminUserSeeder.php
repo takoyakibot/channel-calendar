@@ -21,13 +21,14 @@ class AdminUserSeeder extends Seeder
             }
         }
 
-        User::updateOrCreate(
+        $user = User::updateOrCreate(
             ['email' => $email],
             [
                 'name' => 'Admin',
                 'password' => Hash::make($password),
-                'is_admin' => true,
             ]
         );
+        $user->is_admin = true;
+        $user->save();
     }
 }

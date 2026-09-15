@@ -17,7 +17,11 @@ class GoogleController extends Controller
 
     public function callback(): RedirectResponse
     {
-        $googleUser = Socialite::driver('google')->user();
+        try {
+            $googleUser = Socialite::driver('google')->user();
+        } catch (\Exception $e) {
+            return redirect('/')->with('error', 'Googleログインに失敗しました。もう一度お試しください。');
+        }
 
         $user = User::where('google_id', $googleUser->getId())->first();
 

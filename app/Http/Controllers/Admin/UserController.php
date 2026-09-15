@@ -21,7 +21,8 @@ class UserController extends Controller
             return back()->with('error', '管理者はBAN対象外です。');
         }
 
-        $user->update(['is_banned' => ! $user->is_banned]);
+        $user->is_banned = ! $user->is_banned;
+        $user->save();
         $label = $user->is_banned ? 'BANしました' : 'BAN解除しました';
 
         return back()->with('success', "{$user->name}を{$label}。");

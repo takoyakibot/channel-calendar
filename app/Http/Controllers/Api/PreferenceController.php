@@ -16,7 +16,7 @@ class PreferenceController extends Controller
     public function update(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'hidden_channels' => 'nullable|array',
+            'hidden_channels' => 'nullable|array|max:500',
             'hidden_channels.*' => 'integer',
             'view' => 'nullable|string|in:board,month',
             'filter_collapsed' => 'nullable|boolean',

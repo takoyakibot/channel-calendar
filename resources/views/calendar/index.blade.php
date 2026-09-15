@@ -447,7 +447,8 @@
                         headers: { 'X-CSRF-TOKEN': CSRF_TOKEN, Accept: 'application/json' },
                     }).then(function (res) {
                         if (res.ok) { loadBoard(); if (calendar) calendar.refetchEvents(); }
-                    });
+                        else { res.json().then(function (d) { alert(d.message || '削除に失敗しました。'); }).catch(function () { alert('削除に失敗しました。'); }); }
+                    }).catch(function () { alert('削除に失敗しました。'); });
                 });
                 a.appendChild(delBtn);
             }
@@ -659,6 +660,7 @@
             .then(function (channels) {
                 channels.forEach(function (ch) {
                     var label = document.createElement('label');
+                    label.dataset.channelId = ch.id;
                     var checkbox = document.createElement('input');
                     checkbox.type = 'checkbox';
                     checkbox.checked = !hiddenChannels[ch.id];
@@ -703,7 +705,8 @@
                         try { localStorage.setItem('cc.lastChannel', msChannel.value); } catch (e) {}
                     });
                 }
-            });
+                initFromPrefs();
+            }).catch(function () { initFromPrefs(); });
 
         var msSubmit = document.getElementById('ms-submit');
         if (msSubmit) {
@@ -879,7 +882,6 @@
                 });
         }
 
-        initFromPrefs();
     });
     </script>
 </body>

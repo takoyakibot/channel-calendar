@@ -21,7 +21,7 @@
                                 <td class="py-2 px-2 whitespace-nowrap">{{ $log->created_at->format('Y-m-d H:i') }}</td>
                                 <td class="py-2 px-2">{{ $log->user?->name ?? '(deleted)' }}</td>
                                 <td class="py-2 px-2">{{ $log->action }}</td>
-                                <td class="py-2 px-2 text-xs text-gray-500">{{ $log->payload ? json_encode($log->payload, JSON_UNESCAPED_UNICODE) : '' }}</td>
+                                <td class="py-2 px-2 text-xs text-gray-500 max-w-xs truncate" title="{{ $log->payload ? json_encode($log->payload, JSON_UNESCAPED_UNICODE) : '' }}">{{ $log->payload ? \Illuminate\Support\Str::limit(json_encode($log->payload, JSON_UNESCAPED_UNICODE), 120) : '' }}</td>
                             </tr>
                         @empty
                             <tr><td colspan="4" class="py-4 text-center text-gray-400">ログがありません。</td></tr>
