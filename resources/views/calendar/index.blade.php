@@ -39,12 +39,9 @@
         .page-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.25rem; }
         .page-head-main { min-width: 0; }
         .page-head-actions { display: flex; align-items: center; gap: 1rem; }
-        .crumbs { display: flex; align-items: center; gap: 0.375rem; font-size: 0.8125rem; color: #6b7280; margin-bottom: 0.375rem; flex-wrap: wrap; }
-        .crumbs a { color: #6b7280; text-decoration: none; }
-        .crumbs a:hover { color: #111827; text-decoration: underline; }
-        .crumbs .current { color: #374151; }
-        .sep { color: #9ca3af; }
         .title-row { display: flex; align-items: center; gap: 0.625rem; flex-wrap: wrap; }
+        .back-link { font-size: 1.25rem; color: #6b7280; text-decoration: none; line-height: 1; }
+        .back-link:hover { color: #111827; }
         .title-row h1 { font-size: 1.5rem; font-weight: 700; color: #111827; line-height: 1.2; margin: 0; }
         .subgroup-toggles { display: flex; flex-wrap: wrap; gap: 0.375rem; margin-bottom: 0.75rem; }
         .subgroup-toggles button { padding: 0.3rem 0.75rem; font-size: 0.8125rem; border: 1px solid #d1d5db; border-radius: 9999px; background: #fff; color: #374151; cursor: pointer; transition: background 0.1s, color 0.1s; }
@@ -147,21 +144,9 @@
     <div class="max-w-screen-2xl mx-auto px-4 py-8">
         <header class="page-head">
             <div class="page-head-main">
-                @if ($group)
-                    <nav class="crumbs" aria-label="パンくず">
-                        <a href="{{ url('/') }}">トップ</a>
-                        @php($crumb = '')
-                        @foreach ($group->ancestors() as $ancestor)
-                            @php($crumb .= '/' . $ancestor->slug)
-                            <span class="sep">›</span>
-                            <a href="{{ url($crumb) }}">{{ $ancestor->name }}</a>
-                        @endforeach
-                        <span class="sep">›</span>
-                        <span class="current">{{ $group->name }}</span>
-                    </nav>
-                @endif
                 <div class="title-row">
-                    <h1>{{ $group ? $group->name : 'Channel Calendar' }}</h1>
+                    <a href="{{ url('/') }}" class="back-link">←</a>
+                    <h1>{{ $group->name }}</h1>
                 </div>
             </div>
             <div class="page-head-actions">
