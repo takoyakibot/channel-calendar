@@ -3,10 +3,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ $group ? $group->name . ' | Channel Calendar' : 'Channel Calendar' }}</title>
+    @php
+        $pageTitle = $group ? $group->name . ' | ' . config('app.name', 'Channel Calendar') : config('app.name', 'Channel Calendar');
+        $pageUrl = $group ? url('/' . $group->path) : url('/');
+        $pageDescription = $group
+            ? $group->name . 'の配信スケジュール - ' . config('app.name', 'Channel Calendar')
+            : config('app.name', 'Channel Calendar') . ' - 配信スケジュールをまとめてチェック';
+    @endphp
+    <title>{{ $pageTitle }}</title>
+    <meta property="og:title" content="{{ $pageTitle }}">
+    <meta property="og:description" content="{{ $pageDescription }}">
+    <meta property="og:url" content="{{ $pageUrl }}">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="{{ config('app.name', 'Channel Calendar') }}">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="{{ $pageTitle }}">
+    <meta name="twitter:description" content="{{ $pageDescription }}">
     @vite(['resources/css/app.css'])
     <style>
-        .channel-filter { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; }
+        .filter-section { margin-bottom: 1rem; }
+        .filter-toggle { display: inline-flex; align-items: center; gap: 0.375rem; padding: 0.25rem 0; font-size: 0.875rem; font-weight: 600; color: #374151; background: none; border: none; cursor: pointer; }
+        .filter-toggle:hover { color: #111827; }
+        .filter-toggle .arrow { display: inline-block; transition: transform 0.15s; font-size: 0.75rem; }
+        .filter-toggle .arrow.collapsed { transform: rotate(-90deg); }
+        .channel-filter { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem; }
         .channel-filter label { display: flex; align-items: center; gap: 0.35rem; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.875rem; cursor: pointer; border: 1px solid #e5e7eb; background: #fff; }
         .channel-filter label:hover { background-color: #f3f4f6; }
         .channel-filter img { width: 1.25rem; height: 1.25rem; border-radius: 50%; object-fit: cover; }
@@ -26,18 +46,19 @@
         .sep { color: #9ca3af; }
         .title-row { display: flex; align-items: center; gap: 0.625rem; flex-wrap: wrap; }
         .title-row h1 { font-size: 1.5rem; font-weight: 700; color: #111827; line-height: 1.2; margin: 0; }
-        .group-picker { display: inline-flex; align-items: center; gap: 0.5rem; }
-        .group-picker .sep { font-size: 1.25rem; line-height: 1; }
-        .title-row .group-select {
-            appearance: none; -webkit-appearance: none;
-            height: 2rem; padding: 0 1.9rem 0 0.75rem; font-size: 0.875rem; line-height: 2rem; color: #374151;
-            border: 1px solid #d1d5db; border-radius: 0.5rem; cursor: pointer;
-            background: #fff url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%236b7280' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'><path d='M6 8l4 4 4-4'/></svg>") no-repeat right 0.55rem center / 0.9rem;
-        }
-        .title-row .group-select:hover { border-color: #9ca3af; }
-        .title-row .group-select:focus { outline: 2px solid #111827; outline-offset: 1px; }
+        .subgroup-toggles { display: flex; flex-wrap: wrap; gap: 0.375rem; margin-bottom: 0.75rem; }
+        .subgroup-toggles button { padding: 0.3rem 0.75rem; font-size: 0.8125rem; border: 1px solid #d1d5db; border-radius: 9999px; background: #fff; color: #374151; cursor: pointer; transition: background 0.1s, color 0.1s; }
+        .subgroup-toggles button:hover { background: #f3f4f6; }
+        .subgroup-toggles button.is-active { background: #111827; color: #fff; border-color: #111827; }
         .admin-link { font-size: 0.875rem; color: #2563eb; text-decoration: none; }
         .admin-link:hover { text-decoration: underline; }
+        .share-buttons { display: inline-flex; gap: 0.375rem; }
+        .share-btn { display: inline-flex; align-items: center; justify-content: center; width: 2rem; height: 2rem; border-radius: 0.375rem; border: 1px solid #d1d5db; background: #fff; color: #374151; text-decoration: none; font-size: 0.875rem; cursor: pointer; }
+        .share-btn:hover { background: #f3f4f6; }
+        .share-btn.x { background: #000; color: #fff; border-color: #000; }
+        .share-btn.x:hover { background: #333; }
+        .share-btn.line { background: #06c755; color: #fff; border-color: #06c755; }
+        .share-btn.line:hover { background: #05b34c; }
 
         .site-footer { margin-top: 2.5rem; padding-top: 1rem; border-top: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; font-size: 0.75rem; color: #6b7280; }
         .site-footer nav { display: flex; gap: 1rem; flex: none; }
@@ -110,17 +131,6 @@
                 @endif
                 <div class="title-row">
                     <h1>{{ $group ? $group->name : 'Channel Calendar' }}</h1>
-                    @if ($children->isNotEmpty())
-                        <label class="group-picker">
-                            <span class="sep">›</span>
-                            <select id="group-select" class="group-select" aria-label="下位グループを選択">
-                                <option value="">全て</option>
-                                @foreach ($children as $child)
-                                    <option value="{{ url('/' . $child->path) }}">{{ $child->name }}</option>
-                                @endforeach
-                            </select>
-                        </label>
-                    @endif
                 </div>
             </div>
             <div class="page-head-actions">
@@ -128,13 +138,32 @@
                     <button type="button" data-view="board" class="is-active">週ボード</button>
                     <button type="button" data-view="month">月</button>
                 </div>
+                <div class="share-buttons">
+                    <a class="share-btn x"
+                       href="https://x.com/intent/tweet?url={{ urlencode($pageUrl) }}&text={{ urlencode($pageTitle) }}"
+                       target="_blank" rel="noopener noreferrer" title="Xで共有">𝕏</a>
+                    <a class="share-btn line"
+                       href="https://social-plugins.line.me/lineit/share?url={{ urlencode($pageUrl) }}"
+                       target="_blank" rel="noopener noreferrer" title="LINEで共有">L</a>
+                    <button type="button" class="share-btn" id="copy-url-btn" title="URLをコピー">🔗</button>
+                </div>
                 @auth
                     <a href="{{ url('/admin/channels') }}" class="admin-link">管理画面</a>
                 @endauth
             </div>
         </header>
 
-        <div id="channel-filter" class="channel-filter"></div>
+        @if ($children->isNotEmpty())
+            <div id="subgroup-toggles" class="subgroup-toggles"></div>
+        @endif
+
+        <div class="filter-section">
+            <button type="button" id="filter-toggle" class="filter-toggle">
+                <span class="arrow" id="filter-arrow">▼</span>
+                チャンネル
+            </button>
+            <div id="channel-filter" class="channel-filter"></div>
+        </div>
 
         <section id="board-view">
             <div class="board-toolbar">
@@ -168,6 +197,8 @@
     <script src="https://cdn.jsdelivr.net/npm/@fullcalendar/core@6.1.11/locales/ja.global.min.js"></script>
     <script>
     var GROUP_SLUG = @json($group?->path, JSON_UNESCAPED_SLASHES);
+    var CHILD_GROUPS = @json($children->map(fn ($c) => ['id' => $c->id, 'name' => $c->name])->values());
+    var CHILD_CHANNEL_MAP = @json($childChannelMap);
 
     function apiUrl(path, params) {
         var parts = Object.keys(params).map(function (k) {
@@ -191,9 +222,20 @@
         var boardView = document.getElementById('board-view');
         var monthView = document.getElementById('month-view');
         var toggleButtons = document.querySelectorAll('.view-toggle button');
+        var filterToggleBtn = document.getElementById('filter-toggle');
+        var filterArrow = document.getElementById('filter-arrow');
 
         var hiddenChannels = {};
         var boardStart = startOfDay(new Date());
+        var filterCollapsed = false;
+        try { filterCollapsed = localStorage.getItem('cc.filterCollapsed') === '1'; } catch (e) {}
+        if (filterCollapsed) { filterEl.hidden = true; filterArrow.classList.add('collapsed'); }
+        filterToggleBtn.addEventListener('click', function () {
+            filterCollapsed = !filterCollapsed;
+            filterEl.hidden = filterCollapsed;
+            filterArrow.classList.toggle('collapsed', filterCollapsed);
+            try { localStorage.setItem('cc.filterCollapsed', filterCollapsed ? '1' : '0'); } catch (e) {}
+        });
         var boardEvents = [];
         var calendar = null;
 
@@ -212,8 +254,23 @@
         function fmtShort(d) {
             return (d.getMonth() + 1) + '/' + d.getDate() + '(' + WEEKDAYS[d.getDay()] + ')';
         }
+        var activeSubgroups = {};
+        CHILD_GROUPS.forEach(function (g) { activeSubgroups[g.id] = true; });
+        var hasSubgroups = CHILD_GROUPS.length > 0;
+
+        function isVisibleBySubgroup(channelId) {
+            if (!hasSubgroups) return true;
+            for (var gid in activeSubgroups) {
+                if (!activeSubgroups[gid]) continue;
+                var chs = CHILD_CHANNEL_MAP[gid] || [];
+                if (chs.indexOf(channelId) !== -1) return true;
+            }
+            return false;
+        }
+
         function isVisible(ev) {
-            return !hiddenChannels[ev.extendedProps.channel_id];
+            var chId = ev.extendedProps.channel_id;
+            return !hiddenChannels[chId] && isVisibleBySubgroup(chId);
         }
 
         function avatarNode(props, color, size) {
@@ -433,12 +490,36 @@
             b.addEventListener('click', function () { setView(b.dataset.view); });
         });
 
-        var groupSelect = document.getElementById('group-select');
-        if (groupSelect) {
-            groupSelect.addEventListener('change', function () {
-                if (this.value) { window.location.href = this.value; }
+        var subgroupContainer = document.getElementById('subgroup-toggles');
+        if (subgroupContainer && CHILD_GROUPS.length > 0) {
+            function refreshSubgroupUI() {
+                renderBoard();
+                if (calendar) { calendar.refetchEvents(); }
+            }
+            CHILD_GROUPS.forEach(function (g) {
+                var btn = document.createElement('button');
+                btn.type = 'button';
+                btn.textContent = g.name;
+                btn.classList.toggle('is-active', !!activeSubgroups[g.id]);
+                btn.addEventListener('click', function () {
+                    activeSubgroups[g.id] = !activeSubgroups[g.id];
+                    btn.classList.toggle('is-active', activeSubgroups[g.id]);
+                    refreshSubgroupUI();
+                });
+                subgroupContainer.appendChild(btn);
             });
         }
+
+        function saveHiddenChannels() {
+            try { localStorage.setItem('cc.hiddenChannels', JSON.stringify(Object.keys(hiddenChannels))); } catch (e) {}
+        }
+        function loadHiddenChannels() {
+            try {
+                var saved = localStorage.getItem('cc.hiddenChannels');
+                if (saved) { JSON.parse(saved).forEach(function (id) { hiddenChannels[Number(id)] = true; }); }
+            } catch (e) {}
+        }
+        loadHiddenChannels();
 
         fetch(apiUrl('/api/channels', {}), { headers: { Accept: 'application/json' } })
             .then(function (res) { return res.json(); })
@@ -447,9 +528,10 @@
                     var label = document.createElement('label');
                     var checkbox = document.createElement('input');
                     checkbox.type = 'checkbox';
-                    checkbox.checked = true;
+                    checkbox.checked = !hiddenChannels[ch.id];
                     checkbox.addEventListener('change', function () {
                         if (this.checked) { delete hiddenChannels[ch.id]; } else { hiddenChannels[ch.id] = true; }
+                        saveHiddenChannels();
                         renderBoard();
                         if (calendar) { calendar.refetchEvents(); }
                     });
@@ -468,6 +550,16 @@
                     filterEl.appendChild(label);
                 });
             });
+
+        var copyUrlBtn = document.getElementById('copy-url-btn');
+        if (copyUrlBtn) {
+            copyUrlBtn.addEventListener('click', function () {
+                navigator.clipboard.writeText(window.location.href).then(function () {
+                    copyUrlBtn.textContent = '✓';
+                    setTimeout(function () { copyUrlBtn.textContent = '🔗'; }, 1500);
+                });
+            });
+        }
 
         var savedView = 'board';
         try { savedView = localStorage.getItem('cc.view') || 'board'; } catch (e) {}
