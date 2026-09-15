@@ -10,13 +10,17 @@ class CalendarController extends Controller
 {
     public function index()
     {
-        $groups = Group::whereNull('parent_id')
-            ->withCount('channels')
-            ->orderBy('name')
-            ->get();
+        $groups = Group::whereNull('parent_id')->orderBy('name')->get();
 
+        // A top-level card represents the whole subtree, so gather the active
+        // channels of the group and every descendant (each channel once).
         foreach ($groups as $group) {
-            $group->loadMissing('channels');
+            $channels = Channel::active()
+                ->whereHas('groups', fn ($g) => $g->whereIn('groups.id', $group->subtreeIds()))
+                ->orderBy('name')
+                ->get();
+            $group->setRelation('channels', $channels);
+            $group->channels_count = $channels->count();
         }
 
         return view('landing', compact('groups'));
