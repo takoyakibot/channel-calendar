@@ -14,7 +14,7 @@ class Group extends Model
     use HasFactory;
 
     public const RESERVED_SLUGS = [
-        'admin', 'api', 'login', 'logout', 'dashboard', 'profile', 'register',
+        'admin', 'api', 'auth', 'login', 'logout', 'dashboard', 'profile', 'register',
         'forgot-password', 'reset-password', 'verify-email', 'email',
         'confirm-password', 'up', 'storage', 'build', 'privacy', 'terms',
     ];

@@ -34,7 +34,7 @@ Route::middleware('auth')->group(function () {
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 });
 
-Route::middleware('auth')->prefix('admin')->group(function () {
+Route::middleware(['auth', 'admin'])->prefix('admin')->group(function () {
     Route::resource('channels', AdminChannelController::class)->except(['show']);
     Route::resource('groups', AdminGroupController::class)->except(['show']);
     Route::get('settings', [AdminSettingController::class, 'edit']);

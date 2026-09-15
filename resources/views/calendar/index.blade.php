@@ -147,9 +147,17 @@
                        target="_blank" rel="noopener noreferrer" title="LINEで共有">L</a>
                     <button type="button" class="share-btn" id="copy-url-btn" title="URLをコピー">🔗</button>
                 </div>
-                @auth
-                    <a href="{{ url('/admin/channels') }}" class="admin-link">管理画面</a>
-                @endauth
+                @guest
+                    <a href="{{ route('auth.google') }}" class="admin-link">ログイン</a>
+                @else
+                    @if (Auth::user()->is_admin)
+                        <a href="{{ url('/admin/channels') }}" class="admin-link">管理画面</a>
+                    @endif
+                    <form method="POST" action="{{ route('logout') }}" class="inline">
+                        @csrf
+                        <button type="submit" class="admin-link" style="border:none;background:none;cursor:pointer;">ログアウト</button>
+                    </form>
+                @endguest
             </div>
         </header>
 

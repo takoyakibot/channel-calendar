@@ -80,11 +80,22 @@
             </div>
         @endif
 
-        @auth
-            <div class="mt-6 text-center">
-                <a href="{{ url('/admin/channels') }}" class="text-sm text-blue-600 hover:underline">管理画面</a>
-            </div>
-        @endauth
+        <div class="mt-6 text-center" style="display: flex; justify-content: center; gap: 1rem; align-items: center;">
+            @guest
+                <a href="{{ route('auth.google') }}" class="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 shadow-sm">
+                    Googleでログイン
+                </a>
+            @else
+                <span class="text-sm text-gray-600">{{ Auth::user()->name }}</span>
+                <form method="POST" action="{{ route('logout') }}" class="inline">
+                    @csrf
+                    <button type="submit" class="text-sm text-gray-500 hover:text-gray-700 underline">ログアウト</button>
+                </form>
+                @if (Auth::user()->is_admin)
+                    <a href="{{ url('/admin/channels') }}" class="text-sm text-blue-600 hover:underline">管理画面</a>
+                @endif
+            @endguest
+        </div>
 
         <footer class="site-footer">
             <span>配信情報は YouTube Data API を利用して取得しています。各配信・チャンネルの権利はそれぞれの運営者および YouTube に帰属します。</span>
