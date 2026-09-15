@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\ActivityLog;
 use App\Models\Channel;
 use App\Models\Group;
 use App\Models\ManualSchedule;
@@ -61,6 +62,10 @@ class ManualScheduleController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        if ($request->user()->is_banned) {
+            return response()->json(['message' => 'アカウントが停止されています。'], 403);
+        }
+
         $validated = $request->validate([
             'channel_id' => 'required|integer|exists:channels,id',
             'title' => 'required|string|max:255',
@@ -74,6 +79,12 @@ class ManualScheduleController extends Controller
             'scheduled_at' => Carbon::parse($validated['scheduled_at'])->utc(),
         ]);
 
+        ActivityLog::record($request->user()->id, 'create_schedule', ManualSchedule::class, $schedule->id, [
+            'title' => $schedule->title,
+            'channel_id' => $schedule->channel_id,
+            'scheduled_at' => $schedule->scheduled_at->toIso8601String(),
+        ]);
+
         return response()->json($schedule->load('channel', 'user'), 201);
     }
 
@@ -84,6 +95,12 @@ class ManualScheduleController extends Controller
         if ($manualSchedule->user_id !== $user->id && ! $user->is_admin) {
             abort(403);
         }
+
+        ActivityLog::record($user->id, 'delete_schedule', ManualSchedule::class, $manualSchedule->id, [
+            'title' => $manualSchedule->title,
+            'channel_id' => $manualSchedule->channel_id,
+            'owner_user_id' => $manualSchedule->user_id,
+        ]);
 
         $manualSchedule->delete();
 

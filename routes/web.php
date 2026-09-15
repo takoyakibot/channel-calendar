@@ -1,9 +1,11 @@
 <?php
 
+use App\Http\Controllers\Admin\ActivityLogController as AdminActivityLogController;
 use App\Http\Controllers\Admin\ChannelController as AdminChannelController;
 use App\Http\Controllers\Admin\FetchController as AdminFetchController;
 use App\Http\Controllers\Admin\GroupController as AdminGroupController;
 use App\Http\Controllers\Admin\SettingController as AdminSettingController;
+use App\Http\Controllers\Admin\UserController as AdminUserController;
 use App\Http\Controllers\CalendarController;
 use App\Http\Controllers\ProfileController;
 use App\Models\Group;
@@ -41,6 +43,9 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->group(function () {
     Route::put('settings', [AdminSettingController::class, 'update']);
     Route::post('settings/test', [AdminSettingController::class, 'test']);
     Route::post('streams/fetch', [AdminFetchController::class, 'fetch']);
+    Route::get('users', [AdminUserController::class, 'index']);
+    Route::patch('users/{user}/toggle-ban', [AdminUserController::class, 'toggleBan']);
+    Route::get('activity-logs', [AdminActivityLogController::class, 'index']);
 });
 
 require __DIR__.'/auth.php';
