@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\Channel;
+use App\Models\ManualSchedule;
 use App\Models\Setting;
 use App\Models\Stream;
 use App\Services\YouTubeService;
@@ -58,6 +59,8 @@ class FetchStreams extends Command
         }
 
         $this->markOldStreamsCompleted();
+        $this->removeOverlappingManualSchedules();
+        $this->removePastManualSchedules();
         Setting::set(self::LAST_FETCHED_AT_KEY, now()->toIso8601String());
 
         $this->info('Done.');
@@ -174,5 +177,41 @@ class FetchStreams extends Command
         }
 
         $query->update(['status' => 'completed']);
+    }
+
+    /**
+     * Remove manual schedules when a real stream exists for the same channel
+     * within a 1-hour window of the manual schedule's time.
+     */
+    private function removeOverlappingManualSchedules(): void
+    {
+        $schedules = ManualSchedule::with('channel')->get();
+        $removed = 0;
+
+        foreach ($schedules as $schedule) {
+            $overlap = Stream::where('channel_id', $schedule->channel_id)
+                ->whereBetween('scheduled_at', [
+                    $schedule->scheduled_at->copy()->subHour(),
+                    $schedule->scheduled_at->copy()->addHour(),
+                ])
+                ->exists();
+
+            if ($overlap) {
+                $schedule->delete();
+                $removed++;
+            }
+        }
+
+        if ($removed > 0) {
+            $this->line("  {$removed} overlapping manual schedule(s) removed");
+        }
+    }
+
+    private function removePastManualSchedules(): void
+    {
+        $removed = ManualSchedule::where('scheduled_at', '<', now())->delete();
+        if ($removed > 0) {
+            $this->line("  {$removed} past manual schedule(s) removed");
+        }
     }
 }
