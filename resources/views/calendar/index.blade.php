@@ -27,6 +27,14 @@
         .card-source { margin-top: 0.3rem; font-size: 0.6875rem; color: #2563eb; }
         .card:hover .card-source { text-decoration: underline; }
 
+        @keyframes cc-new-flash {
+            0%   { background: #fef08a; box-shadow: 0 0 0 3px #facc15; }
+            60%  { background: #fef9c3; box-shadow: 0 0 0 3px #fde047; }
+            100% { background: #fff; box-shadow: 0 0 0 0 transparent; }
+        }
+        .card.is-new { animation: cc-new-flash 4s ease-out forwards; }
+        .fc-event.is-new { animation: cc-new-flash 4s ease-out forwards; border-radius: 0.25rem; }
+
         .filter-section { margin-bottom: 1rem; }
         .filter-toggle { display: inline-flex; align-items: center; gap: 0.375rem; padding: 0.25rem 0; font-size: 0.875rem; font-weight: 600; color: #374151; background: none; border: none; cursor: pointer; }
         .filter-toggle:hover { color: #111827; }
@@ -327,6 +335,7 @@
 
         var hiddenChannels = {};
         var boardStart = startOfDay(new Date());
+        var highlightEventId = null;  // event id to flash after the next render (newly added schedule)
         var filterCollapsed = false;
         try { filterCollapsed = localStorage.getItem('cc.filterCollapsed') === '1'; } catch (e) {}
         if (filterCollapsed) { filterEl.hidden = true; filterArrow.classList.add('collapsed'); }
@@ -397,6 +406,7 @@
             var start = new Date(ev.start);
             var a = document.createElement('a');
             a.className = 'card' + (props.status === 'completed' ? ' is-done' : '');
+            a.dataset.eventId = String(ev.id);
             a.href = ev.url;
             a.target = '_blank';
             a.rel = 'noopener noreferrer';
@@ -480,6 +490,29 @@
             return a;
         }
 
+        // After creating a manual schedule: jump the board to its week if needed,
+        // re-render, then flash the new card so it is easy to spot.
+        function focusNewSchedule(created) {
+            highlightEventId = 'ms_' + created.id;
+            var when = startOfDay(new Date(created.scheduled_at));
+            var windowEnd = addDays(boardStart, BOARD_DAYS);
+            if (when < boardStart || when >= windowEnd) {
+                boardStart = when;
+            }
+            loadBoard();
+            if (calendar) calendar.refetchEvents();
+        }
+
+        function flashHighlightedCard() {
+            if (!highlightEventId) return;
+            var el = boardEl.querySelector('[data-event-id="' + highlightEventId + '"]');
+            if (!el) return;
+            el.classList.add('is-new');
+            el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            setTimeout(function () { el.classList.remove('is-new'); }, 4000);
+            highlightEventId = null;
+        }
+
         function renderBoard() {
             boardEl.textContent = '';
             var todayKey = dateKey(new Date());
@@ -541,6 +574,7 @@
             }
 
             rangeEl.textContent = fmtShort(boardStart) + ' 〜 ' + fmtShort(addDays(boardStart, BOARD_DAYS - 1));
+            flashHighlightedCard();
         }
 
         function loadBoard() {
@@ -584,6 +618,12 @@
                     ]).then(function (results) {
                         successCallback(results[0].concat(results[1]).filter(isVisible));
                     }).catch(failureCallback);
+                },
+                eventDidMount: function (info) {
+                    if (highlightEventId && String(info.event.id) === highlightEventId) {
+                        info.el.classList.add('is-new');
+                        setTimeout(function () { info.el.classList.remove('is-new'); }, 4000);
+                    }
                 },
                 eventContent: function (arg) {
                     var props = arg.event.extendedProps;
@@ -757,8 +797,7 @@
                         document.getElementById('ms-title').value = '';
                         document.getElementById('ms-datetime').value = '';
                         document.getElementById('ms-source-url').value = '';
-                        loadBoard();
-                        if (calendar) calendar.refetchEvents();
+                        return res.json().then(focusNewSchedule);
                     } else {
                         return res.json().then(function (data) {
                             errEl.textContent = data.message || 'エラーが発生しました。';
@@ -841,8 +880,7 @@
                 }).then(function (res) {
                     if (res.ok) {
                         closeModal();
-                        loadBoard();
-                        if (calendar) calendar.refetchEvents();
+                        return res.json().then(focusNewSchedule);
                     } else {
                         return res.json().then(function (data) {
                             errEl.textContent = data.message || 'エラーが発生しました。';
