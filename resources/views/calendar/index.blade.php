@@ -145,7 +145,11 @@
         <header class="page-head">
             <div class="page-head-main">
                 <div class="title-row">
-                    <a href="{{ url('/') }}" class="back-link">←</a>
+                    @if ($group->parent)
+                        <a href="{{ url('/' . $group->parent->path) }}" class="back-link">←</a>
+                    @else
+                        <a href="{{ url('/') }}" class="back-link">←</a>
+                    @endif
                     <h1>{{ $group->name }}</h1>
                 </div>
             </div>
