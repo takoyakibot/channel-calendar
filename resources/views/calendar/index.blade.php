@@ -21,6 +21,20 @@
     <meta name="twitter:description" content="{{ $pageDescription }}">
     @vite(['resources/css/app.css'])
     <style>
+        /* Class rules below (e.g. .modal-overlay { display:flex }) would otherwise
+           outrank the preflight [hidden] rule and keep hidden elements visible. */
+        [hidden] { display: none !important; }
+        .card-source { margin-top: 0.3rem; font-size: 0.6875rem; color: #2563eb; }
+        .card:hover .card-source { text-decoration: underline; }
+
+        @keyframes cc-new-flash {
+            0%   { background: #fef08a; box-shadow: 0 0 0 3px #facc15; }
+            60%  { background: #fef9c3; box-shadow: 0 0 0 3px #fde047; }
+            100% { background: #fff; box-shadow: 0 0 0 0 transparent; }
+        }
+        .card.is-new { animation: cc-new-flash 4s ease-out forwards; }
+        .fc-event.is-new { animation: cc-new-flash 4s ease-out forwards; border-radius: 0.25rem; }
+
         .filter-section { margin-bottom: 1rem; }
         .filter-toggle { display: inline-flex; align-items: center; gap: 0.375rem; padding: 0.25rem 0; font-size: 0.875rem; font-weight: 600; color: #374151; background: none; border: none; cursor: pointer; }
         .filter-toggle:hover { color: #111827; }
@@ -47,6 +61,7 @@
         .subgroup-toggles button { padding: 0.3rem 0.75rem; font-size: 0.8125rem; border: 1px solid #d1d5db; border-radius: 9999px; background: #fff; color: #374151; cursor: pointer; transition: background 0.1s, color 0.1s; }
         .subgroup-toggles button:hover { background: #f3f4f6; }
         .subgroup-toggles button.is-active { background: #111827; color: #fff; border-color: #111827; }
+        .subgroup-hint { align-self: center; font-size: 0.75rem; color: #6b7280; margin-left: 0.25rem; }
         .admin-link { font-size: 0.875rem; color: #2563eb; text-decoration: none; }
         .admin-link:hover { text-decoration: underline; }
         .share-buttons { display: inline-flex; gap: 0.375rem; }
@@ -62,14 +77,6 @@
         .card:hover .delete-btn { display: flex; align-items: center; justify-content: center; }
         .card { position: relative; }
 
-        .schedule-form { background: #fff; border: 1px solid #e5e7eb; border-radius: 0.5rem; padding: 1rem; margin-bottom: 1rem; }
-        .schedule-form h3 { font-size: 0.875rem; font-weight: 600; margin: 0 0 0.75rem; color: #111827; }
-        .schedule-form .form-row { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: flex-end; }
-        .schedule-form .form-group { display: flex; flex-direction: column; gap: 0.25rem; }
-        .schedule-form label { font-size: 0.75rem; color: #6b7280; }
-        .schedule-form input, .schedule-form select { padding: 0.375rem 0.5rem; border: 1px solid #d1d5db; border-radius: 0.375rem; font-size: 0.875rem; }
-        .schedule-form button[type="submit"] { padding: 0.375rem 1rem; background: #111827; color: #fff; border: none; border-radius: 0.375rem; font-size: 0.875rem; cursor: pointer; }
-        .schedule-form button[type="submit"]:hover { background: #374151; }
 
         .site-footer { margin-top: 2.5rem; padding-top: 1rem; border-top: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; font-size: 0.75rem; color: #6b7280; }
         .site-footer nav { display: flex; gap: 1rem; flex: none; }
@@ -187,6 +194,7 @@
                     @foreach ($children as $child)
                         <button type="button" data-group-id="{{ $child->id }}">{{ $child->name }}</button>
                     @endforeach
+                    <span class="subgroup-hint" id="subgroup-hint" aria-live="polite">クリックすると、そのグループだけに絞り込みます</span>
                 </div>
             @endif
         @endif
@@ -198,28 +206,6 @@
             </button>
             <div id="channel-filter" class="channel-filter"></div>
         </div>
-
-        @auth
-            <div class="schedule-form" id="schedule-form">
-                <h3>予定を登録</h3>
-                <div class="form-row">
-                    <div class="form-group" style="flex:1;min-width:120px;">
-                        <label for="ms-channel">チャンネル</label>
-                        <select id="ms-channel"></select>
-                    </div>
-                    <div class="form-group" style="flex:2;min-width:160px;">
-                        <label for="ms-title">タイトル</label>
-                        <input type="text" id="ms-title" placeholder="配信タイトル" maxlength="255">
-                    </div>
-                    <div class="form-group">
-                        <label for="ms-datetime">日時</label>
-                        <input type="datetime-local" id="ms-datetime">
-                    </div>
-                    <button type="submit" id="ms-submit">登録</button>
-                </div>
-                <p id="ms-error" style="color:#dc2626;font-size:0.75rem;margin-top:0.5rem;" hidden></p>
-            </div>
-        @endauth
 
         <section id="board-view">
             <div class="board-toolbar">
@@ -265,6 +251,10 @@
             <div class="modal-field">
                 <label for="modal-time">時間</label>
                 <input type="time" id="modal-time" value="20:00">
+            </div>
+            <div class="modal-field">
+                <label for="modal-source-url">情報元URL（任意）</label>
+                <input type="url" id="modal-source-url" placeholder="https://x.com/... 告知ツイートなど" maxlength="2048">
             </div>
             <p id="modal-error" class="modal-error" hidden></p>
             <div class="modal-actions">
@@ -313,6 +303,8 @@
 
         var hiddenChannels = {};
         var boardStart = startOfDay(new Date());
+        var highlightEventId = null;  // event id to flash after the next render (newly added schedule)
+        var channelList = [];         // active channels from /api/channels, used by the filter and the schedule modal
         var filterCollapsed = false;
         try { filterCollapsed = localStorage.getItem('cc.filterCollapsed') === '1'; } catch (e) {}
         if (filterCollapsed) { filterEl.hidden = true; filterArrow.classList.add('collapsed'); }
@@ -347,6 +339,8 @@
 
         function isVisibleBySubgroup(channelId) {
             if (!hasSubgroups) return true;
+            // All subgroups active = no filter: also show channels attached directly to this group.
+            if (CHILD_GROUPS.every(function (g) { return !!activeSubgroups[g.id]; })) return true;
             for (var gid in activeSubgroups) {
                 if (!activeSubgroups[gid]) continue;
                 var chs = CHILD_CHANNEL_MAP[gid] || [];
@@ -383,6 +377,7 @@
             var start = new Date(ev.start);
             var a = document.createElement('a');
             a.className = 'card' + (props.status === 'completed' ? ' is-done' : '');
+            a.dataset.eventId = String(ev.id);
             a.href = ev.url;
             a.target = '_blank';
             a.rel = 'noopener noreferrer';
@@ -429,8 +424,21 @@
             a.appendChild(head);
             a.appendChild(title);
 
+            if (props.status === 'manual') {
+                if (props.source_url) {
+                    // A manual entry has no YouTube URL; link the card to its source instead.
+                    a.href = props.source_url;
+                    var source = document.createElement('div');
+                    source.className = 'card-source';
+                    source.textContent = '情報元を見る ↗';
+                    a.appendChild(source);
+                } else if (!ev.url) {
+                    a.removeAttribute('href');
+                    a.style.cursor = 'default';
+                }
+            }
+
             if (props.status === 'manual' && IS_LOGGED_IN && props.manual_schedule_id) {
-                if (!ev.url) { a.removeAttribute('href'); a.style.cursor = 'default'; }
                 var delBtn = document.createElement('button');
                 delBtn.className = 'delete-btn';
                 delBtn.textContent = '×';
@@ -451,6 +459,29 @@
             }
 
             return a;
+        }
+
+        // After creating a manual schedule: jump the board to its week if needed,
+        // re-render, then flash the new card so it is easy to spot.
+        function focusNewSchedule(created) {
+            highlightEventId = 'ms_' + created.id;
+            var when = startOfDay(new Date(created.scheduled_at));
+            var windowEnd = addDays(boardStart, BOARD_DAYS);
+            if (when < boardStart || when >= windowEnd) {
+                boardStart = when;
+            }
+            loadBoard();
+            if (calendar) calendar.refetchEvents();
+        }
+
+        function flashHighlightedCard() {
+            if (!highlightEventId) return;
+            var el = boardEl.querySelector('[data-event-id="' + highlightEventId + '"]');
+            if (!el) return;
+            el.classList.add('is-new');
+            el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            setTimeout(function () { el.classList.remove('is-new'); }, 4000);
+            highlightEventId = null;
         }
 
         function renderBoard() {
@@ -514,6 +545,7 @@
             }
 
             rangeEl.textContent = fmtShort(boardStart) + ' 〜 ' + fmtShort(addDays(boardStart, BOARD_DAYS - 1));
+            flashHighlightedCard();
         }
 
         function loadBoard() {
@@ -557,6 +589,12 @@
                     ]).then(function (results) {
                         successCallback(results[0].concat(results[1]).filter(isVisible));
                     }).catch(failureCallback);
+                },
+                eventDidMount: function (info) {
+                    if (highlightEventId && String(info.event.id) === highlightEventId) {
+                        info.el.classList.add('is-new');
+                        setTimeout(function () { info.el.classList.remove('is-new'); }, 4000);
+                    }
                 },
                 eventContent: function (arg) {
                     var props = arg.event.extendedProps;
@@ -628,15 +666,43 @@
                 renderBoard();
                 if (calendar) { calendar.refetchEvents(); }
             }
-            subgroupContainer.querySelectorAll('button[data-group-id]').forEach(function (btn) {
+            var subgroupButtons = Array.from(subgroupContainer.querySelectorAll('button[data-group-id]'));
+            var subgroupHint = document.getElementById('subgroup-hint');
+            function syncSubgroupButtons() {
+                subgroupButtons.forEach(function (b) {
+                    b.classList.toggle('is-active', !!activeSubgroups[Number(b.dataset.groupId)]);
+                });
+                if (subgroupHint) {
+                    subgroupHint.textContent = allSubgroupsActive()
+                        ? 'クリックすると、そのグループだけに絞り込みます'
+                        : 'クリックで追加・解除。すべて外すと全表示に戻ります';
+                }
+            }
+            function allSubgroupsActive() {
+                return CHILD_GROUPS.every(function (g) { return !!activeSubgroups[g.id]; });
+            }
+            function noSubgroupActive() {
+                return CHILD_GROUPS.every(function (g) { return !activeSubgroups[g.id]; });
+            }
+            subgroupButtons.forEach(function (btn) {
                 var id = Number(btn.dataset.groupId);
-                btn.classList.toggle('is-active', !!activeSubgroups[id]);
                 btn.addEventListener('click', function () {
-                    activeSubgroups[id] = !activeSubgroups[id];
-                    btn.classList.toggle('is-active', activeSubgroups[id]);
+                    if (allSubgroupsActive()) {
+                        // "Everything shown" is the neutral state: the first click narrows to just this group.
+                        CHILD_GROUPS.forEach(function (g) { activeSubgroups[g.id] = false; });
+                        activeSubgroups[id] = true;
+                    } else {
+                        activeSubgroups[id] = !activeSubgroups[id];
+                        // Deselecting the last group would show nothing; fall back to everything.
+                        if (noSubgroupActive()) {
+                            CHILD_GROUPS.forEach(function (g) { activeSubgroups[g.id] = true; });
+                        }
+                    }
+                    syncSubgroupButtons();
                     refreshSubgroupUI();
                 });
             });
+            syncSubgroupButtons();
         }
 
         function saveHiddenChannels() {
@@ -679,68 +745,10 @@
                     }
                     label.appendChild(document.createTextNode(ch.name));
                     filterEl.appendChild(label);
-
-                    var msChannel = document.getElementById('ms-channel');
-                    if (msChannel) {
-                        var opt = document.createElement('option');
-                        opt.value = ch.id;
-                        opt.textContent = ch.name;
-                        msChannel.appendChild(opt);
-                    }
                 });
-                var msChannel = document.getElementById('ms-channel');
-                if (msChannel) {
-                    try {
-                        var saved = localStorage.getItem('cc.lastChannel');
-                        if (saved && msChannel.querySelector('option[value="' + saved + '"]')) {
-                            msChannel.value = saved;
-                        }
-                    } catch (e) {}
-                    msChannel.addEventListener('change', function () {
-                        try { localStorage.setItem('cc.lastChannel', msChannel.value); } catch (e) {}
-                    });
-                }
+                channelList = channels;
                 initFromPrefs();
             }).catch(function () { initFromPrefs(); });
-
-        var msSubmit = document.getElementById('ms-submit');
-        if (msSubmit) {
-            msSubmit.addEventListener('click', function () {
-                var errEl = document.getElementById('ms-error');
-                errEl.hidden = true;
-                var msChannelEl = document.getElementById('ms-channel');
-                var channelId = msChannelEl.value;
-                var title = document.getElementById('ms-title').value.trim();
-                var datetime = document.getElementById('ms-datetime').value;
-                try { localStorage.setItem('cc.lastChannel', channelId); } catch (e) {}
-                if (!channelId || !title || !datetime) {
-                    errEl.textContent = 'すべての項目を入力してください。';
-                    errEl.hidden = false;
-                    return;
-                }
-                msSubmit.disabled = true;
-                fetch('/api/manual-schedules', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN, Accept: 'application/json' },
-                    body: JSON.stringify({ channel_id: Number(channelId), title: title, scheduled_at: datetime }),
-                }).then(function (res) {
-                    if (res.ok) {
-                        document.getElementById('ms-title').value = '';
-                        document.getElementById('ms-datetime').value = '';
-                        loadBoard();
-                        if (calendar) calendar.refetchEvents();
-                    } else {
-                        return res.json().then(function (data) {
-                            errEl.textContent = data.message || 'エラーが発生しました。';
-                            errEl.hidden = false;
-                        });
-                    }
-                }).catch(function () {
-                    errEl.textContent = 'エラーが発生しました。';
-                    errEl.hidden = false;
-                }).finally(function () { msSubmit.disabled = false; });
-            });
-        }
 
         var modalOverlay = document.getElementById('schedule-modal');
         var modalDate = '';
@@ -751,18 +759,16 @@
             document.getElementById('modal-date-label').textContent = parts[1] + '/' + parts[2];
             document.getElementById('modal-error').hidden = true;
             document.getElementById('modal-title').value = '';
+            document.getElementById('modal-source-url').value = '';
 
             var modalChannel = document.getElementById('modal-channel');
             if (modalChannel.options.length === 0) {
-                var msChannel = document.getElementById('ms-channel');
-                if (msChannel) {
-                    Array.from(msChannel.options).forEach(function (opt) {
-                        var o = document.createElement('option');
-                        o.value = opt.value;
-                        o.textContent = opt.textContent;
-                        modalChannel.appendChild(o);
-                    });
-                }
+                channelList.forEach(function (ch) {
+                    var o = document.createElement('option');
+                    o.value = ch.id;
+                    o.textContent = ch.name;
+                    modalChannel.appendChild(o);
+                });
             }
             try {
                 var saved = localStorage.getItem('cc.lastChannel');
@@ -792,6 +798,7 @@
                 var channelId = document.getElementById('modal-channel').value;
                 var title = document.getElementById('modal-title').value.trim();
                 var time = document.getElementById('modal-time').value;
+                var sourceUrl = document.getElementById('modal-source-url').value.trim();
                 if (!channelId || !title || !time) {
                     errEl.textContent = 'すべての項目を入力してください。';
                     errEl.hidden = false;
@@ -799,16 +806,17 @@
                 }
                 modalSubmitBtn.disabled = true;
                 try { localStorage.setItem('cc.lastChannel', channelId); } catch (e) {}
-                var datetime = modalDate + 'T' + time;
+                // "YYYY-MM-DDTHH:MM" without an offset is parsed as browser-local time;
+                // send the absolute instant so the server does not read it as UTC.
+                var datetime = new Date(modalDate + 'T' + time).toISOString();
                 fetch('/api/manual-schedules', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN, Accept: 'application/json' },
-                    body: JSON.stringify({ channel_id: Number(channelId), title: title, scheduled_at: datetime }),
+                    body: JSON.stringify({ channel_id: Number(channelId), title: title, source_url: sourceUrl || null, scheduled_at: datetime }),
                 }).then(function (res) {
                     if (res.ok) {
                         closeModal();
-                        loadBoard();
-                        if (calendar) calendar.refetchEvents();
+                        return res.json().then(focusNewSchedule);
                     } else {
                         return res.json().then(function (data) {
                             errEl.textContent = data.message || 'エラーが発生しました。';

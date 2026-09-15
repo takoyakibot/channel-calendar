@@ -54,6 +54,8 @@ class GroupPageTest extends TestCase
 
         $response->assertOk();
         $response->assertSee('id="subgroup-toggles"', false);
+        $response->assertSee('id="subgroup-hint"', false);
+        $response->assertSee('そのグループだけに絞り込みます');
         $response->assertSee('子B');
         $response->assertSee('子C');
         $response->assertDontSee('無関係');
