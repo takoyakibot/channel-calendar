@@ -179,7 +179,7 @@
                     <button type="button" class="share-btn" id="copy-url-btn" title="URLをコピー">🔗</button>
                 </div>
                 @guest
-                    <a href="{{ route('auth.google') }}" class="admin-link">ログイン</a>
+                    <a href="{{ route('auth.google') }}" class="admin-link" data-cc-login>ログイン</a>
                 @else
                     @if (Auth::user()->is_admin)
                         <a href="{{ url('/admin/channels') }}" class="admin-link">管理画面</a>
@@ -248,6 +248,7 @@
                 <a href="{{ url('/terms') }}">利用規約</a>
                 <a href="{{ url('/privacy') }}">プライバシーポリシー</a>
                 <a href="https://www.youtube.com/t/terms" target="_blank" rel="noopener noreferrer">YouTube 利用規約</a>
+                <a href="#" data-cc-reset>Cookie 設定</a>
             </nav>
         </footer>
     </div>
@@ -279,6 +280,7 @@
     </div>
     @endauth
 
+    <x-cookie-consent />
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@fullcalendar/core@6.1.11/locales/ja.global.min.js"></script>
     <script>

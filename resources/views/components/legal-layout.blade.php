@@ -11,6 +11,7 @@
         .legal h1 { font-size: 1.5rem; font-weight: 700; color: #111827; margin: 0 0 0.5rem; }
         .legal .meta { font-size: 0.8125rem; color: #6b7280; margin-bottom: 2rem; }
         .legal h2 { font-size: 1.0625rem; font-weight: 700; color: #111827; margin: 2rem 0 0.5rem; padding-top: 0.25rem; border-top: 1px solid #e5e7eb; }
+        .legal h3 { font-size: 0.9375rem; font-weight: 700; color: #374151; margin: 1.25rem 0 0.375rem; }
         .legal p, .legal li { font-size: 0.9375rem; }
         .legal ul { padding-left: 1.25rem; margin: 0.25rem 0 0.75rem; }
         .legal li { margin: 0.25rem 0; }
@@ -25,8 +26,9 @@
         <a href="{{ url('/') }}" class="back">← カレンダーへ戻る</a>
         {{ $slot }}
         <nav class="related">
-            <a href="{{ url('/terms') }}">利用規約</a> ・ <a href="{{ url('/privacy') }}">プライバシーポリシー</a>
+            <a href="{{ url('/terms') }}">利用規約</a> ・ <a href="{{ url('/privacy') }}">プライバシーポリシー</a> ・ <a href="#" data-cc-reset>Cookie 設定</a>
         </nav>
     </main>
+    <x-cookie-consent />
 </body>
 </html>

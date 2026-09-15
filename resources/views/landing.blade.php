@@ -82,7 +82,7 @@
 
         <div class="mt-6 text-center" style="display: flex; justify-content: center; gap: 1rem; align-items: center;">
             @guest
-                <a href="{{ route('auth.google') }}" class="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 shadow-sm">
+                <a href="{{ route('auth.google') }}" data-cc-login class="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 shadow-sm">
                     Googleでログイン
                 </a>
             @else
@@ -103,8 +103,10 @@
                 <a href="{{ url('/terms') }}">利用規約</a>
                 <a href="{{ url('/privacy') }}">プライバシーポリシー</a>
                 <a href="https://www.youtube.com/t/terms" target="_blank" rel="noopener noreferrer">YouTube 利用規約</a>
+                <a href="#" data-cc-reset>Cookie 設定</a>
             </nav>
         </footer>
     </div>
+    <x-cookie-consent />
 </body>
 </html>
