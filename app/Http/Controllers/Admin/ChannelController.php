@@ -70,6 +70,7 @@ class ChannelController extends Controller
         $channel->update([
             'color' => $request->color,
             'is_active' => $request->boolean('is_active'),
+            'x_handle' => $request->normalizedXHandle(),
         ]);
 
         return redirect('/admin/channels')->with('success', 'チャンネルを更新しました。');

@@ -15,6 +15,7 @@ class Channel extends Model
     protected $fillable = [
         'channel_id',
         'handle',
+        'x_handle',
         'name',
         'thumbnail_url',
         'color',

@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\ChannelController;
 use App\Http\Controllers\Api\ManualScheduleController;
 use App\Http\Controllers\Api\PreferenceController;
 use App\Http\Controllers\Api\StreamController;
+use App\Http\Controllers\Api\TweetPreviewController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -31,4 +32,5 @@ Route::middleware('web', 'auth')->group(function () {
     Route::delete('/manual-schedules/{manualSchedule}', [ManualScheduleController::class, 'destroy']);
     Route::get('/preferences', [PreferenceController::class, 'show']);
     Route::put('/preferences', [PreferenceController::class, 'update']);
+    Route::get('/tweet-preview', [TweetPreviewController::class, 'show'])->middleware('throttle:30,1');
 });

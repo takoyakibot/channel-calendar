@@ -58,6 +58,10 @@
                                 @else
                                     <div class="text-xs text-gray-400">{{ $channel->channel_id }}</div>
                                 @endif
+                                @if ($channel->x_handle)
+                                    <a href="https://x.com/{{ $channel->x_handle }}" target="_blank" rel="noopener noreferrer"
+                                       class="text-xs text-gray-500 hover:underline ml-2">𝕏 {{ '@' . $channel->x_handle }}</a>
+                                @endif
                             </td>
                             <td class="px-6 py-4">
                                 <span class="inline-block w-6 h-6 rounded" style="background-color:{{ $channel->color }}"></span>

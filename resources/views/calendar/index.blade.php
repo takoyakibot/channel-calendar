@@ -44,6 +44,11 @@
         .channel-filter label { display: flex; align-items: center; gap: 0.35rem; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.875rem; cursor: pointer; border: 1px solid #e5e7eb; background: #fff; }
         .channel-filter label:hover { background-color: #f3f4f6; }
         .channel-filter img { width: 1.25rem; height: 1.25rem; border-radius: 50%; object-fit: cover; }
+        .channel-filter .x-link { margin-left: 0.25rem; font-size: 0.75rem; color: #6b7280; text-decoration: none; padding: 0 0.2rem; border-radius: 0.25rem; }
+        .channel-filter .x-link:hover { color: #111827; background: #e5e7eb; }
+        .modal-hint { margin: 0.375rem 0 0; font-size: 0.75rem; color: #6b7280; display: flex; flex-direction: column; gap: 0.25rem; }
+        .modal-hint a { color: #2563eb; text-decoration: none; }
+        .modal-hint a:hover { text-decoration: underline; }
 
         .view-toggle { display: inline-flex; border: 1px solid #d1d5db; border-radius: 0.5rem; overflow: hidden; background: #fff; }
         .view-toggle button { padding: 0.375rem 0.875rem; font-size: 0.875rem; color: #374151; background: transparent; border: 0; cursor: pointer; }
@@ -266,6 +271,10 @@
             <div class="modal-field">
                 <label for="modal-source-url">情報元URL（任意）</label>
                 <input type="url" id="modal-source-url" placeholder="https://x.com/... 告知ツイートなど" maxlength="2048">
+                <p class="modal-hint">
+                    <a id="modal-x-search" href="#" target="_blank" rel="noopener noreferrer" hidden>𝕏 このチャンネルの告知を X で探す ↗</a>
+                    <span id="modal-preview-status" hidden></span>
+                </p>
             </div>
             <p id="modal-error" class="modal-error" hidden></p>
             <div class="modal-actions">
@@ -283,6 +292,13 @@
     var GROUP_SLUG = @json($group?->path, JSON_UNESCAPED_SLASHES);
     var CHILD_GROUPS = @json($children->map(fn ($c) => ['id' => $c->id, 'name' => $c->name])->values());
     var CHILD_CHANNEL_MAP = @json($childChannelMap);
+    var X_SEARCH_KEYWORDS = @json(config('services.x.search_keywords', []));
+
+    // "from:handle (kw1 OR kw2 ...)" on X, newest first — the same query XHandle::searchUrl builds server-side.
+    function xSearchUrl(handle) {
+        var terms = X_SEARCH_KEYWORDS.join(' OR ');
+        return 'https://x.com/search?q=' + encodeURIComponent('from:' + handle + (terms ? ' (' + terms + ')' : '')) + '&f=live';
+    }
     var IS_LOGGED_IN = @json(Auth::check());
     var CSRF_TOKEN = @json(csrf_token());
     var CURRENT_USER_ID = @json(Auth::id());
@@ -787,6 +803,17 @@
                         label.appendChild(dot);
                     }
                     label.appendChild(document.createTextNode(ch.name));
+                    if (IS_LOGGED_IN && ch.x_handle) {
+                        var xLink = document.createElement('a');
+                        xLink.className = 'x-link';
+                        xLink.href = xSearchUrl(ch.x_handle);
+                        xLink.target = '_blank';
+                        xLink.rel = 'noopener noreferrer';
+                        xLink.title = 'X で ' + ch.name + ' の告知を探す';
+                        xLink.textContent = '𝕏';
+                        xLink.addEventListener('click', function (e) { e.stopPropagation(); });
+                        label.appendChild(xLink);
+                    }
                     filterEl.appendChild(label);
                 });
                 channelList = channels;
@@ -795,6 +822,47 @@
 
         var modalOverlay = document.getElementById('schedule-modal');
         var modalDate = '';
+
+        // "Find announcements on X" link follows the channel chosen in the modal.
+        function updateModalXSearch() {
+            var link = document.getElementById('modal-x-search');
+            var select = document.getElementById('modal-channel');
+            if (!link || !select) return;
+            var ch = channelList.find(function (c) { return String(c.id) === String(select.value); });
+            if (ch && ch.x_handle) {
+                link.href = xSearchUrl(ch.x_handle);
+                link.hidden = false;
+            } else {
+                link.hidden = true;
+            }
+        }
+        if (modalOverlay) {
+            document.getElementById('modal-channel').addEventListener('change', updateModalXSearch);
+
+            // Paste a post URL → pull its text via oEmbed and offer it as the title.
+            var TWEET_URL = /^https?:\/\/(?:www\.|mobile\.)?(?:x\.com|twitter\.com)\/[A-Za-z0-9_]{1,15}\/status\/\d+/i;
+            var previewStatus = document.getElementById('modal-preview-status');
+            document.getElementById('modal-source-url').addEventListener('change', function () {
+                var url = this.value.trim();
+                var titleEl = document.getElementById('modal-title');
+                if (!TWEET_URL.test(url)) return;
+                previewStatus.textContent = '投稿を読み込み中…';
+                previewStatus.hidden = false;
+                fetch('/api/tweet-preview?url=' + encodeURIComponent(url), { headers: { Accept: 'application/json' } })
+                    .then(function (res) { return res.json().then(function (data) { return { ok: res.ok, data: data }; }); })
+                    .then(function (r) {
+                        if (!r.ok) { previewStatus.textContent = r.data.message || '投稿を取得できませんでした。'; return; }
+                        var firstLine = (r.data.text || '').split('\n').map(function (s) { return s.trim(); }).filter(Boolean)[0] || '';
+                        if (firstLine && !titleEl.value.trim()) {
+                            titleEl.value = firstLine.slice(0, 255);
+                            previewStatus.textContent = '投稿の本文をタイトルに入れました（' + (r.data.author_name || '') + '）。必要なら編集してください。';
+                        } else {
+                            previewStatus.textContent = (r.data.author_name || '') + ': ' + (r.data.text || '').slice(0, 80);
+                        }
+                    })
+                    .catch(function () { previewStatus.textContent = '投稿を取得できませんでした。'; });
+            });
+        }
         function openModal(dateStr) {
             if (!modalOverlay) return;
             modalDate = dateStr;
@@ -820,6 +888,7 @@
                 }
             } catch (e) {}
 
+            updateModalXSearch();
             modalOverlay.hidden = false;
             document.getElementById('modal-title').focus();
         }

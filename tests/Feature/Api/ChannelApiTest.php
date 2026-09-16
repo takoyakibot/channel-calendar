@@ -21,4 +21,16 @@ class ChannelApiTest extends TestCase
         $response->assertJsonCount(1);
         $response->assertJsonFragment(['name' => 'Active Ch']);
     }
+
+    public function test_channels_endpoint_includes_x_handle(): void
+    {
+        Channel::factory()->create(['name' => 'With X', 'x_handle' => 'some_user']);
+        Channel::factory()->create(['name' => 'Without X', 'x_handle' => null]);
+
+        $response = $this->getJson('/api/channels');
+
+        $response->assertOk();
+        $response->assertJsonFragment(['name' => 'With X', 'x_handle' => 'some_user']);
+        $response->assertJsonFragment(['name' => 'Without X', 'x_handle' => null]);
+    }
 }
