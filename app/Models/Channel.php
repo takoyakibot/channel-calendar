@@ -16,6 +16,7 @@ class Channel extends Model
         'channel_id',
         'handle',
         'x_handle',
+        'x_search_keywords',
         'name',
         'thumbnail_url',
         'color',

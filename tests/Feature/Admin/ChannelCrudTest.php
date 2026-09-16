@@ -191,6 +191,29 @@ class ChannelCrudTest extends TestCase
         $response->assertSessionHasErrors('x_handle');
     }
 
+    public function test_admin_can_set_channel_specific_x_search_keywords(): void
+    {
+        $channel = Channel::factory()->create(['x_handle' => 'some_user']);
+
+        $this->actingAs($this->admin)->put("/admin/channels/{$channel->id}", [
+            'color' => '#00FF00',
+            'is_active' => true,
+            'x_handle' => 'some_user',
+            'x_search_keywords' => ' 歌枠, 雑談　歌枠 ',
+        ])->assertRedirect('/admin/channels');
+
+        $this->assertDatabaseHas('channels', ['id' => $channel->id, 'x_search_keywords' => '歌枠,雑談']);
+
+        $this->actingAs($this->admin)->put("/admin/channels/{$channel->id}", [
+            'color' => '#00FF00',
+            'is_active' => true,
+            'x_handle' => 'some_user',
+            'x_search_keywords' => '',
+        ])->assertRedirect('/admin/channels');
+
+        $this->assertDatabaseHas('channels', ['id' => $channel->id, 'x_search_keywords' => null]);
+    }
+
     public function test_admin_can_update_channel(): void
     {
         $channel = Channel::factory()->create();

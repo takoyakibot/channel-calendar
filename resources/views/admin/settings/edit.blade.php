@@ -46,11 +46,30 @@
                     </div>
                 </form>
 
-                <form method="POST" action="{{ url('/admin/settings/test') }}" class="border-t border-gray-200 pt-4">
+                <form method="POST" action="{{ url('/admin/settings/test') }}" class="border-t border-gray-200 pt-4 mb-8">
                     @csrf
                     <p class="text-sm text-gray-600 mb-2">現在有効なキーで YouTube API に1回アクセスして疎通を確認します。</p>
                     <button type="submit" class="px-4 py-2 bg-gray-800 text-white rounded hover:bg-gray-900"
                             {{ $keySource === 'none' ? 'disabled' : '' }}>接続テスト</button>
+                </form>
+
+                <h3 class="text-lg font-semibold text-gray-900 mb-1 border-t border-gray-200 pt-6">X 検索キーワード（全体）</h3>
+                <p class="text-sm text-gray-500 mb-4">
+                    「X で告知を探す」リンクの検索語です。全チャンネル共通で <code>from:アカウント (語1 OR 語2 …)</code> の形で使われ、チャンネル編集で個別の語を足せます。<br>
+                    現在有効: <span class="font-medium text-gray-800">{{ $xSearchEffective ?: '（なし）' }}</span>
+                    @if ($xSearchKeywords === '')<span class="text-gray-400">（.env の既定値）</span>@endif
+                </p>
+                <form method="POST" action="{{ url('/admin/settings') }}">
+                    @csrf
+                    @method('PUT')
+                    <label for="x_search_keywords" class="block text-sm font-medium text-gray-700 mb-1">キーワード（カンマまたは空白区切り）</label>
+                    <input type="text" name="x_search_keywords" id="x_search_keywords" value="{{ old('x_search_keywords', $xSearchKeywords) }}"
+                           class="w-full border-gray-300 rounded-md shadow-sm" maxlength="255"
+                           placeholder="{{ $xSearchDefault ?: '予定, 配信, 朝活, 告知' }}">
+                    <p class="text-xs text-gray-500 mt-1">空欄で保存すると .env の既定値（{{ $xSearchDefault ?: 'なし' }}）に戻ります。</p>
+                    <div class="mt-4">
+                        <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">保存</button>
+                    </div>
                 </form>
             </div>
         </div>

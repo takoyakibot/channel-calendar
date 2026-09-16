@@ -5,6 +5,7 @@ namespace Tests\Feature\Admin;
 use App\Models\Setting;
 use App\Models\User;
 use App\Services\YouTubeService;
+use App\Support\XSearchKeywords;
 use App\Support\YouTubeApiKey;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -96,6 +97,51 @@ class SettingsTest extends TestCase
         $response->assertRedirect('/admin/settings');
         $response->assertSessionHas('success');
         $response->assertSessionMissing('error');
+    }
+
+    public function test_admin_can_save_global_x_search_keywords(): void
+    {
+        $response = $this->actingAs($this->admin)->put('/admin/settings', [
+            'youtube_api_key' => '',
+            'x_search_keywords' => ' 告知, スケジュール　配信 ',
+        ]);
+
+        $response->assertRedirect('/admin/settings');
+        $this->assertSame('告知,スケジュール,配信', Setting::get(XSearchKeywords::SETTING_KEY));
+        $this->assertSame(['告知', 'スケジュール', '配信'], XSearchKeywords::global());
+    }
+
+    public function test_clearing_global_x_search_keywords_falls_back_to_the_default(): void
+    {
+        config(['services.x.search_keywords' => ['予定', '配信']]);
+        Setting::set(XSearchKeywords::SETTING_KEY, '告知');
+
+        $this->actingAs($this->admin)->put('/admin/settings', ['youtube_api_key' => '', 'x_search_keywords' => ''])
+            ->assertRedirect('/admin/settings');
+
+        $this->assertNull(Setting::get(XSearchKeywords::SETTING_KEY));
+        $this->assertSame(['予定', '配信'], XSearchKeywords::global());
+    }
+
+    public function test_settings_page_shows_current_x_search_keywords(): void
+    {
+        Setting::set(XSearchKeywords::SETTING_KEY, '告知,スケジュール');
+
+        $response = $this->actingAs($this->admin)->get('/admin/settings');
+
+        $response->assertOk();
+        $response->assertSee('name="x_search_keywords"', false);
+        $response->assertSee('告知, スケジュール');
+    }
+
+    public function test_saving_api_key_alone_keeps_x_search_keywords(): void
+    {
+        Setting::set(XSearchKeywords::SETTING_KEY, '告知');
+
+        $this->actingAs($this->admin)->put('/admin/settings', ['youtube_api_key' => 'AIzaNEWKEY'])
+            ->assertRedirect('/admin/settings');
+
+        $this->assertSame('告知', Setting::get(XSearchKeywords::SETTING_KEY));
     }
 
     public function test_connection_test_reports_failure(): void

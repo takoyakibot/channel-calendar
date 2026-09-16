@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Channel;
 use App\Models\Group;
+use App\Support\XSearchKeywords;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -23,9 +24,17 @@ class ChannelController extends Controller
 
         $channels = Channel::active()
             ->when($groupIds !== null, fn ($q) => $q->whereHas('groups', fn ($g) => $g->whereIn('groups.id', $groupIds)))
-            ->select('id', 'name', 'color', 'thumbnail_url', 'x_handle')
+            ->select('id', 'name', 'color', 'thumbnail_url', 'x_handle', 'x_search_keywords')
             ->orderBy('name')
-            ->get();
+            ->get()
+            ->map(fn (Channel $c) => [
+                'id' => $c->id,
+                'name' => $c->name,
+                'color' => $c->color,
+                'thumbnail_url' => $c->thumbnail_url,
+                'x_handle' => $c->x_handle,
+                'x_search_keywords' => XSearchKeywords::parse($c->x_search_keywords),
+            ]);
 
         return response()->json($channels);
     }
