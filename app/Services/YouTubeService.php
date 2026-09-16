@@ -68,8 +68,31 @@ class YouTubeService
     public function listRecentUploadIds(string $channelId, int $max = 50): array
     {
         // Every channel's uploads playlist id is its channel id with "UC" swapped for "UU".
-        $playlistId = 'UU' . substr($channelId, 2);
+        return $this->listPlaylistVideoIds('UU' . substr($channelId, 2), $max);
+    }
 
+    /**
+     * Members-only videos live in the auto-generated "UUMO…" playlist, which the
+     * uploads playlist omits. It is readable with an API key; channels without a
+     * membership programme simply have no such playlist (404), which means "none".
+     *
+     * @return array<int, string>
+     */
+    public function listMembersOnlyUploadIds(string $channelId, int $max = 50): array
+    {
+        try {
+            return $this->listPlaylistVideoIds('UUMO' . substr($channelId, 2), $max);
+        } catch (\Google\Service\Exception $e) {
+            if ($e->getCode() === 404) {
+                return [];
+            }
+            throw $e;
+        }
+    }
+
+    /** @return array<int, string> */
+    private function listPlaylistVideoIds(string $playlistId, int $max): array
+    {
         $response = $this->youtube->playlistItems->listPlaylistItems('snippet', [
             'playlistId' => $playlistId,
             'maxResults' => $max,

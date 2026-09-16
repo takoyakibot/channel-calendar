@@ -26,6 +26,7 @@ class FetchNowTest extends TestCase
 
         $mockService = Mockery::mock(YouTubeService::class);
         $mockService->shouldReceive('listRecentUploadIds')->once()->with('UC_test')->andReturn([]);
+        $mockService->shouldReceive('listMembersOnlyUploadIds')->with('UC_test')->andReturn([]);
         $this->app->instance(YouTubeService::class, $mockService);
 
         $response = $this->actingAs($admin)->from('/admin/channels')->post('/admin/streams/fetch');

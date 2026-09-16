@@ -39,8 +39,24 @@ class StreamApiTest extends TestCase
             'channel_thumbnail_url' => 'https://example.com/ch.jpg',
         ]);
         $response->assertJsonStructure([
-            ['id', 'title', 'start', 'url', 'color', 'extendedProps' => ['channel_name', 'channel_id', 'channel_thumbnail_url', 'status']],
+            ['id', 'title', 'start', 'url', 'color', 'extendedProps' => ['channel_name', 'channel_id', 'channel_thumbnail_url', 'status', 'is_members_only']],
         ]);
+        $response->assertJsonFragment(['is_members_only' => false]);
+    }
+
+    public function test_streams_endpoint_marks_members_only_streams(): void
+    {
+        $channel = Channel::factory()->create();
+        Stream::factory()->create([
+            'channel_id' => $channel->id,
+            'title' => '【メン限】secret',
+            'scheduled_at' => '2026-09-15 19:00:00',
+            'is_members_only' => true,
+        ]);
+
+        $this->getJson('/api/streams?start=2026-09-01&end=2026-09-30')
+            ->assertOk()
+            ->assertJsonFragment(['title' => '【メン限】secret', 'is_members_only' => true]);
     }
 
     public function test_streams_endpoint_filters_by_date_range(): void

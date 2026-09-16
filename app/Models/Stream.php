@@ -20,12 +20,14 @@ class Stream extends Model
         'actual_start_at',
         'actual_end_at',
         'status',
+        'is_members_only',
     ];
 
     protected $casts = [
         'scheduled_at' => 'datetime',
         'actual_start_at' => 'datetime',
         'actual_end_at' => 'datetime',
+        'is_members_only' => 'boolean',
     ];
 
     public function channel(): BelongsTo

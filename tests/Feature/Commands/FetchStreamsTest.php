@@ -15,6 +15,53 @@ class FetchStreamsTest extends TestCase
 {
     use RefreshDatabase;
 
+    /** YouTubeService mock with no members-only videos unless a test says otherwise. */
+    private function mockYouTube(): YouTubeService
+    {
+        $mock = Mockery::mock(YouTubeService::class);
+        $mock->shouldReceive('listMembersOnlyUploadIds')->byDefault()->andReturn([]);
+
+        return $mock;
+    }
+
+    public function test_fetch_streams_imports_members_only_streams_and_flags_them(): void
+    {
+        $channel = Channel::factory()->create(['channel_id' => 'UC_test']);
+
+        $mockService = $this->mockYouTube();
+        $mockService->shouldReceive('listRecentUploadIds')->with('UC_test')->andReturn(['pub1']);
+        $mockService->shouldReceive('listMembersOnlyUploadIds')->with('UC_test')->andReturn(['mem1']);
+        $mockService->shouldReceive('getVideoDetails')
+            ->once()
+            ->with(Mockery::on(fn ($ids) => count($ids) === 2 && in_array('pub1', $ids, true) && in_array('mem1', $ids, true)))
+            ->andReturn([
+                $this->detail('pub1', ['title' => 'Public stream']),
+                $this->detail('mem1', ['title' => '【メン限】members stream']),
+            ]);
+        $this->app->instance(YouTubeService::class, $mockService);
+
+        $this->artisan('streams:fetch')->assertSuccessful();
+
+        $this->assertDatabaseHas('streams', ['video_id' => 'pub1', 'channel_id' => $channel->id, 'is_members_only' => false]);
+        $this->assertDatabaseHas('streams', ['video_id' => 'mem1', 'channel_id' => $channel->id, 'is_members_only' => true]);
+    }
+
+    public function test_fetch_streams_keeps_members_only_stream_that_is_still_listed(): void
+    {
+        $channel = Channel::factory()->create(['channel_id' => 'UC_test']);
+        Stream::factory()->create(['channel_id' => $channel->id, 'video_id' => 'mem1', 'status' => 'upcoming', 'is_members_only' => true, 'scheduled_at' => now()->addDay()]);
+
+        $mockService = $this->mockYouTube();
+        $mockService->shouldReceive('listRecentUploadIds')->with('UC_test')->andReturn([]);
+        $mockService->shouldReceive('listMembersOnlyUploadIds')->with('UC_test')->andReturn(['mem1']);
+        $mockService->shouldReceive('getVideoDetails')->once()->with(['mem1'])->andReturn([$this->detail('mem1')]);
+        $this->app->instance(YouTubeService::class, $mockService);
+
+        $this->artisan('streams:fetch')->assertSuccessful();
+
+        $this->assertDatabaseHas('streams', ['video_id' => 'mem1', 'is_members_only' => true]);
+    }
+
     private function detail(string $id, array $overrides = []): array
     {
         return array_merge([
@@ -32,7 +79,7 @@ class FetchStreamsTest extends TestCase
     {
         $channel = Channel::factory()->create(['channel_id' => 'UC_test']);
 
-        $mockService = Mockery::mock(YouTubeService::class);
+        $mockService = $this->mockYouTube();
         $mockService->shouldReceive('listRecentUploadIds')->with('UC_test')->andReturn(['vid1']);
         $mockService->shouldReceive('getVideoDetails')->with(['vid1'])->andReturn([
             $this->detail('vid1', ['title' => 'Stream 1 Full', 'thumbnail_url' => 'https://example.com/1.jpg']),
@@ -55,7 +102,7 @@ class FetchStreamsTest extends TestCase
         $channel = Channel::factory()->create(['channel_id' => 'UC_test']);
         Stream::factory()->create(['channel_id' => $channel->id, 'video_id' => 'vid1', 'title' => 'Old Title', 'status' => 'upcoming']);
 
-        $mockService = Mockery::mock(YouTubeService::class);
+        $mockService = $this->mockYouTube();
         $mockService->shouldReceive('listRecentUploadIds')->with('UC_test')->andReturn(['vid1']);
         $mockService->shouldReceive('getVideoDetails')->with(['vid1'])->andReturn([
             $this->detail('vid1', [
@@ -78,7 +125,7 @@ class FetchStreamsTest extends TestCase
         config(['services.youtube.backfill_days' => 14]);
         $channel = Channel::factory()->create(['channel_id' => 'UC_test']);
 
-        $mockService = Mockery::mock(YouTubeService::class);
+        $mockService = $this->mockYouTube();
         $mockService->shouldReceive('listRecentUploadIds')->with('UC_test')->andReturn(['recent', 'ancient', 'plain_video']);
         $mockService->shouldReceive('getVideoDetails')->with(['recent', 'ancient', 'plain_video'])->andReturn([
             $this->detail('recent', [
@@ -108,7 +155,7 @@ class FetchStreamsTest extends TestCase
     {
         Channel::factory()->create(['channel_id' => 'UC_inactive', 'is_active' => false]);
 
-        $mockService = Mockery::mock(YouTubeService::class);
+        $mockService = $this->mockYouTube();
         $mockService->shouldNotReceive('listRecentUploadIds');
         $this->app->instance(YouTubeService::class, $mockService);
 
@@ -122,7 +169,7 @@ class FetchStreamsTest extends TestCase
         Stream::factory()->create(['channel_id' => $channel->id, 'video_id' => 'vid_old', 'status' => 'upcoming', 'scheduled_at' => now()->subDays(20)]);
         Stream::factory()->create(['channel_id' => $channel->id, 'video_id' => 'vid_old_live', 'status' => 'live', 'scheduled_at' => now()->subDays(20)]);
 
-        $mockService = Mockery::mock(YouTubeService::class);
+        $mockService = $this->mockYouTube();
         $mockService->shouldReceive('listRecentUploadIds')->andReturn([]);
         $mockService->shouldNotReceive('getVideoDetails');
         $this->app->instance(YouTubeService::class, $mockService);
@@ -138,7 +185,7 @@ class FetchStreamsTest extends TestCase
         $channel = Channel::factory()->create(['channel_id' => 'UC_test']);
         Stream::factory()->create(['channel_id' => $channel->id, 'video_id' => 'vid_cancelled', 'status' => 'upcoming', 'scheduled_at' => now()->addDays(2)]);
 
-        $mockService = Mockery::mock(YouTubeService::class);
+        $mockService = $this->mockYouTube();
         $mockService->shouldReceive('listRecentUploadIds')->with('UC_test')->andReturn([]);
         $mockService->shouldReceive('getVideoDetails')->once()->with(['vid_cancelled'])->andReturn([]);
         $this->app->instance(YouTubeService::class, $mockService);
@@ -154,7 +201,7 @@ class FetchStreamsTest extends TestCase
         $channel = Channel::factory()->create(['channel_id' => 'UC_test']);
         Stream::factory()->create(['channel_id' => $channel->id, 'video_id' => 'vid_privated', 'status' => 'completed', 'scheduled_at' => now()->subDays(3)]);
 
-        $mockService = Mockery::mock(YouTubeService::class);
+        $mockService = $this->mockYouTube();
         $mockService->shouldReceive('listRecentUploadIds')->with('UC_test')->andReturn([]);
         $mockService->shouldReceive('getVideoDetails')->once()->with(['vid_privated'])->andReturn([]);
         $this->app->instance(YouTubeService::class, $mockService);
@@ -170,7 +217,7 @@ class FetchStreamsTest extends TestCase
         $channel = Channel::factory()->create(['channel_id' => 'UC_test']);
         Stream::factory()->create(['channel_id' => $channel->id, 'video_id' => 'vid_buried', 'title' => 'Old Title', 'status' => 'upcoming', 'scheduled_at' => now()->subDays(5)]);
 
-        $mockService = Mockery::mock(YouTubeService::class);
+        $mockService = $this->mockYouTube();
         $mockService->shouldReceive('listRecentUploadIds')->with('UC_test')->andReturn([]);
         $mockService->shouldReceive('getVideoDetails')->once()->with(['vid_buried'])->andReturn([
             $this->detail('vid_buried', [
@@ -194,7 +241,7 @@ class FetchStreamsTest extends TestCase
         $channel = Channel::factory()->create(['channel_id' => 'UC_test']);
         Stream::factory()->create(['channel_id' => $channel->id, 'video_id' => 'vid_ancient', 'status' => 'completed', 'scheduled_at' => now()->subDays(40)]);
 
-        $mockService = Mockery::mock(YouTubeService::class);
+        $mockService = $this->mockYouTube();
         $mockService->shouldReceive('listRecentUploadIds')->with('UC_test')->andReturn([]);
         $mockService->shouldNotReceive('getVideoDetails');
         $this->app->instance(YouTubeService::class, $mockService);
@@ -210,7 +257,7 @@ class FetchStreamsTest extends TestCase
         $channel = Channel::factory()->create(['channel_id' => 'UC_test']);
         Stream::factory()->create(['channel_id' => $channel->id, 'video_id' => 'vid_delayed', 'status' => 'upcoming', 'scheduled_at' => $oldScheduledAt]);
 
-        $mockService = Mockery::mock(YouTubeService::class);
+        $mockService = $this->mockYouTube();
         $mockService->shouldReceive('listRecentUploadIds')->with('UC_test')->andReturn(['vid_delayed']);
         $mockService->shouldReceive('getVideoDetails')->with(['vid_delayed'])->andReturn([
             $this->detail('vid_delayed', ['scheduled_at' => $oldScheduledAt->toIso8601String()]),
@@ -227,7 +274,7 @@ class FetchStreamsTest extends TestCase
         Channel::factory()->create(['channel_id' => 'UC_test']);
         $ids = array_map(fn ($i) => "v{$i}", range(1, 60));
 
-        $mockService = Mockery::mock(YouTubeService::class);
+        $mockService = $this->mockYouTube();
         $mockService->shouldReceive('listRecentUploadIds')->with('UC_test')->andReturn($ids);
         $mockService->shouldReceive('getVideoDetails')->once()->with(Mockery::on(fn ($c) => count($c) === 50))->andReturn([]);
         $mockService->shouldReceive('getVideoDetails')->once()->with(Mockery::on(fn ($c) => count($c) === 10))->andReturn([]);
@@ -242,7 +289,7 @@ class FetchStreamsTest extends TestCase
         $channel = Channel::factory()->create(['channel_id' => 'UC_failing']);
         Stream::factory()->create(['channel_id' => $channel->id, 'video_id' => 'vid_untouched', 'status' => 'upcoming', 'scheduled_at' => now()->subHours(25)]);
 
-        $mockService = Mockery::mock(YouTubeService::class);
+        $mockService = $this->mockYouTube();
         $mockService->shouldReceive('listRecentUploadIds')->with('UC_failing')->andThrow(new \RuntimeException('quota'));
         $mockService->shouldNotReceive('getVideoDetails');
         $this->app->instance(YouTubeService::class, $mockService);
@@ -257,7 +304,7 @@ class FetchStreamsTest extends TestCase
     {
         Channel::factory()->create(['channel_id' => 'UC_test']);
 
-        $mockService = Mockery::mock(YouTubeService::class);
+        $mockService = $this->mockYouTube();
         $mockService->shouldReceive('listRecentUploadIds')->andReturn([]);
         $this->app->instance(YouTubeService::class, $mockService);
 
