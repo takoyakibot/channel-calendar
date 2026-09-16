@@ -29,12 +29,16 @@ class ChannelCrudTest extends TestCase
 
     public function test_admin_can_view_channel_list(): void
     {
-        Channel::factory()->create(['name' => 'Test Channel']);
+        Channel::factory()->create(['name' => 'Test Channel', 'x_handle' => 'some_user']);
 
         $response = $this->actingAs($this->admin)->get('/admin/channels');
 
         $response->assertOk();
         $response->assertSee('Test Channel');
+        $response->assertSee('@some_user');
+        $response->assertSee('https://x.com/some_user', false);
+        // A stray "@{{" would make Blade print the expression literally.
+        $response->assertDontSee('{{ $channel', false);
     }
 
     public function test_admin_can_create_channel_by_handle(): void

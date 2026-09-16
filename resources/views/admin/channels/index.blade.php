@@ -60,7 +60,7 @@
                                 @endif
                                 @if ($channel->x_handle)
                                     <a href="https://x.com/{{ $channel->x_handle }}" target="_blank" rel="noopener noreferrer"
-                                       class="text-xs text-gray-500 hover:underline ml-2">𝕏 @{{ $channel->x_handle }}</a>
+                                       class="text-xs text-gray-500 hover:underline ml-2">𝕏 {{ '@' . $channel->x_handle }}</a>
                                 @endif
                             </td>
                             <td class="px-6 py-4">
