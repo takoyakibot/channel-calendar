@@ -146,6 +146,47 @@ class ChannelCrudTest extends TestCase
         $this->assertDatabaseCount('channels', 1);
     }
 
+    public function test_admin_can_set_x_handle_from_profile_url(): void
+    {
+        $channel = Channel::factory()->create();
+
+        $response = $this->actingAs($this->admin)->put("/admin/channels/{$channel->id}", [
+            'color' => '#00FF00',
+            'is_active' => true,
+            'x_handle' => 'https://x.com/Some_User?s=21',
+        ]);
+
+        $response->assertRedirect('/admin/channels');
+        $this->assertDatabaseHas('channels', ['id' => $channel->id, 'x_handle' => 'Some_User']);
+    }
+
+    public function test_admin_can_clear_x_handle(): void
+    {
+        $channel = Channel::factory()->create(['x_handle' => 'old_user']);
+
+        $this->actingAs($this->admin)->put("/admin/channels/{$channel->id}", [
+            'color' => '#00FF00',
+            'is_active' => true,
+            'x_handle' => '',
+        ])->assertRedirect('/admin/channels');
+
+        $this->assertDatabaseHas('channels', ['id' => $channel->id, 'x_handle' => null]);
+    }
+
+    public function test_invalid_x_handle_is_rejected(): void
+    {
+        $channel = Channel::factory()->create();
+
+        $response = $this->actingAs($this->admin)->from("/admin/channels/{$channel->id}/edit")->put("/admin/channels/{$channel->id}", [
+            'color' => '#00FF00',
+            'is_active' => true,
+            'x_handle' => 'https://x.com/some_user/status/123',
+        ]);
+
+        $response->assertRedirect("/admin/channels/{$channel->id}/edit");
+        $response->assertSessionHasErrors('x_handle');
+    }
+
     public function test_admin_can_update_channel(): void
     {
         $channel = Channel::factory()->create();

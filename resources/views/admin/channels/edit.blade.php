@@ -32,6 +32,15 @@
                         <input type="color" name="color" id="color" value="{{ old('color', $channel->color) }}"
                                class="h-10 w-20 border-gray-300 rounded">
                     </div>
+                    <div class="mb-4">
+                        <label for="x_handle" class="block text-sm font-medium text-gray-700 mb-1">X（Twitter）アカウント（任意）</label>
+                        <div class="flex items-center gap-1">
+                            <span class="text-gray-500 text-sm">@</span>
+                            <input type="text" name="x_handle" id="x_handle" value="{{ old('x_handle', $channel->x_handle) }}"
+                                   class="border-gray-300 rounded-md shadow-sm" placeholder="username" maxlength="255">
+                        </div>
+                        <p class="text-xs text-gray-500 mt-1">ユーザー名か <code>https://x.com/username</code> の形で入力。登録すると、ログインユーザー向けに「X で告知を探す」リンクが出ます。</p>
+                    </div>
                     <div class="mb-6">
                         <label class="flex items-center gap-2">
                             <input type="hidden" name="is_active" value="0">

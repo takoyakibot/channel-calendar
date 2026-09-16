@@ -23,7 +23,7 @@ class ChannelController extends Controller
 
         $channels = Channel::active()
             ->when($groupIds !== null, fn ($q) => $q->whereHas('groups', fn ($g) => $g->whereIn('groups.id', $groupIds)))
-            ->select('id', 'name', 'color', 'thumbnail_url')
+            ->select('id', 'name', 'color', 'thumbnail_url', 'x_handle')
             ->orderBy('name')
             ->get();
 

@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Group;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -90,6 +91,20 @@ class GroupPageTest extends TestCase
         $response->assertSee('class="group-card"', false);
         $response->assertSee('トップA');
         $response->assertDontSee('子B');
+    }
+
+    public function test_logged_in_group_page_offers_x_search_link_in_the_schedule_modal(): void
+    {
+        config(['services.x.search_keywords' => ['予定', '配信']]);
+        Group::factory()->create(['name' => 'G', 'slug' => 'aaaa']);
+
+        $response = $this->actingAs(User::factory()->create())->get('/aaaa');
+
+        $response->assertOk();
+        $response->assertSee('id="modal-x-search"', false);
+        $response->assertSee('X_SEARCH_KEYWORDS', false);
+        // @json escapes non-ASCII, so compare against the encoded form.
+        $response->assertSee(json_encode('予定'), false);
     }
 
     public function test_unknown_group_slug_returns_404(): void
