@@ -122,6 +122,8 @@
         .badge { display: inline-block; padding: 0.0625rem 0.4rem; border-radius: 9999px; font-size: 0.625rem; font-weight: 700; margin-left: auto; flex: none; }
         .badge.live { background: #dc2626; color: #fff; }
         .badge.done { background: #e5e7eb; color: #6b7280; }
+        .badge.members { background: #f3e8ff; color: #6b21a8; margin-left: 0.25rem; }
+        .card-head .badge + .badge { margin-left: 0.25rem; }
 
         .fc-event { cursor: pointer; }
         .fc-ev { display: flex; align-items: center; gap: 0.25rem; overflow: hidden; padding: 0 0.125rem; }
@@ -432,6 +434,13 @@
                 manual.textContent = '手動';
                 head.appendChild(manual);
             }
+            if (props.is_members_only) {
+                var members = document.createElement('span');
+                members.className = 'badge members';
+                members.textContent = '🔒 メン限';
+                members.title = 'メンバー限定配信';
+                head.appendChild(members);
+            }
 
             var title = document.createElement('div');
             title.className = 'card-title';
@@ -625,7 +634,7 @@
                     if (props.status === 'live') { t.style.color = '#dc2626'; }
                     var ti = document.createElement('span');
                     ti.className = 'fc-ev-title';
-                    ti.textContent = arg.event.title;
+                    ti.textContent = (props.is_members_only ? '🔒 ' : '') + arg.event.title;
                     wrap.appendChild(t);
                     wrap.appendChild(ti);
                     return { domNodes: [wrap] };

@@ -177,6 +177,49 @@ class YouTubeServiceTest extends TestCase
         $this->assertSame([], $this->service->listRecentUploadIds('UC_test123'));
     }
 
+    public function test_list_members_only_upload_ids_reads_the_uumo_playlist(): void
+    {
+        $resourceId = new ResourceId();
+        $resourceId->setVideoId('memVid');
+        $snippet = new PlaylistItemSnippet();
+        $snippet->setResourceId($resourceId);
+        $item = new PlaylistItem();
+        $item->setSnippet($snippet);
+        $response = new PlaylistItemListResponse();
+        $response->setItems([$item]);
+
+        $mockPlaylistItems = Mockery::mock(PlaylistItems::class);
+        $mockPlaylistItems->shouldReceive('listPlaylistItems')
+            ->with('snippet', ['playlistId' => 'UUMO_test123', 'maxResults' => 50])
+            ->andReturn($response);
+        $this->mockYouTube->playlistItems = $mockPlaylistItems;
+
+        $this->assertSame(['memVid'], $this->service->listMembersOnlyUploadIds('UC_test123'));
+    }
+
+    public function test_list_members_only_upload_ids_is_empty_when_channel_has_no_membership_playlist(): void
+    {
+        // YouTube answers 404 playlistNotFound for channels without a membership programme.
+        $mockPlaylistItems = Mockery::mock(PlaylistItems::class);
+        $mockPlaylistItems->shouldReceive('listPlaylistItems')
+            ->andThrow(new \Google\Service\Exception('The playlist identified with the request\'s playlistId parameter cannot be found.', 404));
+        $this->mockYouTube->playlistItems = $mockPlaylistItems;
+
+        $this->assertSame([], $this->service->listMembersOnlyUploadIds('UC_test123'));
+    }
+
+    public function test_list_members_only_upload_ids_rethrows_other_errors(): void
+    {
+        $mockPlaylistItems = Mockery::mock(PlaylistItems::class);
+        $mockPlaylistItems->shouldReceive('listPlaylistItems')
+            ->andThrow(new \Google\Service\Exception('quotaExceeded', 403));
+        $this->mockYouTube->playlistItems = $mockPlaylistItems;
+
+        $this->expectException(\Google\Service\Exception::class);
+
+        $this->service->listMembersOnlyUploadIds('UC_test123');
+    }
+
     public function test_get_video_details_returns_streaming_info(): void
     {
         $snippet = new VideoSnippet();

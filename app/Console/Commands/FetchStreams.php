@@ -32,6 +32,17 @@ class FetchStreams extends Command
      */
     private array $failedChannelIds = [];
 
+    /**
+     * Which playlist each video id of the channel being synced came from, so the
+     * members-only flag is set from evidence and left alone when we have none.
+     *
+     * @var array<int, string>
+     */
+    private array $publicIds = [];
+
+    /** @var array<int, string> */
+    private array $membersOnlyIds = [];
+
     public function handle(YouTubeService $youtube): int
     {
         $channels = Channel::active()->get();
@@ -79,7 +90,9 @@ class FetchStreams extends Command
         $upserted = 0;
         $seen = [];
 
-        $videoIds = array_values(array_unique($youtube->listRecentUploadIds($channel->channel_id)));
+        $this->publicIds = array_values(array_unique($youtube->listRecentUploadIds($channel->channel_id)));
+        $this->membersOnlyIds = array_values(array_unique($youtube->listMembersOnlyUploadIds($channel->channel_id)));
+        $videoIds = array_values(array_unique(array_merge($this->publicIds, $this->membersOnlyIds)));
         foreach ($this->fetchDetails($youtube, $videoIds) as $detail) {
             $seen[] = $detail['video_id'];
             if ($this->upsertDetail($channel, $detail, $windowStart)) {
@@ -141,18 +154,24 @@ class FetchStreams extends Command
             return false;
         }
 
-        Stream::updateOrCreate(
-            ['video_id' => $detail['video_id']],
-            [
-                'channel_id' => $channel->id,
-                'title' => $detail['title'],
-                'thumbnail_url' => $detail['thumbnail_url'],
-                'scheduled_at' => $detail['scheduled_at'],
-                'actual_start_at' => $detail['actual_start_at'],
-                'actual_end_at' => $detail['actual_end_at'],
-                'status' => $detail['status'],
-            ]
-        );
+        $attributes = [
+            'channel_id' => $channel->id,
+            'title' => $detail['title'],
+            'thumbnail_url' => $detail['thumbnail_url'],
+            'scheduled_at' => $detail['scheduled_at'],
+            'actual_start_at' => $detail['actual_start_at'],
+            'actual_end_at' => $detail['actual_end_at'],
+            'status' => $detail['status'],
+        ];
+
+        if (in_array($detail['video_id'], $this->membersOnlyIds, true)) {
+            $attributes['is_members_only'] = true;
+        } elseif (in_array($detail['video_id'], $this->publicIds, true)) {
+            $attributes['is_members_only'] = false;
+        }
+        // Otherwise the video was only re-verified via videos.list; keep the stored flag.
+
+        Stream::updateOrCreate(['video_id' => $detail['video_id']], $attributes);
 
         $this->fetchedVideoIds[] = $detail['video_id'];
 

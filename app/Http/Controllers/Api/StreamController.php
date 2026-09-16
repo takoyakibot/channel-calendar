@@ -67,6 +67,7 @@ class StreamController extends Controller
                 'channel_thumbnail_url' => $stream->channel->thumbnail_url,
                 'thumbnail_url' => $stream->thumbnail_url,
                 'status' => $stream->status,
+                'is_members_only' => $stream->is_members_only,
             ],
         ]);
 
