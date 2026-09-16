@@ -219,9 +219,11 @@
         <section id="board-view">
             <div class="board-toolbar">
                 <div class="nav">
-                    <button type="button" id="board-prev">← 前の週</button>
-                    <button type="button" id="board-today">今日</button>
-                    <button type="button" id="board-next">次の週 →</button>
+                    <button type="button" id="board-prev" title="1週間戻る">« 前の週</button>
+                    <button type="button" id="board-prev-day" title="1日戻る">‹ 前日</button>
+                    <button type="button" id="board-today" title="今週（月曜始まり）へ">今日</button>
+                    <button type="button" id="board-next-day" title="1日進む">翌日 ›</button>
+                    <button type="button" id="board-next" title="1週間進む">次の週 »</button>
                 </div>
                 <div class="range" id="board-range"></div>
             </div>
@@ -311,7 +313,9 @@
         var filterArrow = document.getElementById('filter-arrow');
 
         var hiddenChannels = {};
-        var boardStart = startOfDay(new Date());
+        // The board opens on the Monday of the current week; day-step buttons may then
+        // shift it off that alignment, and "今日" snaps back.
+        var boardStart = mondayOf(new Date());
         var highlightEventId = null;  // event id to flash after the next render (newly added schedule)
         var channelList = [];         // active channels from /api/channels, used by the filter and the schedule modal
         // Collapsed by default; an explicit choice (this browser, or server prefs for
@@ -339,6 +343,10 @@
         }
         function addDays(d, n) {
             return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+        }
+        function mondayOf(d) {
+            var day = startOfDay(d);
+            return addDays(day, -((day.getDay() + 6) % 7));  // getDay(): 0 = Sunday
         }
         function dateKey(d) {
             return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
@@ -493,7 +501,7 @@
             var when = startOfDay(new Date(created.scheduled_at));
             var windowEnd = addDays(boardStart, BOARD_DAYS);
             if (when < boardStart || when >= windowEnd) {
-                boardStart = when;
+                boardStart = mondayOf(when);
             }
             loadBoard();
             if (calendar) calendar.refetchEvents();
@@ -593,8 +601,16 @@
             boardStart = addDays(boardStart, BOARD_DAYS);
             loadBoard();
         });
+        document.getElementById('board-prev-day').addEventListener('click', function () {
+            boardStart = addDays(boardStart, -1);
+            loadBoard();
+        });
+        document.getElementById('board-next-day').addEventListener('click', function () {
+            boardStart = addDays(boardStart, 1);
+            loadBoard();
+        });
         document.getElementById('board-today').addEventListener('click', function () {
-            boardStart = startOfDay(new Date());
+            boardStart = mondayOf(new Date());
             loadBoard();
         });
 
