@@ -3,7 +3,9 @@
 namespace Tests\Feature;
 
 use App\Models\Group;
+use App\Models\Setting;
 use App\Models\User;
+use App\Support\XSearchKeywords;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -96,6 +98,8 @@ class GroupPageTest extends TestCase
     public function test_logged_in_group_page_offers_x_search_link_in_the_schedule_modal(): void
     {
         config(['services.x.search_keywords' => ['予定', '配信']]);
+        // The stored global setting wins over the .env default.
+        Setting::set(XSearchKeywords::SETTING_KEY, '告知,スケジュール');
         Group::factory()->create(['name' => 'G', 'slug' => 'aaaa']);
 
         $response = $this->actingAs(User::factory()->create())->get('/aaaa');
@@ -104,7 +108,8 @@ class GroupPageTest extends TestCase
         $response->assertSee('id="modal-x-search"', false);
         $response->assertSee('X_SEARCH_KEYWORDS', false);
         // @json escapes non-ASCII, so compare against the encoded form.
-        $response->assertSee(json_encode('予定'), false);
+        $response->assertSee(json_encode('告知'), false);
+        $response->assertDontSee(json_encode('予定'), false);
     }
 
     public function test_unknown_group_slug_returns_404(): void

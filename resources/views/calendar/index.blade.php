@@ -292,11 +292,12 @@
     var GROUP_SLUG = @json($group?->path, JSON_UNESCAPED_SLASHES);
     var CHILD_GROUPS = @json($children->map(fn ($c) => ['id' => $c->id, 'name' => $c->name])->values());
     var CHILD_CHANNEL_MAP = @json($childChannelMap);
-    var X_SEARCH_KEYWORDS = @json(config('services.x.search_keywords', []));
+    var X_SEARCH_KEYWORDS = @json(\App\Support\XSearchKeywords::global());
 
-    // "from:handle (kw1 OR kw2 ...)" on X, newest first — the same query XHandle::searchUrl builds server-side.
-    function xSearchUrl(handle) {
-        var terms = X_SEARCH_KEYWORDS.join(' OR ');
+    // "from:handle (global kws OR channel kws ...)" on X, newest first.
+    function xSearchUrl(handle, extraKeywords) {
+        var all = X_SEARCH_KEYWORDS.concat(extraKeywords || []).filter(function (k, i, arr) { return k && arr.indexOf(k) === i; });
+        var terms = all.join(' OR ');
         return 'https://x.com/search?q=' + encodeURIComponent('from:' + handle + (terms ? ' (' + terms + ')' : '')) + '&f=live';
     }
     var IS_LOGGED_IN = @json(Auth::check());
@@ -806,7 +807,7 @@
                     if (IS_LOGGED_IN && ch.x_handle) {
                         var xLink = document.createElement('a');
                         xLink.className = 'x-link';
-                        xLink.href = xSearchUrl(ch.x_handle);
+                        xLink.href = xSearchUrl(ch.x_handle, ch.x_search_keywords);
                         xLink.target = '_blank';
                         xLink.rel = 'noopener noreferrer';
                         xLink.title = 'X で ' + ch.name + ' の告知を探す';
@@ -830,7 +831,7 @@
             if (!link || !select) return;
             var ch = channelList.find(function (c) { return String(c.id) === String(select.value); });
             if (ch && ch.x_handle) {
-                link.href = xSearchUrl(ch.x_handle);
+                link.href = xSearchUrl(ch.x_handle, ch.x_search_keywords);
                 link.hidden = false;
             } else {
                 link.hidden = true;

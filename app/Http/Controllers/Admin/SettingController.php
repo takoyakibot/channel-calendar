@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Setting;
 use App\Services\YouTubeService;
+use App\Support\XSearchKeywords;
 use App\Support\YouTubeApiKey;
 use Illuminate\Http\Request;
 
@@ -18,6 +19,9 @@ class SettingController extends Controller
         return view('admin.settings.edit', [
             'maskedKey' => $apiKey->masked(),
             'keySource' => $apiKey->source(),
+            'xSearchKeywords' => implode(', ', XSearchKeywords::parse(Setting::get(XSearchKeywords::SETTING_KEY))),
+            'xSearchDefault' => implode(', ', (array) config('services.x.search_keywords', [])),
+            'xSearchEffective' => implode(', ', XSearchKeywords::global()),
         ]);
     }
 
@@ -25,9 +29,17 @@ class SettingController extends Controller
     {
         $data = $request->validate([
             'youtube_api_key' => 'nullable|string|max:255',
+            'x_search_keywords' => 'nullable|string|max:255',
         ]);
 
-        Setting::set(YouTubeApiKey::SETTING_KEY, trim((string) ($data['youtube_api_key'] ?? '')));
+        // Each settings section posts its own form, so only touch the fields that were sent.
+        if ($request->has('youtube_api_key')) {
+            Setting::set(YouTubeApiKey::SETTING_KEY, trim((string) ($data['youtube_api_key'] ?? '')));
+        }
+
+        if ($request->has('x_search_keywords')) {
+            Setting::set(XSearchKeywords::SETTING_KEY, XSearchKeywords::normalize($data['x_search_keywords'] ?? null));
+        }
 
         return redirect('/admin/settings')->with('success', '設定を保存しました。');
     }

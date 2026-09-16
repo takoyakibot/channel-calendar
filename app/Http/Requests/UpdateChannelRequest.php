@@ -17,6 +17,7 @@ class UpdateChannelRequest extends FormRequest
         return [
             'color' => 'required|string|regex:/^#[0-9A-Fa-f]{6}$/',
             'is_active' => 'boolean',
+            'x_search_keywords' => 'nullable|string|max:255',
             'x_handle' => [
                 'nullable',
                 'string',

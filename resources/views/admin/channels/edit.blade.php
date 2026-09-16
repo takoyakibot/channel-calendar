@@ -41,6 +41,12 @@
                         </div>
                         <p class="text-xs text-gray-500 mt-1">ユーザー名か <code>https://x.com/username</code> の形で入力。登録すると、ログインユーザー向けに「X で告知を探す」リンクが出ます。</p>
                     </div>
+                    <div class="mb-4">
+                        <label for="x_search_keywords" class="block text-sm font-medium text-gray-700 mb-1">このチャンネル専用の X 検索キーワード（任意）</label>
+                        <input type="text" name="x_search_keywords" id="x_search_keywords" value="{{ old('x_search_keywords', implode(', ', \App\Support\XSearchKeywords::parse($channel->x_search_keywords))) }}"
+                               class="w-full border-gray-300 rounded-md shadow-sm" maxlength="255" placeholder="例: 歌枠, 朝雑談">
+                        <p class="text-xs text-gray-500 mt-1">全体のキーワード（設定画面: {{ implode(', ', \App\Support\XSearchKeywords::global()) ?: 'なし' }}）に OR で追加されます。カンマまたは空白区切り。</p>
+                    </div>
                     <div class="mb-6">
                         <label class="flex items-center gap-2">
                             <input type="hidden" name="is_active" value="0">

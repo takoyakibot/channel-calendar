@@ -11,6 +11,7 @@ use App\Http\Requests\UpdateChannelRequest;
 use App\Models\Channel;
 use App\Services\YouTubeService;
 use App\Support\ChannelInput;
+use App\Support\XSearchKeywords;
 use Illuminate\Support\Facades\Log;
 
 class ChannelController extends Controller
@@ -71,6 +72,7 @@ class ChannelController extends Controller
             'color' => $request->color,
             'is_active' => $request->boolean('is_active'),
             'x_handle' => $request->normalizedXHandle(),
+            'x_search_keywords' => XSearchKeywords::normalize($request->input('x_search_keywords')),
         ]);
 
         return redirect('/admin/channels')->with('success', 'チャンネルを更新しました。');
