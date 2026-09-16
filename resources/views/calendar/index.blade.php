@@ -107,8 +107,8 @@
         .card:hover { background: #f9fafb; border-color: #d1d5db; }
         .card.is-done { opacity: 0.55; }
         /* Manually entered schedules: dashed, slightly muted, so they read as "unofficial". */
-        .card.is-manual { border-style: dashed; border-width: 1px 1px 1px 4px; background: #fafafa; }
-        .card.is-manual:hover { background: #f3f4f6; }
+        .card.is-manual { border-style: dashed; border-width: 1px 1px 1px 4px; border-color: #9ca3af; background: #eef0f3; }
+        .card.is-manual:hover { background: #e3e6ea; }
         .card.is-manual .card-title { color: #4b5563; }
         .card.is-manual .card-meta .time { color: #374151; }
         .fc-ev.is-manual { outline: 1px dashed #9ca3af; outline-offset: -1px; border-radius: 0.25rem; opacity: 0.85; }
