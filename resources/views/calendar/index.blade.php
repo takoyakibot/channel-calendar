@@ -36,6 +36,10 @@
         .fc-event.is-new { animation: cc-new-flash 4s ease-out forwards; border-radius: 0.25rem; }
 
         .filter-section { margin-bottom: 1rem; }
+        .filter-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+        .x-group-search { display: inline-flex; gap: 0.75rem; flex-wrap: wrap; font-size: 0.8125rem; }
+        .x-group-search a { color: #374151; text-decoration: none; padding: 0.25rem 0.75rem; border: 1px solid #d1d5db; border-radius: 9999px; background: #fff; }
+        .x-group-search a:hover { background: #f3f4f6; color: #111827; }
         .filter-toggle { display: inline-flex; align-items: center; gap: 0.375rem; padding: 0.25rem 0; font-size: 0.875rem; font-weight: 600; color: #374151; background: none; border: none; cursor: pointer; }
         .filter-toggle:hover { color: #111827; }
         .filter-toggle .arrow { display: inline-block; transition: transform 0.15s; font-size: 0.75rem; }
@@ -217,10 +221,16 @@
 
         <div class="filter-section">
             {{-- Rendered collapsed so the list does not flash open before the script applies the saved state. --}}
-            <button type="button" id="filter-toggle" class="filter-toggle" aria-expanded="false" aria-controls="channel-filter">
-                <span class="arrow collapsed" id="filter-arrow">▼</span>
-                チャンネル
-            </button>
+            <div class="filter-head">
+                <button type="button" id="filter-toggle" class="filter-toggle" aria-expanded="false" aria-controls="channel-filter">
+                    <span class="arrow collapsed" id="filter-arrow">▼</span>
+                    チャンネル
+                </button>
+                @auth
+                    {{-- Filled by the script once the group's channels are known. --}}
+                    <span id="x-group-search" class="x-group-search" hidden></span>
+                @endauth
+            </div>
             <div id="channel-filter" class="channel-filter" hidden></div>
         </div>
 
@@ -309,6 +319,29 @@
         var all = X_SEARCH_KEYWORDS.concat(extraKeywords || []).filter(function (k, i, arr) { return k && arr.indexOf(k) === i; });
         var terms = all.join(' OR ');
         return 'https://x.com/search?q=' + encodeURIComponent('from:' + handle + (terms ? ' (' + terms + ')' : '')) + '&f=live';
+    }
+
+    // "(from:a OR from:b ...) (kws ...)" for several accounts at once. X caps a
+    // query around 500 characters, so long rosters are split into several links.
+    var X_QUERY_MAX = 480;
+    function xGroupSearchUrls(handles, extraKeywords) {
+        var all = X_SEARCH_KEYWORDS.concat(extraKeywords || []).filter(function (k, i, arr) { return k && arr.indexOf(k) === i; });
+        var terms = all.length ? ' (' + all.join(' OR ') + ')' : '';
+        var urls = [];
+        var batch = [];
+        function flush() {
+            if (!batch.length) return;
+            var q = '(' + batch.map(function (h) { return 'from:' + h; }).join(' OR ') + ')' + terms;
+            urls.push('https://x.com/search?q=' + encodeURIComponent(q) + '&f=live');
+            batch = [];
+        }
+        handles.forEach(function (h) {
+            var candidate = batch.concat([h]).map(function (x) { return 'from:' + x; }).join(' OR ').length + 2 + terms.length;
+            if (batch.length && candidate > X_QUERY_MAX) flush();
+            batch.push(h);
+        });
+        flush();
+        return urls;
     }
     var IS_LOGGED_IN = @json(Auth::check());
     var CSRF_TOKEN = @json(csrf_token());
@@ -832,8 +865,33 @@
                     filterEl.appendChild(label);
                 });
                 channelList = channels;
+                renderGroupXSearch();
                 initFromPrefs();
             }).catch(function () { initFromPrefs(); });
+
+        // One X search covering every channel of this page that has an X account.
+        function renderGroupXSearch() {
+            var box = document.getElementById('x-group-search');
+            if (!box) return;
+            var withX = channelList.filter(function (c) { return c.x_handle; });
+            if (!withX.length) { box.hidden = true; return; }
+            var extras = [];
+            withX.forEach(function (c) { (c.x_search_keywords || []).forEach(function (k) { if (extras.indexOf(k) === -1) extras.push(k); }); });
+            var urls = xGroupSearchUrls(withX.map(function (c) { return c.x_handle; }), extras);
+            box.textContent = '';
+            urls.forEach(function (u, i) {
+                var a = document.createElement('a');
+                a.href = u;
+                a.target = '_blank';
+                a.rel = 'noopener noreferrer';
+                a.textContent = urls.length > 1
+                    ? '𝕏 グループの告知を探す (' + (i + 1) + '/' + urls.length + ')'
+                    : '𝕏 グループの告知を探す（' + withX.length + 'アカウント）';
+                a.title = '登録済みの X アカウントすべてを対象に、告知キーワードで検索します';
+                box.appendChild(a);
+            });
+            box.hidden = false;
+        }
 
         var modalOverlay = document.getElementById('schedule-modal');
         var modalDate = '';
@@ -857,26 +915,48 @@
                 document.getElementById('modal-time-field').hidden = this.checked;
             });
 
-            // Paste a post URL → pull its text via oEmbed and offer it as the title.
-            var TWEET_URL = /^https?:\/\/(?:www\.|mobile\.)?(?:x\.com|twitter\.com)\/[A-Za-z0-9_]{1,15}\/status\/\d+/i;
+            // Paste a post URL → pick the channel whose X account posted it, then pull
+            // the text via oEmbed and offer it as the title.
+            var TWEET_URL = /^https?:\/\/(?:www\.|mobile\.)?(?:x\.com|twitter\.com)\/([A-Za-z0-9_]{1,15})\/status\/\d+/i;
             var previewStatus = document.getElementById('modal-preview-status');
+            function selectChannelByXHandle(handle) {
+                if (!handle) return null;
+                var ch = channelList.find(function (c) { return c.x_handle && c.x_handle.toLowerCase() === handle.toLowerCase(); });
+                if (!ch) return null;
+                var select = document.getElementById('modal-channel');
+                if (select.querySelector('option[value="' + ch.id + '"]')) {
+                    select.value = String(ch.id);
+                    updateModalXSearch();
+                }
+                return ch;
+            }
             document.getElementById('modal-source-url').addEventListener('change', function () {
                 var url = this.value.trim();
                 var titleEl = document.getElementById('modal-title');
-                if (!TWEET_URL.test(url)) return;
+                var match = url.match(TWEET_URL);
+                if (!match) return;
+                var matched = selectChannelByXHandle(match[1]);
                 previewStatus.textContent = '投稿を読み込み中…';
                 previewStatus.hidden = false;
                 fetch('/api/tweet-preview?url=' + encodeURIComponent(url), { headers: { Accept: 'application/json' } })
                     .then(function (res) { return res.json().then(function (data) { return { ok: res.ok, data: data }; }); })
                     .then(function (r) {
                         if (!r.ok) { previewStatus.textContent = r.data.message || '投稿を取得できませんでした。'; return; }
+                        matched = selectChannelByXHandle(r.data.author_handle) || matched;
+                        var notes = [];
+                        if (matched) {
+                            notes.push('チャンネルを「' + matched.name + '」に設定しました。');
+                        } else {
+                            notes.push('投稿者 @' + (r.data.author_handle || match[1]) + ' に一致するチャンネルがないため、チャンネルは手動で選んでください。');
+                        }
                         var firstLine = (r.data.text || '').split('\n').map(function (s) { return s.trim(); }).filter(Boolean)[0] || '';
                         if (firstLine && !titleEl.value.trim()) {
                             titleEl.value = firstLine.slice(0, 255);
-                            previewStatus.textContent = '投稿の本文をタイトルに入れました（' + (r.data.author_name || '') + '）。必要なら編集してください。';
-                        } else {
-                            previewStatus.textContent = (r.data.author_name || '') + ': ' + (r.data.text || '').slice(0, 80);
+                            notes.push('本文をタイトルに入れました。必要なら編集してください。');
+                        } else if (r.data.text) {
+                            notes.push((r.data.author_name || '') + ': ' + r.data.text.slice(0, 80));
                         }
+                        previewStatus.textContent = notes.join(' ');
                     })
                     .catch(function () { previewStatus.textContent = '投稿を取得できませんでした。'; });
             });

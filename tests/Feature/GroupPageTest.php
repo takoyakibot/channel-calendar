@@ -106,6 +106,8 @@ class GroupPageTest extends TestCase
 
         $response->assertOk();
         $response->assertSee('id="modal-x-search"', false);
+        $response->assertSee('id="x-group-search"', false);
+        $response->assertSee('xGroupSearchUrls', false);
         $response->assertSee('X_SEARCH_KEYWORDS', false);
         // @json escapes non-ASCII, so compare against the encoded form.
         $response->assertSee(json_encode('告知'), false);
