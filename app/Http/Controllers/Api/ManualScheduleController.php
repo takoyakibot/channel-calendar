@@ -46,8 +46,10 @@ class ManualScheduleController extends Controller
             'id' => 'ms_' . $s->id,
             'title' => $s->title,
             'start' => $s->scheduled_at->toIso8601String(),
+            'allDay' => (bool) $s->is_all_day,
             'color' => $s->channel->color,
             'extendedProps' => [
+                'is_all_day' => (bool) $s->is_all_day,
                 'channel_id' => $s->channel_id,
                 'channel_name' => $s->channel->name,
                 'channel_thumbnail_url' => $s->channel->thumbnail_url,
@@ -71,7 +73,20 @@ class ManualScheduleController extends Controller
             'channel_id' => 'required|integer|exists:channels,id',
             'title' => 'required|string|max:255',
             'source_url' => 'nullable|url:http,https|max:2048',
-            'scheduled_at' => 'required|date|after:now',
+            'is_all_day' => 'nullable|boolean',
+            'scheduled_at' => [
+                'required',
+                'date',
+                // A timed entry must be in the future; an all-day entry (sent as the
+                // local midnight) is fine as long as its day has not ended yet.
+                function (string $attribute, mixed $value, \Closure $fail) use ($request) {
+                    $at = Carbon::parse($value);
+                    $deadline = $request->boolean('is_all_day') ? $at->copy()->addDay() : $at;
+                    if ($deadline->lte(now())) {
+                        $fail('過去の日時は登録できません。');
+                    }
+                },
+            ],
         ]);
 
         $schedule = ManualSchedule::create([
@@ -80,6 +95,7 @@ class ManualScheduleController extends Controller
             'title' => $validated['title'],
             'source_url' => $validated['source_url'] ?? null,
             'scheduled_at' => Carbon::parse($validated['scheduled_at'])->utc(),
+            'is_all_day' => $request->boolean('is_all_day'),
         ]);
 
         ActivityLog::record($request->user()->id, 'create_schedule', ManualSchedule::class, $schedule->id, [

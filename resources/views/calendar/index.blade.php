@@ -47,6 +47,9 @@
         .channel-filter .x-link { margin-left: 0.25rem; font-size: 0.75rem; color: #6b7280; text-decoration: none; padding: 0 0.2rem; border-radius: 0.25rem; }
         .channel-filter .x-link:hover { color: #111827; background: #e5e7eb; }
         .modal-hint { margin: 0.375rem 0 0; font-size: 0.75rem; color: #6b7280; display: flex; flex-direction: column; gap: 0.25rem; }
+        .modal-check { display: flex; align-items: center; gap: 0.5rem; font-size: 0.875rem; color: #111827; cursor: pointer; }
+        .modal-hint-text { font-size: 0.75rem; color: #6b7280; }
+        .card-meta .time.all-day { font-size: 0.8125rem; color: #6b7280; font-weight: 600; }
         .modal-hint a { color: #2563eb; text-decoration: none; }
         .modal-hint a:hover { text-decoration: underline; }
 
@@ -265,6 +268,13 @@
                 <input type="text" id="modal-title" placeholder="配信タイトル" maxlength="255">
             </div>
             <div class="modal-field">
+                <label class="modal-check">
+                    <input type="checkbox" id="modal-all-day" checked>
+                    時間未定（その日のどこかで配信）
+                </label>
+                <span class="modal-hint-text">時間が分かっている場合だけチェックを外して入力してください。公式の配信枠が立てば、この予定は自動的に消えます。</span>
+            </div>
+            <div class="modal-field" id="modal-time-field" hidden>
                 <label for="modal-time">時間</label>
                 <input type="time" id="modal-time" value="20:00">
             </div>
@@ -434,8 +444,8 @@
             var meta = document.createElement('div');
             meta.className = 'card-meta';
             var time = document.createElement('span');
-            time.className = 'time';
-            time.textContent = fmtTime(start);
+            time.className = 'time' + (props.is_all_day ? ' all-day' : '');
+            time.textContent = props.is_all_day ? '時間未定' : fmtTime(start);
             var ch = document.createElement('span');
             ch.className = 'ch';
             ch.textContent = props.channel_name;
@@ -570,6 +580,10 @@
                 var body = document.createElement('div');
                 body.className = 'day-body';
                 var list = (byDay[key] || []).slice().sort(function (a, b) {
+                    // All-day (time unknown) entries lead the day, then chronological.
+                    var aAll = a.extendedProps.is_all_day ? 0 : 1;
+                    var bAll = b.extendedProps.is_all_day ? 0 : 1;
+                    if (aAll !== bAll) return aAll - bAll;
                     return new Date(a.start) - new Date(b.start);
                 });
                 if (list.length === 0) {
@@ -663,7 +677,7 @@
                     wrap.appendChild(avatarNode(props, arg.event.backgroundColor || arg.event.borderColor, 'fc-ev-img'));
                     var t = document.createElement('span');
                     t.className = 'fc-ev-time';
-                    t.textContent = props.status === 'live' ? 'LIVE' : fmtTime(arg.event.start);
+                    t.textContent = props.status === 'live' ? 'LIVE' : (props.is_all_day ? '未定' : fmtTime(arg.event.start));
                     if (props.status === 'live') { t.style.color = '#dc2626'; }
                     var ti = document.createElement('span');
                     ti.className = 'fc-ev-title';
@@ -839,6 +853,9 @@
         }
         if (modalOverlay) {
             document.getElementById('modal-channel').addEventListener('change', updateModalXSearch);
+            document.getElementById('modal-all-day').addEventListener('change', function () {
+                document.getElementById('modal-time-field').hidden = this.checked;
+            });
 
             // Paste a post URL → pull its text via oEmbed and offer it as the title.
             var TWEET_URL = /^https?:\/\/(?:www\.|mobile\.)?(?:x\.com|twitter\.com)\/[A-Za-z0-9_]{1,15}\/status\/\d+/i;
@@ -910,7 +927,8 @@
                 errEl.hidden = true;
                 var channelId = document.getElementById('modal-channel').value;
                 var title = document.getElementById('modal-title').value.trim();
-                var time = document.getElementById('modal-time').value;
+                var allDay = document.getElementById('modal-all-day').checked;
+                var time = allDay ? '00:00' : document.getElementById('modal-time').value;
                 var sourceUrl = document.getElementById('modal-source-url').value.trim();
                 if (!channelId || !title || !time) {
                     errEl.textContent = 'すべての項目を入力してください。';
@@ -925,7 +943,7 @@
                 fetch('/api/manual-schedules', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN, Accept: 'application/json' },
-                    body: JSON.stringify({ channel_id: Number(channelId), title: title, source_url: sourceUrl || null, scheduled_at: datetime }),
+                    body: JSON.stringify({ channel_id: Number(channelId), title: title, source_url: sourceUrl || null, scheduled_at: datetime, is_all_day: allDay }),
                 }).then(function (res) {
                     if (res.ok) {
                         closeModal();

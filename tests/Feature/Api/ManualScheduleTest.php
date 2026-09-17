@@ -81,6 +81,74 @@ class ManualScheduleTest extends TestCase
         $this->assertDatabaseCount('manual_schedules', 0);
     }
 
+    public function test_all_day_schedule_for_today_is_accepted_even_after_midnight(): void
+    {
+        // Local midnight of "today" (JST) is already in the past by now; all-day entries
+        // stay valid until the day ends.
+        $todayMidnightJst = now('Asia/Tokyo')->startOfDay();
+
+        $response = $this->actingAs($this->user)->postJson('/api/manual-schedules', [
+            'channel_id' => $this->channel->id,
+            'title' => '今日どこかで朝活',
+            'scheduled_at' => $todayMidnightJst->toIso8601String(),
+            'is_all_day' => true,
+        ]);
+
+        $response->assertCreated();
+        $this->assertDatabaseHas('manual_schedules', [
+            'title' => '今日どこかで朝活',
+            'is_all_day' => true,
+            'scheduled_at' => $todayMidnightJst->copy()->utc()->format('Y-m-d H:i:s'),
+        ]);
+    }
+
+    public function test_all_day_schedule_for_yesterday_is_rejected(): void
+    {
+        $this->actingAs($this->user)->postJson('/api/manual-schedules', [
+            'channel_id' => $this->channel->id,
+            'title' => 'x',
+            'scheduled_at' => now('Asia/Tokyo')->subDay()->startOfDay()->toIso8601String(),
+            'is_all_day' => true,
+        ])->assertUnprocessable()->assertJsonValidationErrors('scheduled_at');
+    }
+
+    public function test_timed_schedule_in_the_past_is_still_rejected(): void
+    {
+        $this->actingAs($this->user)->postJson('/api/manual-schedules', [
+            'channel_id' => $this->channel->id,
+            'title' => 'x',
+            'scheduled_at' => now()->subHour()->toIso8601String(),
+            'is_all_day' => false,
+        ])->assertUnprocessable()->assertJsonValidationErrors('scheduled_at');
+    }
+
+    public function test_index_exposes_all_day_flag_for_the_calendar(): void
+    {
+        ManualSchedule::create([
+            'user_id' => $this->user->id,
+            'channel_id' => $this->channel->id,
+            'title' => '終日',
+            'scheduled_at' => '2030-01-01 15:00:00',
+            'is_all_day' => true,
+        ]);
+        ManualSchedule::create([
+            'user_id' => $this->user->id,
+            'channel_id' => $this->channel->id,
+            'title' => '時間あり',
+            'scheduled_at' => '2030-01-02 11:00:00',
+            'is_all_day' => false,
+        ]);
+
+        $response = $this->getJson('/api/manual-schedules?' . http_build_query([
+            'start' => '2030-01-01T00:00:00+09:00',
+            'end' => '2030-01-08T00:00:00+09:00',
+        ]));
+
+        $response->assertOk()->assertJsonCount(2);
+        $response->assertJsonFragment(['title' => '終日', 'allDay' => true, 'is_all_day' => true]);
+        $response->assertJsonFragment(['title' => '時間あり', 'allDay' => false, 'is_all_day' => false]);
+    }
+
     public function test_owner_can_delete_and_others_cannot(): void
     {
         $schedule = ManualSchedule::create([

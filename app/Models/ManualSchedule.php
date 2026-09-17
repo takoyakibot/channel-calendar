@@ -16,10 +16,12 @@ class ManualSchedule extends Model
         'title',
         'source_url',
         'scheduled_at',
+        'is_all_day',
     ];
 
     protected $casts = [
         'scheduled_at' => 'datetime',
+        'is_all_day' => 'boolean',
     ];
 
     public function user(): BelongsTo
