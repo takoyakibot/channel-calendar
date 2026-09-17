@@ -174,6 +174,65 @@ class FetchStreamsTest extends TestCase
         $this->assertDatabaseHas('streams', ['id' => $oldUpcoming->id, 'status' => 'upcoming']);
     }
 
+    public function test_watched_fetch_refreshes_due_upcoming_and_live_streams_by_video_id(): void
+    {
+        $channel = Channel::factory()->create(['channel_id' => 'UC_test']);
+        Stream::factory()->create(['channel_id' => $channel->id, 'video_id' => 'due1', 'status' => 'upcoming', 'scheduled_at' => now()->subMinutes(10)]);
+        Stream::factory()->create(['channel_id' => $channel->id, 'video_id' => 'soon1', 'status' => 'upcoming', 'scheduled_at' => now()->addMinutes(20)]);
+        Stream::factory()->create(['channel_id' => $channel->id, 'video_id' => 'later1', 'status' => 'upcoming', 'scheduled_at' => now()->addHours(2)]);
+        Stream::factory()->create(['channel_id' => $channel->id, 'video_id' => 'live1', 'status' => 'live', 'scheduled_at' => now()->subHours(5)]);
+        Stream::factory()->create(['channel_id' => $channel->id, 'video_id' => 'done1', 'status' => 'completed', 'scheduled_at' => now()->subHours(1)]);
+
+        $mockService = $this->mockYouTube();
+        // No manual schedule → no channel-wide sync, just a videos.list on the due ids.
+        $mockService->shouldNotReceive('listRecentUploadIds');
+        $mockService->shouldReceive('getVideoDetails')
+            ->once()
+            ->with(Mockery::on(fn ($ids) => count($ids) === 3 && ! array_diff(['due1', 'soon1', 'live1'], $ids)))
+            ->andReturn([
+                $this->detail('due1', ['status' => 'live', 'scheduled_at' => now()->subMinutes(10)->toIso8601String(), 'actual_start_at' => now()->subMinutes(8)->toIso8601String()]),
+                $this->detail('soon1', ['scheduled_at' => now()->addMinutes(20)->toIso8601String()]),
+                $this->detail('live1', ['status' => 'completed', 'scheduled_at' => now()->subHours(5)->toIso8601String(), 'actual_end_at' => now()->toIso8601String()]),
+            ]);
+        $this->app->instance(YouTubeService::class, $mockService);
+
+        $this->artisan('streams:fetch', ['--watched' => true])->assertSuccessful();
+
+        $this->assertDatabaseHas('streams', ['video_id' => 'due1', 'status' => 'live']);
+        $this->assertDatabaseHas('streams', ['video_id' => 'soon1', 'status' => 'upcoming']);
+        $this->assertDatabaseHas('streams', ['video_id' => 'later1', 'status' => 'upcoming']);
+        $this->assertDatabaseHas('streams', ['video_id' => 'live1', 'status' => 'completed']);
+        $this->assertDatabaseHas('streams', ['video_id' => 'done1', 'status' => 'completed']);
+    }
+
+    public function test_watched_fetch_removes_due_stream_that_youtube_no_longer_serves(): void
+    {
+        $channel = Channel::factory()->create(['channel_id' => 'UC_test']);
+        Stream::factory()->create(['channel_id' => $channel->id, 'video_id' => 'due1', 'status' => 'upcoming', 'scheduled_at' => now()->subMinutes(10)]);
+        Stream::factory()->create(['channel_id' => $channel->id, 'video_id' => 'gone1', 'status' => 'upcoming', 'scheduled_at' => now()->subMinutes(5)]);
+
+        $mockService = $this->mockYouTube();
+        $mockService->shouldReceive('getVideoDetails')->once()->andReturn([$this->detail('due1')]);
+        $this->app->instance(YouTubeService::class, $mockService);
+
+        $this->artisan('streams:fetch', ['--watched' => true])->assertSuccessful();
+
+        $this->assertDatabaseHas('streams', ['video_id' => 'due1']);
+        $this->assertDatabaseMissing('streams', ['video_id' => 'gone1']);
+    }
+
+    public function test_watched_fetch_does_not_refresh_streams_of_inactive_channels(): void
+    {
+        $inactive = Channel::factory()->create(['channel_id' => 'UC_off', 'is_active' => false]);
+        Stream::factory()->create(['channel_id' => $inactive->id, 'video_id' => 'due_off', 'status' => 'upcoming', 'scheduled_at' => now()->subMinutes(10)]);
+
+        $mockService = $this->mockYouTube();
+        $mockService->shouldNotReceive('getVideoDetails');
+        $this->app->instance(YouTubeService::class, $mockService);
+
+        $this->artisan('streams:fetch', ['--watched' => true])->assertSuccessful();
+    }
+
     public function test_fetch_streams_imports_members_only_streams_and_flags_them(): void
     {
         $channel = Channel::factory()->create(['channel_id' => 'UC_test']);

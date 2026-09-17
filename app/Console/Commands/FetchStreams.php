@@ -16,7 +16,7 @@ class FetchStreams extends Command
     public const LAST_FETCHED_AT_KEY = 'streams_last_fetched_at';
 
     protected $signature = 'streams:fetch
-        {--watched : Only channels with a manual schedule in its watch window (no sweeps, not recorded as a full fetch)}';
+        {--watched : Only channels with a manual schedule in its watch window, plus due/live streams by id (no sweeps, not recorded as a full fetch)}';
     protected $description = 'Fetch upcoming, live and recently ended streams from YouTube for all active channels';
 
     /**
@@ -47,6 +47,7 @@ class FetchStreams extends Command
     public function handle(YouTubeService $youtube): int
     {
         $watched = (bool) $this->option('watched');
+        $dueStreams = collect();
 
         if ($watched) {
             // A manual schedule says "this channel should go live about now": poll
@@ -55,8 +56,22 @@ class FetchStreams extends Command
                 ->whereIn('id', ManualSchedule::inWatchWindow()->select('channel_id'))
                 ->get();
 
-            if ($channels->isEmpty()) {
-                $this->info('No channels with a manual schedule in its watch window.');
+            // Reserved frames whose time has come, and streams currently live, are
+            // re-checked by id so the board flips to live / ended within minutes.
+            $dueStreams = Stream::with('channel')
+                ->whereHas('channel', fn ($q) => $q->active())
+                ->whereNotIn('channel_id', $channels->pluck('id'))
+                ->where(function ($q) {
+                    $q->where(fn ($u) => $u->where('status', 'upcoming')->whereBetween('scheduled_at', [
+                        now()->subHours(ManualSchedule::WATCH_AFTER_HOURS),
+                        now()->addMinutes(ManualSchedule::WATCH_BEFORE_MINUTES),
+                    ]))
+                      ->orWhere('status', 'live');
+                })
+                ->get();
+
+            if ($channels->isEmpty() && $dueStreams->isEmpty()) {
+                $this->info('Nothing to watch: no manual schedule in its window and no stream due.');
 
                 return self::SUCCESS;
             }
@@ -84,6 +99,10 @@ class FetchStreams extends Command
                 Log::error("streams:fetch failed for channel {$channel->channel_id}: {$e->getMessage()}");
                 $this->failedChannelIds[] = $channel->id;
             }
+        }
+
+        if ($dueStreams->isNotEmpty()) {
+            $this->refreshDueStreams($youtube, $dueStreams, $windowStart);
         }
 
         $this->removeOverlappingManualSchedules();
@@ -149,6 +168,49 @@ class FetchStreams extends Command
         }
 
         return [$upserted, $deleted];
+    }
+
+    /**
+     * Re-read known streams straight from videos.list (1 quota unit per 50 ids,
+     * no playlist calls). Rows YouTube no longer returns were deleted or made
+     * private, so they are dropped like in the channel-wide reconciliation.
+     *
+     * @param  \Illuminate\Support\Collection<int, Stream>  $streams
+     */
+    private function refreshDueStreams(YouTubeService $youtube, $streams, Carbon $windowStart): void
+    {
+        // No playlist evidence for these ids: leave the members-only flag as stored.
+        $this->publicIds = [];
+        $this->membersOnlyIds = [];
+
+        try {
+            $details = collect($this->fetchDetails($youtube, $streams->pluck('video_id')->all()))->keyBy('video_id');
+        } catch (\Throwable $e) {
+            $this->error("Failed to refresh due streams: {$e->getMessage()}");
+            Log::error("streams:fetch --watched failed to refresh due streams: {$e->getMessage()}");
+
+            return;
+        }
+
+        $refreshed = 0;
+        $gone = [];
+        foreach ($streams as $stream) {
+            $detail = $details->get($stream->video_id);
+            if ($detail === null) {
+                $gone[] = $stream->video_id;
+                continue;
+            }
+            if ($this->upsertDetail($stream->channel, $detail, $windowStart)) {
+                $refreshed++;
+            }
+        }
+
+        if (! empty($gone)) {
+            Stream::whereIn('video_id', $gone)->delete();
+            Log::info('streams:fetch --watched removed ' . count($gone) . ' stream(s) no longer on YouTube: ' . implode(',', $gone));
+        }
+
+        $this->line("  {$refreshed} due stream(s) refreshed, " . count($gone) . ' removed');
     }
 
     /** videos.list accepts at most 50 ids per call. */
