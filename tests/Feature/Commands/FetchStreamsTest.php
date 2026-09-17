@@ -74,6 +74,106 @@ class FetchStreamsTest extends TestCase
         $this->assertDatabaseMissing('manual_schedules', ['id' => $yesterday->id]);
     }
 
+    public function test_timed_manual_schedule_is_kept_for_three_hours_after_its_time(): void
+    {
+        $channel = Channel::factory()->create(['channel_id' => 'UC_test']);
+        $user = \App\Models\User::factory()->create();
+        $late = \App\Models\ManualSchedule::create([
+            'user_id' => $user->id, 'channel_id' => $channel->id, 'title' => '遅刻中',
+            'scheduled_at' => now()->subHours(2), 'is_all_day' => false,
+        ]);
+        $stale = \App\Models\ManualSchedule::create([
+            'user_id' => $user->id, 'channel_id' => $channel->id, 'title' => '流れた',
+            'scheduled_at' => now()->subHours(4), 'is_all_day' => false,
+        ]);
+
+        $mockService = $this->mockYouTube();
+        $mockService->shouldReceive('listRecentUploadIds')->andReturn([]);
+        $this->app->instance(YouTubeService::class, $mockService);
+
+        $this->artisan('streams:fetch')->assertSuccessful();
+
+        $this->assertDatabaseHas('manual_schedules', ['id' => $late->id]);
+        $this->assertDatabaseMissing('manual_schedules', ['id' => $stale->id]);
+    }
+
+    public function test_watched_fetch_only_targets_channels_with_a_manual_schedule_in_its_watch_window(): void
+    {
+        $user = \App\Models\User::factory()->create();
+        $make = function (string $suffix, ?\Carbon\CarbonInterface $at, bool $allDay = false) use ($user): Channel {
+            $channel = Channel::factory()->create(['channel_id' => "UC_{$suffix}"]);
+            if ($at !== null) {
+                \App\Models\ManualSchedule::create([
+                    'user_id' => $user->id, 'channel_id' => $channel->id, 'title' => $suffix,
+                    'scheduled_at' => $at, 'is_all_day' => $allDay,
+                ]);
+            }
+
+            return $channel;
+        };
+        $todayJst = now('Asia/Tokyo')->startOfDay()->utc();
+
+        $make('soon', now()->addMinutes(10));                // 30 min before … → watched
+        $make('later', now()->addHours(2));                   // too far ahead
+        $make('running_late', now()->subHours(2));            // … 3 h after → watched
+        $make('long_gone', now()->subHours(4));               // expired
+        $make('allday_today', $todayJst, true);               // whole day → watched
+        $make('allday_tomorrow', $todayJst->copy()->addDay(), true);
+        $make('no_manual', null);
+
+        $mockService = $this->mockYouTube();
+        foreach (['UC_soon', 'UC_running_late', 'UC_allday_today'] as $id) {
+            $mockService->shouldReceive('listRecentUploadIds')->once()->with($id)->andReturn([]);
+        }
+        foreach (['UC_later', 'UC_long_gone', 'UC_allday_tomorrow', 'UC_no_manual'] as $id) {
+            $mockService->shouldReceive('listRecentUploadIds')->never()->with($id);
+        }
+        $this->app->instance(YouTubeService::class, $mockService);
+
+        $this->artisan('streams:fetch', ['--watched' => true])->assertSuccessful();
+    }
+
+    public function test_watched_fetch_makes_no_api_calls_when_nothing_is_in_a_watch_window(): void
+    {
+        Channel::factory()->create(['channel_id' => 'UC_test']);
+
+        $mockService = $this->mockYouTube();
+        $mockService->shouldNotReceive('listRecentUploadIds');
+        $this->app->instance(YouTubeService::class, $mockService);
+
+        $this->artisan('streams:fetch', ['--watched' => true])->assertSuccessful();
+    }
+
+    public function test_watched_fetch_replaces_manual_schedule_with_the_real_stream_without_recording_a_full_fetch(): void
+    {
+        $channel = Channel::factory()->create(['channel_id' => 'UC_test']);
+        $user = \App\Models\User::factory()->create();
+        $at = now()->addMinutes(10)->startOfSecond();
+        $manual = \App\Models\ManualSchedule::create([
+            'user_id' => $user->id, 'channel_id' => $channel->id, 'title' => '未定',
+            'scheduled_at' => $at, 'is_all_day' => false,
+        ]);
+        // Outside the reconcile window: only the age sweep would touch it.
+        $oldUpcoming = Stream::factory()->create([
+            'channel_id' => $channel->id, 'video_id' => 'old_upcoming', 'status' => 'upcoming', 'scheduled_at' => now()->subDays(20),
+        ]);
+
+        $mockService = $this->mockYouTube();
+        $mockService->shouldReceive('listRecentUploadIds')->with('UC_test')->andReturn(['real1']);
+        $mockService->shouldReceive('getVideoDetails')->andReturn([
+            $this->detail('real1', ['scheduled_at' => $at->toIso8601String()]),
+        ]);
+        $this->app->instance(YouTubeService::class, $mockService);
+
+        $this->artisan('streams:fetch', ['--watched' => true])->assertSuccessful();
+
+        $this->assertDatabaseHas('streams', ['video_id' => 'real1', 'status' => 'upcoming']);
+        $this->assertDatabaseMissing('manual_schedules', ['id' => $manual->id]);
+        // The partial run neither counts as a full refresh nor runs the age sweep.
+        $this->assertNull(Setting::get(\App\Console\Commands\FetchStreams::LAST_FETCHED_AT_KEY));
+        $this->assertDatabaseHas('streams', ['id' => $oldUpcoming->id, 'status' => 'upcoming']);
+    }
+
     public function test_fetch_streams_imports_members_only_streams_and_flags_them(): void
     {
         $channel = Channel::factory()->create(['channel_id' => 'UC_test']);

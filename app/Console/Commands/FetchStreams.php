@@ -15,7 +15,8 @@ class FetchStreams extends Command
 {
     public const LAST_FETCHED_AT_KEY = 'streams_last_fetched_at';
 
-    protected $signature = 'streams:fetch';
+    protected $signature = 'streams:fetch
+        {--watched : Only channels with a manual schedule in its watch window (no sweeps, not recorded as a full fetch)}';
     protected $description = 'Fetch upcoming, live and recently ended streams from YouTube for all active channels';
 
     /**
@@ -45,13 +46,29 @@ class FetchStreams extends Command
 
     public function handle(YouTubeService $youtube): int
     {
-        $channels = Channel::active()->get();
+        $watched = (bool) $this->option('watched');
 
-        if ($channels->isEmpty()) {
-            $this->info('No active channels found.');
-            Setting::set(self::LAST_FETCHED_AT_KEY, now()->toIso8601String());
+        if ($watched) {
+            // A manual schedule says "this channel should go live about now": poll
+            // just those channels so the real stream replaces the entry quickly.
+            $channels = Channel::active()
+                ->whereIn('id', ManualSchedule::inWatchWindow()->select('channel_id'))
+                ->get();
 
-            return self::SUCCESS;
+            if ($channels->isEmpty()) {
+                $this->info('No channels with a manual schedule in its watch window.');
+
+                return self::SUCCESS;
+            }
+        } else {
+            $channels = Channel::active()->get();
+
+            if ($channels->isEmpty()) {
+                $this->info('No active channels found.');
+                Setting::set(self::LAST_FETCHED_AT_KEY, now()->toIso8601String());
+
+                return self::SUCCESS;
+            }
         }
 
         $windowStart = now()->subDays((int) config('services.youtube.backfill_days', 14));
@@ -69,10 +86,15 @@ class FetchStreams extends Command
             }
         }
 
-        $this->markOldStreamsCompleted();
         $this->removeOverlappingManualSchedules();
-        $this->removePastManualSchedules();
-        Setting::set(self::LAST_FETCHED_AT_KEY, now()->toIso8601String());
+
+        // The watched run only refreshed a handful of channels, so the age-based
+        // sweeps and the "last full fetch" marker would be misleading.
+        if (! $watched) {
+            $this->markOldStreamsCompleted();
+            $this->removePastManualSchedules();
+            Setting::set(self::LAST_FETCHED_AT_KEY, now()->toIso8601String());
+        }
 
         $this->info('Done.');
 
@@ -235,9 +257,10 @@ class FetchStreams extends Command
 
     private function removePastManualSchedules(): void
     {
-        // Timed entries expire at their time; all-day entries when their day is over.
+        // Timed entries stay through their watch window (the streamer may be
+        // late); all-day entries expire when their day is over.
         $removed = ManualSchedule::where(function ($q) {
-            $q->where(fn ($t) => $t->where('is_all_day', false)->where('scheduled_at', '<', now()))
+            $q->where(fn ($t) => $t->where('is_all_day', false)->where('scheduled_at', '<', now()->subHours(ManualSchedule::WATCH_AFTER_HOURS)))
               ->orWhere(fn ($a) => $a->where('is_all_day', true)->where('scheduled_at', '<', now()->subDay()));
         })->delete();
         if ($removed > 0) {
