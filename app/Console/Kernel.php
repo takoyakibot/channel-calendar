@@ -13,7 +13,10 @@ class Kernel extends ConsoleKernel
     protected function schedule(Schedule $schedule): void
     {
         // $schedule->command('inspire')->hourly();
-        $schedule->command('streams:fetch')->everyThirtyMinutes();
+        $schedule->command('streams:fetch')->everyThirtyMinutes()->withoutOverlapping();
+        // Between full runs, poll only channels whose manual schedule says they
+        // should be live about now (:00 and :30 are covered by the full run).
+        $schedule->command('streams:fetch --watched')->cron('10,20,40,50 * * * *')->withoutOverlapping();
     }
 
     /**
