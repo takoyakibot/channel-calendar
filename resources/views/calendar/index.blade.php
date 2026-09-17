@@ -57,7 +57,6 @@
         .tweet-preview-text { font-size: 0.8125rem; line-height: 1.5; color: #1f2937; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 12rem; overflow-y: auto; user-select: text; cursor: text; }
         .tweet-preview-note { margin-top: 0.375rem; font-size: 0.6875rem; color: #6b7280; }
         .modal-hint-text { font-size: 0.75rem; color: #6b7280; }
-        .card-meta .time.all-day { font-size: 0.8125rem; color: #6b7280; font-weight: 600; }
         .modal-hint a { color: #2563eb; text-decoration: none; }
         .modal-hint a:hover { text-decoration: underline; }
 
@@ -88,7 +87,6 @@
         .share-btn.line { background: #06c755; color: #fff; border-color: #06c755; }
         .share-btn.line:hover { background: #05b34c; }
 
-        .manual-badge { display: inline-block; padding: 0.0625rem 0.4rem; border-radius: 9999px; font-size: 0.625rem; font-weight: 700; background: #dbeafe; color: #1d4ed8; margin-left: auto; flex: none; }
         .card .delete-btn { display: none; position: absolute; top: 0.25rem; right: 0.25rem; width: 1.25rem; height: 1.25rem; border-radius: 50%; border: none; background: #ef4444; color: #fff; font-size: 0.625rem; cursor: pointer; line-height: 1; padding: 0; }
         .card:hover .delete-btn { display: flex; align-items: center; justify-content: center; }
         .card { position: relative; }
@@ -132,7 +130,7 @@
         .avatar { width: 1.75rem; height: 1.75rem; border-radius: 50%; object-fit: cover; flex: none; background: #e5e7eb; }
         .avatar-fallback { width: 1.75rem; height: 1.75rem; border-radius: 50%; flex: none; display: inline-flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 0.8125rem; }
         .card-meta { min-width: 0; display: flex; flex-direction: column; flex: 1 1 auto; }
-        .card-meta .time { font-weight: 700; font-size: 0.875rem; color: #111827; line-height: 1.2; }
+        .card-meta .time { font-weight: 700; font-size: 0.875rem; color: #111827; line-height: 1.2; white-space: nowrap; }
         .card-meta .ch { font-size: 0.6875rem; color: #6b7280; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .card-title { font-size: 0.78rem; line-height: 1.35; color: #1f2937; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; }
         .badge { display: inline-block; padding: 0.0625rem 0.4rem; border-radius: 9999px; font-size: 0.625rem; font-weight: 700; margin-left: auto; flex: none; }
@@ -487,8 +485,14 @@
             var meta = document.createElement('div');
             meta.className = 'card-meta';
             var time = document.createElement('span');
-            time.className = 'time' + (props.is_all_day ? ' all-day' : '');
-            time.textContent = props.is_all_day ? '時間未定' : fmtTime(start);
+            time.className = 'time';
+            if (props.status === 'manual') {
+                // Manual entries: "手動" stands where the time would be (the exact time is
+                // usually approximate anyway); append it when one was given.
+                time.textContent = props.is_all_day ? '手動' : '手動 ' + fmtTime(start);
+            } else {
+                time.textContent = fmtTime(start);
+            }
             var ch = document.createElement('span');
             ch.className = 'ch';
             ch.textContent = props.channel_name;
@@ -506,11 +510,6 @@
                 done.className = 'badge done';
                 done.textContent = '終了';
                 head.appendChild(done);
-            } else if (props.status === 'manual') {
-                var manual = document.createElement('span');
-                manual.className = 'manual-badge';
-                manual.textContent = '手動';
-                head.appendChild(manual);
             }
             if (props.is_members_only) {
                 var members = document.createElement('span');
@@ -720,7 +719,8 @@
                     wrap.appendChild(avatarNode(props, arg.event.backgroundColor || arg.event.borderColor, 'fc-ev-img'));
                     var t = document.createElement('span');
                     t.className = 'fc-ev-time';
-                    t.textContent = props.status === 'live' ? 'LIVE' : (props.is_all_day ? '未定' : fmtTime(arg.event.start));
+                    t.textContent = props.status === 'live' ? 'LIVE'
+                        : (props.status === 'manual' ? (props.is_all_day ? '手動' : '手動 ' + fmtTime(arg.event.start)) : fmtTime(arg.event.start));
                     if (props.status === 'live') { t.style.color = '#dc2626'; }
                     var ti = document.createElement('span');
                     ti.className = 'fc-ev-title';
