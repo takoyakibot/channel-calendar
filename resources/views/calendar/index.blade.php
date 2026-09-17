@@ -857,26 +857,48 @@
                 document.getElementById('modal-time-field').hidden = this.checked;
             });
 
-            // Paste a post URL → pull its text via oEmbed and offer it as the title.
-            var TWEET_URL = /^https?:\/\/(?:www\.|mobile\.)?(?:x\.com|twitter\.com)\/[A-Za-z0-9_]{1,15}\/status\/\d+/i;
+            // Paste a post URL → pick the channel whose X account posted it, then pull
+            // the text via oEmbed and offer it as the title.
+            var TWEET_URL = /^https?:\/\/(?:www\.|mobile\.)?(?:x\.com|twitter\.com)\/([A-Za-z0-9_]{1,15})\/status\/\d+/i;
             var previewStatus = document.getElementById('modal-preview-status');
+            function selectChannelByXHandle(handle) {
+                if (!handle) return null;
+                var ch = channelList.find(function (c) { return c.x_handle && c.x_handle.toLowerCase() === handle.toLowerCase(); });
+                if (!ch) return null;
+                var select = document.getElementById('modal-channel');
+                if (select.querySelector('option[value="' + ch.id + '"]')) {
+                    select.value = String(ch.id);
+                    updateModalXSearch();
+                }
+                return ch;
+            }
             document.getElementById('modal-source-url').addEventListener('change', function () {
                 var url = this.value.trim();
                 var titleEl = document.getElementById('modal-title');
-                if (!TWEET_URL.test(url)) return;
+                var match = url.match(TWEET_URL);
+                if (!match) return;
+                var matched = selectChannelByXHandle(match[1]);
                 previewStatus.textContent = '投稿を読み込み中…';
                 previewStatus.hidden = false;
                 fetch('/api/tweet-preview?url=' + encodeURIComponent(url), { headers: { Accept: 'application/json' } })
                     .then(function (res) { return res.json().then(function (data) { return { ok: res.ok, data: data }; }); })
                     .then(function (r) {
                         if (!r.ok) { previewStatus.textContent = r.data.message || '投稿を取得できませんでした。'; return; }
+                        matched = selectChannelByXHandle(r.data.author_handle) || matched;
+                        var notes = [];
+                        if (matched) {
+                            notes.push('チャンネルを「' + matched.name + '」に設定しました。');
+                        } else {
+                            notes.push('投稿者 @' + (r.data.author_handle || match[1]) + ' に一致するチャンネルがないため、チャンネルは手動で選んでください。');
+                        }
                         var firstLine = (r.data.text || '').split('\n').map(function (s) { return s.trim(); }).filter(Boolean)[0] || '';
                         if (firstLine && !titleEl.value.trim()) {
                             titleEl.value = firstLine.slice(0, 255);
-                            previewStatus.textContent = '投稿の本文をタイトルに入れました（' + (r.data.author_name || '') + '）。必要なら編集してください。';
-                        } else {
-                            previewStatus.textContent = (r.data.author_name || '') + ': ' + (r.data.text || '').slice(0, 80);
+                            notes.push('本文をタイトルに入れました。必要なら編集してください。');
+                        } else if (r.data.text) {
+                            notes.push((r.data.author_name || '') + ': ' + r.data.text.slice(0, 80));
                         }
+                        previewStatus.textContent = notes.join(' ');
                     })
                     .catch(function () { previewStatus.textContent = '投稿を取得できませんでした。'; });
             });

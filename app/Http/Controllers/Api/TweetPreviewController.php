@@ -28,7 +28,7 @@ class TweetPreviewController extends Controller
 
         $canonical = "https://twitter.com/{$m[1]}/status/{$m[2]}";
 
-        $result = Cache::remember('tweet-preview:' . $m[2], now()->addDay(), function () use ($canonical) {
+        $result = Cache::remember('tweet-preview:' . $m[2], now()->addDay(), function () use ($canonical, $m) {
             $response = Http::timeout(8)->acceptJson()->get('https://publish.twitter.com/oembed', [
                 'url' => $canonical,
                 'omit_script' => 1,
@@ -40,9 +40,13 @@ class TweetPreviewController extends Controller
                 return ['error' => $response->status()];
             }
 
+            $authorUrl = (string) $response->json('author_url');
+
             return [
                 'author_name' => $response->json('author_name'),
-                'author_url' => $response->json('author_url'),
+                'author_url' => $authorUrl,
+                // Handle from the canonical author URL (falls back to the one in the pasted URL).
+                'author_handle' => preg_match('~(?:x\.com|twitter\.com)/([A-Za-z0-9_]{1,15})~i', $authorUrl, $am) ? $am[1] : $m[1],
                 'text' => self::extractText((string) $response->json('html')),
             ];
         });

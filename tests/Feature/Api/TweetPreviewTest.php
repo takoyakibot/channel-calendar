@@ -34,6 +34,7 @@ class TweetPreviewTest extends TestCase
         $response->assertOk()->assertJson([
             'author_name' => 'Some User',
             'author_url' => 'https://twitter.com/some_user',
+            'author_handle' => 'some_user',
         ]);
         $this->assertSame("今夜21時から配信します！\n詳しくは https://t.co/xyz", $response->json('text'));
 
