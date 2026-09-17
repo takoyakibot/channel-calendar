@@ -143,7 +143,9 @@ class FetchStreams extends Command
     private function upsertDetail(Channel $channel, array $detail, Carbon $windowStart): bool
     {
         // Plain uploads have no liveStreamingDetails — they are not streams.
-        if ($detail['scheduled_at'] === null) {
+        // Streams started without a reservation are broadcasts too: they have
+        // no scheduledStartTime, so YouTubeService falls back to actualStartTime.
+        if (! $detail['is_broadcast'] || $detail['scheduled_at'] === null) {
             return false;
         }
 
