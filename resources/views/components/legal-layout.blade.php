@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ $title }} | Channel Calendar</title>
     @vite(['resources/css/app.css'])
+    <x-ga4 />
     <style>
         .legal { max-width: 46rem; margin: 0 auto; padding: 2.5rem 1rem 4rem; color: #1f2937; line-height: 1.8; }
         .legal h1 { font-size: 1.5rem; font-weight: 700; color: #111827; margin: 0 0 0.5rem; }

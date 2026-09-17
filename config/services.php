@@ -37,6 +37,11 @@ return [
         'redirect' => '/auth/google/callback',
     ],
 
+    'ga4' => [
+        // Google Analytics 4 measurement id (G-XXXXXXX). Empty = no tag rendered.
+        'measurement_id' => env('GA4_MEASUREMENT_ID'),
+    ],
+
     'x' => [
         // Keywords ORed into the "find announcements on X" search link for a channel.
         'search_keywords' => array_values(array_filter(array_map('trim', explode(',', env('X_SEARCH_KEYWORDS', '予定,配信,朝活,告知'))))),
