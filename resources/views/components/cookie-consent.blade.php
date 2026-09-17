@@ -24,7 +24,7 @@
         <div class="cc-inner">
             <div class="cc-text">
                 <div class="cc-title" id="cc-title">Cookie の使用について</div>
-                <span id="cc-desc">このサイトでは、基本的な動作に必要な Cookie に加え、ログイン機能のために任意の Cookie を使用しています。詳しくは<a href="{{ url('/privacy') }}#cookie">プライバシーポリシー</a>をご確認ください。</span>
+                <span id="cc-desc">このサイトでは、基本的な動作に必要な Cookie に加え、ログイン機能とアクセス解析（Google アナリティクス）のために任意の Cookie を使用しています。詳しくは<a href="{{ url('/privacy') }}#cookie">プライバシーポリシー</a>をご確認ください。</span>
                 <span class="cc-current" id="cc-current" hidden>現在の設定: <strong id="cc-current-label"></strong></span>
             </div>
             <div class="cc-actions">
