@@ -914,8 +914,16 @@
             if (modalOverlay) modalOverlay.hidden = true;
         }
         if (modalOverlay) {
+            // Close on a genuine backdrop click only: a text-selection drag that starts
+            // inside the dialog and ends on the backdrop also fires "click" on the
+            // backdrop, so require the press to have started there as well.
+            var pressedOnBackdrop = false;
+            modalOverlay.addEventListener('mousedown', function (e) {
+                pressedOnBackdrop = (e.target === modalOverlay);
+            });
             modalOverlay.addEventListener('click', function (e) {
-                if (e.target === modalOverlay) closeModal();
+                if (e.target === modalOverlay && pressedOnBackdrop) closeModal();
+                pressedOnBackdrop = false;
             });
             document.getElementById('modal-cancel').addEventListener('click', closeModal);
             document.addEventListener('keydown', function (e) {
