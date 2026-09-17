@@ -20,6 +20,7 @@
     <meta name="twitter:title" content="{{ $pageTitle }}">
     <meta name="twitter:description" content="{{ $pageDescription }}">
     @vite(['resources/css/app.css'])
+    <x-ga4 />
     <style>
         /* Class rules below (e.g. .modal-overlay { display:flex }) would otherwise
            outrank the preflight [hidden] rule and keep hidden elements visible. */

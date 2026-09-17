@@ -17,6 +17,7 @@
     <meta name="twitter:title" content="{{ $siteName }}">
     <meta name="twitter:description" content="{{ $pageDescription }}">
     @vite(['resources/css/app.css'])
+    <x-ga4 />
     <style>
         .landing-header { text-align: center; margin-bottom: 2.5rem; }
         .landing-header h1 { font-size: 1.75rem; font-weight: 700; color: #111827; margin: 0 0 0.25rem; }
