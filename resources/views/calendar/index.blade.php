@@ -24,8 +24,8 @@
         /* Class rules below (e.g. .modal-overlay { display:flex }) would otherwise
            outrank the preflight [hidden] rule and keep hidden elements visible. */
         [hidden] { display: none !important; }
-        .card-source { margin-top: 0.3rem; font-size: 0.6875rem; color: #2563eb; }
-        .card:hover .card-source { text-decoration: underline; }
+        .card-meta .time .src-icon { margin-left: 0.3rem; font-size: 0.75rem; font-weight: 400; vertical-align: 0.05em; opacity: 0.8; }
+        .card:hover .src-icon { opacity: 1; }
 
         @keyframes cc-new-flash {
             0%   { background: #fef08a; box-shadow: 0 0 0 3px #facc15; }
@@ -528,12 +528,15 @@
 
             if (props.status === 'manual') {
                 if (props.source_url) {
-                    // A manual entry has no YouTube URL; link the card to its source instead.
+                    // A manual entry has no YouTube URL; the whole card links to its source,
+                    // signalled by a small link icon next to the 手動 label.
                     a.href = props.source_url;
-                    var source = document.createElement('div');
-                    source.className = 'card-source';
-                    source.textContent = '情報元を見る ↗';
-                    a.appendChild(source);
+                    var srcIcon = document.createElement('span');
+                    srcIcon.className = 'src-icon';
+                    srcIcon.textContent = '🔗';
+                    srcIcon.title = '情報元を開く';
+                    srcIcon.setAttribute('aria-label', '情報元あり');
+                    time.appendChild(srcIcon);
                 } else if (!ev.url) {
                     a.removeAttribute('href');
                     a.style.cursor = 'default';
