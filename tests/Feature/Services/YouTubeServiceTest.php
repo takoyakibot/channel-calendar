@@ -279,5 +279,53 @@ class YouTubeServiceTest extends TestCase
 
         $this->assertEquals('https://example.com/video.jpg', $result[0]['thumbnail_url']);
         $this->assertEquals('completed', $result[0]['status']);
+        $this->assertTrue($result[0]['is_broadcast']);
+    }
+
+    public function test_get_video_details_uses_actual_start_when_a_live_stream_was_never_scheduled(): void
+    {
+        // A stream started on the spot (no reservation frame) has liveStreamingDetails
+        // but no scheduledStartTime.
+        $snippet = new VideoSnippet();
+        $snippet->setTitle('Guerrilla stream');
+        $details = new VideoLiveStreamingDetails();
+        $details->setActualStartTime('2026-09-17T10:05:16Z');
+        $video = new Video();
+        $video->setId('vid_live');
+        $video->setSnippet($snippet);
+        $video->setLiveStreamingDetails($details);
+        $response = new VideoListResponse();
+        $response->setItems([$video]);
+
+        $mockVideos = Mockery::mock(Videos::class);
+        $mockVideos->shouldReceive('listVideos')->andReturn($response);
+        $this->mockYouTube->videos = $mockVideos;
+
+        $result = $this->service->getVideoDetails(['vid_live']);
+
+        $this->assertTrue($result[0]['is_broadcast']);
+        $this->assertEquals('live', $result[0]['status']);
+        $this->assertEquals('2026-09-17T10:05:16Z', $result[0]['scheduled_at']);
+        $this->assertEquals('2026-09-17T10:05:16Z', $result[0]['actual_start_at']);
+    }
+
+    public function test_get_video_details_marks_plain_uploads_as_non_broadcasts(): void
+    {
+        $snippet = new VideoSnippet();
+        $snippet->setTitle('Just a short');
+        $video = new Video();
+        $video->setId('vid_short');
+        $video->setSnippet($snippet);
+        $response = new VideoListResponse();
+        $response->setItems([$video]);
+
+        $mockVideos = Mockery::mock(Videos::class);
+        $mockVideos->shouldReceive('listVideos')->andReturn($response);
+        $this->mockYouTube->videos = $mockVideos;
+
+        $result = $this->service->getVideoDetails(['vid_short']);
+
+        $this->assertFalse($result[0]['is_broadcast']);
+        $this->assertNull($result[0]['scheduled_at']);
     }
 }
