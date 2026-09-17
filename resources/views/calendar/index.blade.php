@@ -52,6 +52,10 @@
         .channel-filter .x-link:hover { color: #111827; background: #e5e7eb; }
         .modal-hint { margin: 0.375rem 0 0; font-size: 0.75rem; color: #6b7280; display: flex; flex-direction: column; gap: 0.25rem; }
         .modal-check { display: flex; align-items: center; gap: 0.5rem; font-size: 0.875rem; color: #111827; cursor: pointer; }
+        .tweet-preview { margin-top: 0.5rem; padding: 0.625rem 0.75rem; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 0.375rem; }
+        .tweet-preview-author { font-size: 0.75rem; font-weight: 600; color: #374151; margin-bottom: 0.25rem; }
+        .tweet-preview-text { font-size: 0.8125rem; line-height: 1.5; color: #1f2937; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 12rem; overflow-y: auto; user-select: text; cursor: text; }
+        .tweet-preview-note { margin-top: 0.375rem; font-size: 0.6875rem; color: #6b7280; }
         .modal-hint-text { font-size: 0.75rem; color: #6b7280; }
         .card-meta .time.all-day { font-size: 0.8125rem; color: #6b7280; font-weight: 600; }
         .modal-hint a { color: #2563eb; text-decoration: none; }
@@ -295,6 +299,12 @@
                     <a id="modal-x-search" href="#" target="_blank" rel="noopener noreferrer" hidden>𝕏 このチャンネルの告知を X で探す ↗</a>
                     <span id="modal-preview-status" hidden></span>
                 </p>
+                {{-- Full post text, selectable, so the relevant part can be copied into the title. --}}
+                <div id="modal-tweet-preview" class="tweet-preview" hidden>
+                    <div class="tweet-preview-author" id="modal-tweet-author"></div>
+                    <div class="tweet-preview-text" id="modal-tweet-text"></div>
+                    <div class="tweet-preview-note">必要な部分を選択してコピーし、タイトルに貼り付けてください。</div>
+                </div>
             </div>
             <p id="modal-error" class="modal-error" hidden></p>
             <div class="modal-actions">
@@ -930,35 +940,34 @@
                 }
                 return ch;
             }
+            var tweetPreview = document.getElementById('modal-tweet-preview');
+            function hideTweetPreview() {
+                tweetPreview.hidden = true;
+                document.getElementById('modal-tweet-text').textContent = '';
+                document.getElementById('modal-tweet-author').textContent = '';
+            }
             document.getElementById('modal-source-url').addEventListener('change', function () {
                 var url = this.value.trim();
-                var titleEl = document.getElementById('modal-title');
                 var match = url.match(TWEET_URL);
-                if (!match) return;
+                if (!match) { hideTweetPreview(); return; }
                 var matched = selectChannelByXHandle(match[1]);
                 previewStatus.textContent = '投稿を読み込み中…';
                 previewStatus.hidden = false;
                 fetch('/api/tweet-preview?url=' + encodeURIComponent(url), { headers: { Accept: 'application/json' } })
                     .then(function (res) { return res.json().then(function (data) { return { ok: res.ok, data: data }; }); })
                     .then(function (r) {
-                        if (!r.ok) { previewStatus.textContent = r.data.message || '投稿を取得できませんでした。'; return; }
+                        if (!r.ok) { previewStatus.textContent = r.data.message || '投稿を取得できませんでした。'; hideTweetPreview(); return; }
                         matched = selectChannelByXHandle(r.data.author_handle) || matched;
-                        var notes = [];
-                        if (matched) {
-                            notes.push('チャンネルを「' + matched.name + '」に設定しました。');
-                        } else {
-                            notes.push('投稿者 @' + (r.data.author_handle || match[1]) + ' に一致するチャンネルがないため、チャンネルは手動で選んでください。');
-                        }
-                        var firstLine = (r.data.text || '').split('\n').map(function (s) { return s.trim(); }).filter(Boolean)[0] || '';
-                        if (firstLine && !titleEl.value.trim()) {
-                            titleEl.value = firstLine.slice(0, 255);
-                            notes.push('本文をタイトルに入れました。必要なら編集してください。');
-                        } else if (r.data.text) {
-                            notes.push((r.data.author_name || '') + ': ' + r.data.text.slice(0, 80));
-                        }
-                        previewStatus.textContent = notes.join(' ');
+                        previewStatus.textContent = matched
+                            ? 'チャンネルを「' + matched.name + '」に設定しました。'
+                            : '投稿者 @' + (r.data.author_handle || match[1]) + ' に一致するチャンネルがないため、チャンネルは手動で選んでください。';
+                        // Show the whole post; the first line is usually a greeting, so leave
+                        // picking the title to the person registering.
+                        document.getElementById('modal-tweet-author').textContent = (r.data.author_name || '') + (r.data.author_handle ? ' @' + r.data.author_handle : '');
+                        document.getElementById('modal-tweet-text').textContent = r.data.text || '';
+                        tweetPreview.hidden = !r.data.text;
                     })
-                    .catch(function () { previewStatus.textContent = '投稿を取得できませんでした。'; });
+                    .catch(function () { previewStatus.textContent = '投稿を取得できませんでした。'; hideTweetPreview(); });
             });
         }
         function openModal(dateStr) {
@@ -969,6 +978,8 @@
             document.getElementById('modal-error').hidden = true;
             document.getElementById('modal-title').value = '';
             document.getElementById('modal-source-url').value = '';
+            document.getElementById('modal-preview-status').hidden = true;
+            document.getElementById('modal-tweet-preview').hidden = true;
 
             var modalChannel = document.getElementById('modal-channel');
             if (modalChannel.options.length === 0) {
