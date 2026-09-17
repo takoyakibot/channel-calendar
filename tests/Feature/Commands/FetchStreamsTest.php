@@ -24,6 +24,56 @@ class FetchStreamsTest extends TestCase
         return $mock;
     }
 
+    public function test_all_day_manual_schedule_is_removed_once_a_real_stream_exists_that_day(): void
+    {
+        $channel = Channel::factory()->create(['channel_id' => 'UC_test']);
+        $user = \App\Models\User::factory()->create();
+        $dayStart = now('Asia/Tokyo')->addDays(2)->startOfDay()->utc();
+        $manual = \App\Models\ManualSchedule::create([
+            'user_id' => $user->id, 'channel_id' => $channel->id, 'title' => '未定',
+            'scheduled_at' => $dayStart, 'is_all_day' => true,
+        ]);
+        $otherDay = \App\Models\ManualSchedule::create([
+            'user_id' => $user->id, 'channel_id' => $channel->id, 'title' => '別の日',
+            'scheduled_at' => $dayStart->copy()->addDays(3), 'is_all_day' => true,
+        ]);
+
+        $mockService = $this->mockYouTube();
+        $mockService->shouldReceive('listRecentUploadIds')->with('UC_test')->andReturn(['real1']);
+        $mockService->shouldReceive('getVideoDetails')->with(['real1'])->andReturn([
+            $this->detail('real1', ['scheduled_at' => $dayStart->copy()->addHours(20)->toIso8601String()]),
+        ]);
+        $this->app->instance(YouTubeService::class, $mockService);
+
+        $this->artisan('streams:fetch')->assertSuccessful();
+
+        $this->assertDatabaseMissing('manual_schedules', ['id' => $manual->id]);
+        $this->assertDatabaseHas('manual_schedules', ['id' => $otherDay->id]);
+    }
+
+    public function test_all_day_manual_schedule_is_kept_during_its_day_and_removed_afterwards(): void
+    {
+        $channel = Channel::factory()->create(['channel_id' => 'UC_test']);
+        $user = \App\Models\User::factory()->create();
+        $today = \App\Models\ManualSchedule::create([
+            'user_id' => $user->id, 'channel_id' => $channel->id, 'title' => '今日',
+            'scheduled_at' => now('Asia/Tokyo')->startOfDay()->utc(), 'is_all_day' => true,
+        ]);
+        $yesterday = \App\Models\ManualSchedule::create([
+            'user_id' => $user->id, 'channel_id' => $channel->id, 'title' => '昨日',
+            'scheduled_at' => now('Asia/Tokyo')->subDay()->startOfDay()->utc(), 'is_all_day' => true,
+        ]);
+
+        $mockService = $this->mockYouTube();
+        $mockService->shouldReceive('listRecentUploadIds')->andReturn([]);
+        $this->app->instance(YouTubeService::class, $mockService);
+
+        $this->artisan('streams:fetch')->assertSuccessful();
+
+        $this->assertDatabaseHas('manual_schedules', ['id' => $today->id]);
+        $this->assertDatabaseMissing('manual_schedules', ['id' => $yesterday->id]);
+    }
+
     public function test_fetch_streams_imports_members_only_streams_and_flags_them(): void
     {
         $channel = Channel::factory()->create(['channel_id' => 'UC_test']);

@@ -207,12 +207,17 @@ class FetchStreams extends Command
         // Manual schedules are few, so one existence query per row keeps this
         // portable across MySQL and SQLite instead of relying on DATE_SUB/INTERVAL.
         $overlapping = ManualSchedule::query()
-            ->get(['id', 'channel_id', 'scheduled_at'])
+            ->get(['id', 'channel_id', 'scheduled_at', 'is_all_day'])
             ->filter(function (ManualSchedule $manual) {
                 $at = Carbon::parse($manual->scheduled_at);
+                // All-day entries stand for "some time that day": any real stream of the
+                // channel within the 24h starting at the stored (local) midnight replaces them.
+                [$from, $to] = $manual->is_all_day
+                    ? [$at->copy(), $at->copy()->addDay()]
+                    : [$at->copy()->subHour(), $at->copy()->addHour()];
 
                 return Stream::where('channel_id', $manual->channel_id)
-                    ->whereBetween('scheduled_at', [$at->copy()->subHour(), $at->copy()->addHour()])
+                    ->whereBetween('scheduled_at', [$from, $to])
                     ->exists();
             })
             ->pluck('id')
@@ -228,7 +233,11 @@ class FetchStreams extends Command
 
     private function removePastManualSchedules(): void
     {
-        $removed = ManualSchedule::where('scheduled_at', '<', now())->delete();
+        // Timed entries expire at their time; all-day entries when their day is over.
+        $removed = ManualSchedule::where(function ($q) {
+            $q->where(fn ($t) => $t->where('is_all_day', false)->where('scheduled_at', '<', now()))
+              ->orWhere(fn ($a) => $a->where('is_all_day', true)->where('scheduled_at', '<', now()->subDay()));
+        })->delete();
         if ($removed > 0) {
             $this->line("  {$removed} past manual schedule(s) removed");
         }
