@@ -174,6 +174,10 @@
         .fc-ev .fc-ev-time { font-weight: 700; font-size: 0.7rem; color: var(--cc-text); flex: none; }
         .fc-ev .fc-ev-title { font-size: 0.7rem; color: var(--cc-text-sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .fc-ev.is-done { opacity: 0.55; }
+        /* Block events (all-day manual entries) sit on the pastel channel colour, not
+           on the page surface, so their text must stay dark in both themes. */
+        .fc-daygrid-block-event .fc-ev-time { color: #111827; }
+        .fc-daygrid-block-event .fc-ev-title { color: #1f2937; }
 
         .tooltip { position: absolute; z-index: 50; background: var(--cc-surface); border: 1px solid var(--cc-border); border-radius: 0.5rem; padding: 0.75rem; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); pointer-events: none; max-width: 320px; font-size: 0.875rem; }
         .tooltip .channel-name { font-weight: 600; margin-bottom: 0.25rem; }
