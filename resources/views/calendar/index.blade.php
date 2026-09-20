@@ -289,7 +289,7 @@
                 <div class="nav">
                     <button type="button" id="board-prev" title="1週間戻る">« 前の週</button>
                     <button type="button" id="board-prev-day" title="1日戻る">‹ 前日</button>
-                    <button type="button" id="board-today" title="今週（月曜始まり）へ">今日</button>
+                    <button type="button" id="board-today" title="今日から7日間を表示">今日</button>
                     <button type="button" id="board-next-day" title="1日進む">翌日 ›</button>
                     <button type="button" id="board-next" title="1週間進む">次の週 »</button>
                 </div>
@@ -440,8 +440,8 @@
         var filterArrow = document.getElementById('filter-arrow');
 
         var hiddenChannels = {};
-        // The board opens on the Monday of the current week; day-step buttons may then
-        // shift it off that alignment, and "今日" snaps back.
+        // The board opens on the Monday of the current week; the nav buttons may then
+        // shift it, and "今日" puts today in the leftmost column.
         var boardStart = mondayOf(new Date());
         var highlightEventId = null;  // event id to flash after the next render (newly added schedule)
         var channelList = [];         // active channels from /api/channels, used by the filter and the schedule modal
@@ -745,7 +745,7 @@
             loadBoard();
         });
         document.getElementById('board-today').addEventListener('click', function () {
-            boardStart = mondayOf(new Date());
+            boardStart = startOfDay(new Date());
             loadBoard();
         });
 
