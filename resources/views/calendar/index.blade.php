@@ -724,9 +724,25 @@
                 fetch(apiUrl('/api/manual-schedules', params), { headers: { Accept: 'application/json' } }).then(function (r) { return r.ok ? r.json() : []; }),
             ]).then(function (results) {
                 boardEvents = results[0].concat(results[1]);
+                lastLoadedAt = Date.now();
                 renderBoard();
             }).catch(function () { boardEvents = []; renderBoard(); });
         }
+
+        // Keep the page current without reloads: the server re-checks streams every
+        // 10 minutes (live / ended / new frames), so poll a little more often than
+        // that. Skip hidden tabs and open modals; catch up as soon as the tab is back.
+        var AUTO_REFRESH_MS = 5 * 60 * 1000;
+        var lastLoadedAt = 0;
+        function refreshIfDue(force) {
+            if (document.hidden) return;
+            if (modalOverlay && !modalOverlay.hidden) return;
+            if (!force && Date.now() - lastLoadedAt < AUTO_REFRESH_MS) return;
+            loadBoard();
+            if (calendar && !monthView.hidden) calendar.refetchEvents();
+        }
+        setInterval(function () { refreshIfDue(false); }, 60 * 1000);
+        document.addEventListener('visibilitychange', function () { refreshIfDue(false); });
 
         document.getElementById('board-prev').addEventListener('click', function () {
             boardStart = addDays(boardStart, -BOARD_DAYS);
