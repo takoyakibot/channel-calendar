@@ -192,7 +192,9 @@
         .modal h3 { font-size: 1rem; font-weight: 700; color: var(--cc-text); margin: 0 0 1rem; }
         .modal .modal-field { display: flex; flex-direction: column; gap: 0.25rem; margin-bottom: 0.75rem; }
         .modal .modal-field label { font-size: 0.75rem; font-weight: 600; color: var(--cc-text-tertiary); }
-        .modal .modal-field input, .modal .modal-field select { padding: 0.5rem; border: 1px solid var(--cc-border-light); border-radius: 0.375rem; font-size: 0.875rem; background: var(--cc-input-bg); color: var(--cc-text); }
+        /* Not checkboxes: the `background` shorthand would wipe the check-mark image
+           and `color` would make the checked fill blend into the surface. */
+        .modal .modal-field input:not([type=checkbox]), .modal .modal-field select { padding: 0.5rem; border: 1px solid var(--cc-border-light); border-radius: 0.375rem; font-size: 0.875rem; background: var(--cc-input-bg); color: var(--cc-text); }
         .modal .modal-actions { display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 1rem; }
         .modal .modal-actions button { padding: 0.5rem 1rem; border-radius: 0.375rem; font-size: 0.875rem; cursor: pointer; }
         .modal .btn-cancel { background: var(--cc-surface); border: 1px solid var(--cc-border-light); color: var(--cc-text-secondary); }
