@@ -17,6 +17,8 @@ class Kernel extends ConsoleKernel
         // Between full runs, poll only channels whose manual schedule says they
         // should be live about now (:00 and :30 are covered by the full run).
         $schedule->command('streams:fetch --watched')->cron('10,20,40,50 * * * *')->withoutOverlapping();
+        // Announce new reservations on X a few minutes after each fetch.
+        $schedule->command('streams:announce')->cron('3,13,23,33,43,53 * * * *')->withoutOverlapping();
     }
 
     /**
