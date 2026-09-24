@@ -80,7 +80,12 @@ class AnnounceStreams extends Command
             } catch (XPosterException $e) {
                 $this->error("Failed to announce {$stream->video_id}: {$e->getMessage()}");
                 Log::warning("streams:announce failed for {$stream->video_id} (HTTP {$e->getCode()}): {$e->getMessage()}");
-                if ($e->isRateLimited()) {
+                if ($e->affectsWholeRun()) {
+                    // Rate limited or out of X credits: every further post would fail
+                    // the same way, so leave the rest queued for the next run.
+                    $this->warn($e->isOutOfCredits()
+                        ? 'X credits depleted — top up in the X Developer Console; queued streams will post once credits are available.'
+                        : 'X rate limit hit — remaining streams wait for the next run.');
                     break;
                 }
                 continue;
