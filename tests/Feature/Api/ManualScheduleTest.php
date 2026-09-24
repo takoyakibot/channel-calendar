@@ -149,6 +149,23 @@ class ManualScheduleTest extends TestCase
         $response->assertJsonFragment(['title' => '時間あり', 'allDay' => false, 'is_all_day' => false]);
     }
 
+    public function test_index_exposes_created_at_so_the_page_can_badge_new_entries(): void
+    {
+        $user = User::factory()->create();
+        $channel = Channel::factory()->create();
+        // forceCreate: created_at is not fillable, so create() would stamp "now".
+        ManualSchedule::forceCreate([
+            'user_id' => $user->id, 'channel_id' => $channel->id, 'title' => '新着',
+            'scheduled_at' => '2026-09-20 11:00:00', 'is_all_day' => false,
+            'created_at' => '2026-09-19 08:30:00',
+        ]);
+
+        $response = $this->getJson('/api/manual-schedules?start=2026-09-01&end=2026-09-30');
+
+        $response->assertOk();
+        $this->assertSame('2026-09-19T08:30:00+00:00', $response->json('0.extendedProps.created_at'));
+    }
+
     public function test_owner_can_delete_and_others_cannot(): void
     {
         $schedule = ManualSchedule::create([

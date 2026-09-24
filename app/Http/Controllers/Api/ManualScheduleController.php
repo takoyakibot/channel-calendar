@@ -57,6 +57,7 @@ class ManualScheduleController extends Controller
                 'registered_by' => $s->user->name,
                 'manual_schedule_id' => $s->id,
                 'source_url' => $s->source_url,
+                'created_at' => $s->created_at?->toIso8601String(),
             ],
         ]);
 

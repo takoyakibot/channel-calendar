@@ -166,6 +166,8 @@
         .badge.live { background: #dc2626; color: #fff; }
         .badge.done { background: var(--cc-border); color: var(--cc-text-tertiary); }
         .badge.members { background: #f3e8ff; color: #6b21a8; margin-left: 0.25rem; }
+        .badge.new { background: #fde047; color: #713f12; }
+        .fc-ev .badge.new { font-size: 0.55rem; padding: 0 0.3rem; margin-left: 0; }
         .card-head .badge + .badge { margin-left: 0.25rem; }
 
         .fc-event { cursor: pointer; }
@@ -467,6 +469,24 @@
         var boardEvents = [];
         var calendar = null;
 
+        // "New since your last visit": entries first seen after the previous visit
+        // carry a NEW badge for this whole visit. Nothing is new on a first visit.
+        var newSince = null;
+        try {
+            var storedVisit = localStorage.getItem('cc.lastVisitAt');
+            if (storedVisit) newSince = new Date(storedVisit);
+        } catch (e) {}
+        function markVisited() {
+            try { localStorage.setItem('cc.lastVisitAt', new Date().toISOString()); } catch (e) {}
+        }
+        function isNewEvent(ev) {
+            var props = ev.extendedProps;
+            if (!newSince || !props.created_at || props.status === 'completed') return false;
+            return new Date(props.created_at) > newSince;
+        }
+        // Event ids on the board before an auto-refresh; cards not in it are flashed.
+        var flashBaseline = null;
+
         function startOfDay(d) {
             return new Date(d.getFullYear(), d.getMonth(), d.getDate());
         }
@@ -561,6 +581,13 @@
             meta.appendChild(ch);
             head.appendChild(meta);
 
+            if (isNewEvent(ev)) {
+                var fresh = document.createElement('span');
+                fresh.className = 'badge new';
+                fresh.textContent = 'NEW';
+                fresh.title = '前回の訪問以降に追加された予定';
+                head.appendChild(fresh);
+            }
             if (props.status === 'live') {
                 var live = document.createElement('span');
                 live.className = 'badge live';
@@ -715,6 +742,14 @@
             }
 
             rangeEl.textContent = fmtShort(boardStart) + ' 〜 ' + fmtShort(addDays(boardStart, BOARD_DAYS - 1));
+            if (flashBaseline) {
+                boardEl.querySelectorAll('.card').forEach(function (el) {
+                    if (flashBaseline[el.dataset.eventId]) return;
+                    el.classList.add('is-new');
+                    setTimeout(function () { el.classList.remove('is-new'); }, 4000);
+                });
+                flashBaseline = null;
+            }
             flashHighlightedCard();
         }
 
@@ -727,6 +762,7 @@
             ]).then(function (results) {
                 boardEvents = results[0].concat(results[1]);
                 lastLoadedAt = Date.now();
+                markVisited();
                 renderBoard();
             }).catch(function () { boardEvents = []; renderBoard(); });
         }
@@ -740,6 +776,8 @@
             if (document.hidden) return;
             if (modalOverlay && !modalOverlay.hidden) return;
             if (!force && Date.now() - lastLoadedAt < AUTO_REFRESH_MS) return;
+            flashBaseline = {};
+            boardEvents.forEach(function (ev) { flashBaseline[String(ev.id)] = true; });
             loadBoard();
             if (calendar && !monthView.hidden) calendar.refetchEvents();
         }
@@ -807,6 +845,12 @@
                     ti.textContent = (props.is_members_only ? '🔒 ' : '') + arg.event.title;
                     wrap.appendChild(t);
                     wrap.appendChild(ti);
+                    if (isNewEvent(arg.event)) {
+                        var nb = document.createElement('span');
+                        nb.className = 'badge new';
+                        nb.textContent = 'NEW';
+                        wrap.appendChild(nb);
+                    }
                     return { domNodes: [wrap] };
                 },
                 eventClick: function (info) {
