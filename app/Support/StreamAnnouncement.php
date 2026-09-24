@@ -21,17 +21,21 @@ class StreamAnnouncement
         $group = $stream->channel->groups->sortBy('id')->first();
         $page = $group ? url('/' . $group->path) : url('/');
 
-        $when = $stream->scheduled_at->copy()->setTimezone('Asia/Tokyo');
+        // Already on air (a stream started without a reservation, or a frame that
+        // went live before we got to it): say so, with the real start time.
+        $isLive = $stream->status === 'live';
+        $when = ($isLive ? ($stream->actual_start_at ?? $stream->scheduled_at) : $stream->scheduled_at)
+            ->copy()->setTimezone('Asia/Tokyo');
         $time = $when->format('n/j') . '(' . self::WEEKDAYS[$when->dayOfWeek] . ') ' . $when->format('H:i');
 
         $video = "https://www.youtube.com/watch?v={$stream->video_id}";
         $channel = trim($stream->channel->name);
 
         $build = fn (string $title): string => implode("\n", [
-            '📢 新しい配信予定',
+            $isLive ? '🔴 配信中' : '📢 新しい配信予定',
             "🎬 {$title}",
             "📺 {$channel}",
-            "🕐 {$time}〜",
+            $isLive ? "🕐 {$time} 開始" : "🕐 {$time}〜",
             "🔗 {$video}",
             $page,
         ]);

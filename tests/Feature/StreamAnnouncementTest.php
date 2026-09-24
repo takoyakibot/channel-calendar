@@ -34,6 +34,27 @@ class StreamAnnouncementTest extends TestCase
         $this->assertStringEndsWith(url('/emove'), $text);
     }
 
+    public function test_live_streams_say_they_are_on_air_with_the_actual_start_time(): void
+    {
+        $channel = Channel::factory()->create(['name' => 'Hayamaru ch.']);
+        $stream = Stream::factory()->create([
+            'channel_id' => $channel->id,
+            'video_id' => 'live1',
+            'title' => '【縦型雑談】ゲリラ',
+            'status' => 'live',
+            'scheduled_at' => '2026-09-25 11:05:16',
+            'actual_start_at' => '2026-09-25 11:05:16', // 20:05 JST, Friday
+        ]);
+
+        $text = StreamAnnouncement::text($stream);
+
+        $this->assertStringStartsWith("🔴 配信中\n", $text);
+        $this->assertStringContainsString("🎬 【縦型雑談】ゲリラ\n", $text);
+        $this->assertStringContainsString("🕐 9/25(金) 20:05 開始\n", $text);
+        $this->assertStringContainsString("🔗 https://www.youtube.com/watch?v=live1\n", $text);
+        $this->assertStringNotContainsString('新しい配信予定', $text);
+    }
+
     public function test_channel_without_a_group_links_to_the_site_root(): void
     {
         $channel = Channel::factory()->create();
