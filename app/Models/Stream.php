@@ -21,6 +21,8 @@ class Stream extends Model
         'actual_end_at',
         'status',
         'is_members_only',
+        'announced_at',
+        'announced_tweet_id',
     ];
 
     protected $casts = [
@@ -28,6 +30,7 @@ class Stream extends Model
         'actual_start_at' => 'datetime',
         'actual_end_at' => 'datetime',
         'is_members_only' => 'boolean',
+        'announced_at' => 'datetime',
     ];
 
     public function channel(): BelongsTo

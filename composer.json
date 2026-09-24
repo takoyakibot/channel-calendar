@@ -6,6 +6,7 @@
     "license": "MIT",
     "require": {
         "php": "^8.1",
+        "abraham/twitteroauth": "^7.1",
         "doctrine/dbal": "^3.8",
         "google/apiclient": "^2.0",
         "guzzlehttp/guzzle": "^7.2",
