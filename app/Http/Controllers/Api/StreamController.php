@@ -68,6 +68,8 @@ class StreamController extends Controller
                 'thumbnail_url' => $stream->thumbnail_url,
                 'status' => $stream->status,
                 'is_members_only' => $stream->is_members_only,
+                // When we first saw this entry — the page badges anything newer than the visitor's last visit.
+                'created_at' => $stream->created_at?->toIso8601String(),
             ],
         ]);
 
