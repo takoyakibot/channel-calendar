@@ -56,10 +56,12 @@ class Channel extends Model
      */
     public static function abbreviate(string $name): string
     {
-        $s = preg_replace('/[\p{So}\p{Sk}\p{Cs}\x{FE0F}\x{200D}\x{20E3}]/u', '', $name) ?? $name;
+        // Symbols/emoji by category, plus the emoji blocks by range so that emoji newer
+        // than the PHP build's Unicode tables (\p{Cn} there) go too.
+        $s = preg_replace('/[\p{So}\p{Sk}\p{Cs}\p{Cn}\x{FE0F}\x{200D}\x{20E3}\x{2600}-\x{27BF}\x{1F000}-\x{1FAFF}]/u', '', $name) ?? $name;
         $s = trim(preg_replace('/\s+/u', ' ', $s) ?? $s);
 
-        if (preg_match('/^(.*?)\s*(?:\bch\b\.?|\bchannel\b|チャンネル)\s*(.*)$/iu', $s, $m)) {
+        if (preg_match('/^(.*?)\s*(?:\bch\b\.?|\bchannel\b|チャンネル|ちゃんねる)\s*(.*)$/iu', $s, $m)) {
             $head = trim($m[1]);
             $tail = trim($m[2]);
             $s = $tail !== '' ? $tail : $head;
