@@ -144,19 +144,28 @@ class AnnounceStreamsTest extends TestCase
         $this->artisan('streams:announce')->assertSuccessful();
     }
 
-    public function test_stops_the_run_when_x_rate_limits_and_leaves_the_stream_unannounced(): void
+    /** @dataProvider wholeRunFailures */
+    public function test_stops_the_run_on_failures_that_affect_every_post(int $status, string $message): void
     {
         $channel = Channel::factory()->create();
         $first = $this->upcoming($channel, 'first', ['created_at' => now()->subMinutes(20)]);
         $second = $this->upcoming($channel, 'second', ['created_at' => now()->subMinutes(10)]);
 
         $poster = $this->mockPoster();
-        $poster->shouldReceive('post')->once()->andThrow(new XPosterException('Too Many Requests', 429));
+        $poster->shouldReceive('post')->once()->andThrow(new XPosterException($message, $status));
 
         $this->artisan('streams:announce')->assertSuccessful();
 
         $this->assertNull($first->fresh()->announced_at);
         $this->assertNull($second->fresh()->announced_at);
+    }
+
+    public static function wholeRunFailures(): array
+    {
+        return [
+            'rate limited' => [429, 'Too Many Requests'],
+            'credits depleted' => [402, 'credits depleted'],
+        ];
     }
 
     public function test_a_failed_post_does_not_block_the_next_one(): void

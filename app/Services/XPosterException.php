@@ -9,4 +9,16 @@ class XPosterException extends \RuntimeException
     {
         return $this->getCode() === 429;
     }
+
+    /** 402: the pay-per-use credits are used up — nothing else will post either. */
+    public function isOutOfCredits(): bool
+    {
+        return $this->getCode() === 402;
+    }
+
+    /** Failures that affect every post, so the run should stop and retry later. */
+    public function affectsWholeRun(): bool
+    {
+        return $this->isRateLimited() || $this->isOutOfCredits();
+    }
 }
