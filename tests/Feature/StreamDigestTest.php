@@ -29,8 +29,11 @@ class StreamDigestTest extends TestCase
             'lowercase ch.' => ['Hayamaru ch. 隼丸ちゅん', '隼丸ちゅん'],
             'name then Channel' => ['ゆゆ Channel', 'ゆゆ'],
             'slash separated' => ['ノル / Nolu', 'ノル'],
-            'plain long name capped at 8' => ['とてもながいちゃんねるのなまえ', 'とてもながいちゃ'],
+            'plain long name capped at 8' => ['とてもながいなまえのはいしんしゃ', 'とてもながいなま'],
             'emoji only decorations' => ['🌸桜乃🌸', '桜乃'],
+            'hiragana channel marker' => ['おちょぼ ちゃんねる', 'おちょぼ'],
+            'newer emoji by code point range' => ['奈煌🫟', '奈煌'],
+            'star decoration' => ['まいど★てんぺすと', 'まいどてんぺすと'],
         ];
     }
 
