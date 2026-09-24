@@ -164,6 +164,25 @@ class ChannelCrudTest extends TestCase
         $this->assertDatabaseHas('channels', ['id' => $channel->id, 'x_handle' => 'Some_User']);
     }
 
+    public function test_admin_can_set_and_clear_the_short_name_used_in_x_posts(): void
+    {
+        $channel = Channel::factory()->create(['name' => 'Nakira Ch. 奈煌🐼']);
+
+        $this->actingAs($this->admin)->put("/admin/channels/{$channel->id}", [
+            'color' => '#00FF00', 'is_active' => true, 'short_name' => ' 奈煌ちゃん ',
+        ])->assertRedirect('/admin/channels');
+        $this->assertDatabaseHas('channels', ['id' => $channel->id, 'short_name' => '奈煌ちゃん']);
+
+        $this->actingAs($this->admin)->put("/admin/channels/{$channel->id}", [
+            'color' => '#00FF00', 'is_active' => true, 'short_name' => '',
+        ])->assertRedirect('/admin/channels');
+        $this->assertDatabaseHas('channels', ['id' => $channel->id, 'short_name' => null]);
+
+        $this->actingAs($this->admin)->put("/admin/channels/{$channel->id}", [
+            'color' => '#00FF00', 'is_active' => true, 'short_name' => str_repeat('あ', 21),
+        ])->assertSessionHasErrors('short_name');
+    }
+
     public function test_admin_can_clear_x_handle(): void
     {
         $channel = Channel::factory()->create(['x_handle' => 'old_user']);

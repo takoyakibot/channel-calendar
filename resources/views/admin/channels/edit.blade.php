@@ -33,6 +33,12 @@
                                class="h-10 w-20 border-gray-300 rounded">
                     </div>
                     <div class="mb-4">
+                        <label for="short_name" class="block text-sm font-medium text-gray-700 mb-1">X 投稿用の短縮名（任意）</label>
+                        <input type="text" name="short_name" id="short_name" value="{{ old('short_name', $channel->short_name) }}"
+                               class="border-gray-300 rounded-md shadow-sm" maxlength="20" placeholder="{{ \App\Models\Channel::abbreviate($channel->name) }}">
+                        <p class="text-xs text-gray-500 mt-1">毎日 12:00 の X ダイジェストでチャンネル名の代わりに使います。未設定なら「{{ \App\Models\Channel::abbreviate($channel->name) }}」のように自動で短くします。</p>
+                    </div>
+                    <div class="mb-4">
                         <label for="x_handle" class="block text-sm font-medium text-gray-700 mb-1">X（Twitter）アカウント（任意）</label>
                         <div class="flex items-center gap-1">
                             <span class="text-gray-500 text-sm">@</span>

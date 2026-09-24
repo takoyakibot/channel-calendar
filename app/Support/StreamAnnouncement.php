@@ -50,7 +50,8 @@ class StreamAnnouncement
         return $build($title);
     }
 
-    private static function shorten(string $text, int $budget): string
+    /** Cut $text so that it plus "…" fits in $budget weighted characters. */
+    public static function shorten(string $text, int $budget): string
     {
         $chars = mb_str_split($text);
         $ellipsisWeight = self::weightedLength('…');
