@@ -63,8 +63,8 @@ class AnnounceStreamsTest extends TestCase
         $channel = Channel::factory()->create();
         $inactive = Channel::factory()->create(['is_active' => false]);
         $this->upcoming($channel, 'members', ['is_members_only' => true]);
-        $this->upcoming($channel, 'live_now', ['status' => 'live']);
         $this->upcoming($channel, 'done', ['status' => 'completed']);
+        $this->upcoming($channel, 'live_members', ['status' => 'live', 'is_members_only' => true, 'scheduled_at' => now()->subMinutes(5)]);
         $this->upcoming($channel, 'already', ['announced_at' => now()->subHour()]);
         $this->upcoming($channel, 'started', ['scheduled_at' => now()->subMinutes(10)]);
         $this->upcoming($channel, 'stale', ['created_at' => now()->subDays(4)]);
@@ -76,6 +76,27 @@ class AnnounceStreamsTest extends TestCase
         $this->artisan('streams:announce')->assertSuccessful();
 
         $this->assertNull(Stream::where('video_id', 'members')->first()->announced_at);
+    }
+
+    public function test_announces_streams_that_are_already_live_with_the_live_wording(): void
+    {
+        $channel = Channel::factory()->create(['name' => 'Guerrilla Ch']);
+        $started = now()->subMinutes(12)->startOfSecond();
+        $live = $this->upcoming($channel, 'guerrilla', [
+            'status' => 'live',
+            'scheduled_at' => $started,
+            'actual_start_at' => $started,
+            'created_at' => now()->subMinutes(8),
+        ]);
+
+        $poster = $this->mockPoster();
+        $poster->shouldReceive('post')->once()
+            ->with(Mockery::on(fn ($t) => str_starts_with($t, '🔴 配信中') && str_contains($t, 'watch?v=guerrilla') && ! str_contains($t, '新しい配信予定')))
+            ->andReturn('77');
+
+        $this->artisan('streams:announce')->assertSuccessful();
+
+        $this->assertSame('77', $live->fresh()->announced_tweet_id);
     }
 
     public function test_respects_the_daily_limit_counting_only_real_posts(): void
