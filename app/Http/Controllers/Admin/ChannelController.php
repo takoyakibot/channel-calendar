@@ -71,6 +71,7 @@ class ChannelController extends Controller
         $channel->update([
             'color' => $request->color,
             'is_active' => $request->boolean('is_active'),
+            'short_name' => trim((string) $request->input('short_name')) ?: null,
             'x_handle' => $request->normalizedXHandle(),
             'x_search_keywords' => XSearchKeywords::normalize($request->input('x_search_keywords')),
         ]);
