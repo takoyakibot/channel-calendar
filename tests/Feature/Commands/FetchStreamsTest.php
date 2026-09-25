@@ -338,9 +338,9 @@ class FetchStreamsTest extends TestCase
         $this->assertDatabaseMissing('streams', ['video_id' => 'old_short']);
     }
 
-    public function test_fetch_streams_skips_regular_uploads_over_three_minutes(): void
+    public function test_fetch_streams_imports_regular_uploads_as_type_upload(): void
     {
-        Channel::factory()->create(['channel_id' => 'UC_test']);
+        $channel = Channel::factory()->create(['channel_id' => 'UC_test']);
 
         $mockService = $this->mockYouTube();
         $mockService->shouldReceive('listRecentUploadIds')->with('UC_test')->andReturn(['long1']);
@@ -351,7 +351,7 @@ class FetchStreamsTest extends TestCase
 
         $this->artisan('streams:fetch')->assertSuccessful();
 
-        $this->assertDatabaseMissing('streams', ['video_id' => 'long1']);
+        $this->assertDatabaseHas('streams', ['video_id' => 'long1', 'type' => 'upload', 'status' => 'completed']);
     }
 
     public function test_short_does_not_remove_overlapping_manual_schedule(): void
@@ -403,20 +403,20 @@ class FetchStreamsTest extends TestCase
         ]);
     }
 
-    public function test_fetch_streams_skips_plain_uploads_that_are_not_broadcasts_or_shorts(): void
+    public function test_fetch_streams_skips_non_broadcast_without_published_at(): void
     {
         Channel::factory()->create(['channel_id' => 'UC_test']);
 
         $mockService = $this->mockYouTube();
-        $mockService->shouldReceive('listRecentUploadIds')->with('UC_test')->andReturn(['upload1']);
-        $mockService->shouldReceive('getVideoDetails')->with(['upload1'])->andReturn([
-            $this->shortDetail('upload1', ['duration_seconds' => 600]),
+        $mockService->shouldReceive('listRecentUploadIds')->with('UC_test')->andReturn(['orphan1']);
+        $mockService->shouldReceive('getVideoDetails')->with(['orphan1'])->andReturn([
+            $this->shortDetail('orphan1', ['published_at' => null]),
         ]);
         $this->app->instance(YouTubeService::class, $mockService);
 
         $this->artisan('streams:fetch')->assertSuccessful();
 
-        $this->assertDatabaseMissing('streams', ['video_id' => 'upload1']);
+        $this->assertDatabaseMissing('streams', ['video_id' => 'orphan1']);
     }
 
     public function test_fetch_streams_creates_new_upcoming_stream_from_uploads(): void

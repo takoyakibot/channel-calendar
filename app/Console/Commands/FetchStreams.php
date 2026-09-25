@@ -233,18 +233,15 @@ class FetchStreams extends Command
             }
             $type = 'stream';
             $scheduledAt = $detail['scheduled_at'];
-        } elseif (($detail['duration_seconds'] ?? null) !== null && $detail['duration_seconds'] <= 180) {
-            // Short-form video: no liveStreamingDetails, duration <= 3 minutes.
-            $type = 'short';
+        } else {
             $scheduledAt = $detail['published_at'] ?? null;
             if ($scheduledAt === null) {
                 return false;
             }
-            // Shorts are always already published.
+            $type = (($detail['duration_seconds'] ?? null) !== null && $detail['duration_seconds'] <= 180)
+                ? 'short'
+                : 'upload';
             $detail['status'] = 'completed';
-        } else {
-            // Regular upload — skip for now.
-            return false;
         }
 
         if ($detail['status'] === 'completed' && Carbon::parse($scheduledAt)->lt($windowStart)) {
