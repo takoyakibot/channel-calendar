@@ -237,7 +237,7 @@ class YouTubeServiceTest extends TestCase
 
         $mockVideos = Mockery::mock(Videos::class);
         $mockVideos->shouldReceive('listVideos')
-            ->with('snippet,liveStreamingDetails', ['id' => 'vid123'])
+            ->with('snippet,liveStreamingDetails,contentDetails', ['id' => 'vid123'])
             ->andReturn($response);
         $this->mockYouTube->videos = $mockVideos;
 
@@ -327,5 +327,39 @@ class YouTubeServiceTest extends TestCase
 
         $this->assertFalse($result[0]['is_broadcast']);
         $this->assertNull($result[0]['scheduled_at']);
+    }
+
+    /** @dataProvider durations */
+    public function test_get_video_details_parses_iso8601_durations_including_days(string $iso, int $seconds): void
+    {
+        $snippet = new VideoSnippet();
+        $snippet->setTitle('Upload');
+        $content = new \Google\Service\YouTube\VideoContentDetails();
+        $content->setDuration($iso);
+        $video = new Video();
+        $video->setId('vid_dur');
+        $video->setSnippet($snippet);
+        $video->setContentDetails($content);
+        $response = new VideoListResponse();
+        $response->setItems([$video]);
+
+        $mockVideos = Mockery::mock(Videos::class);
+        $mockVideos->shouldReceive('listVideos')->andReturn($response);
+        $this->mockYouTube->videos = $mockVideos;
+
+        $result = $this->service->getVideoDetails(['vid_dur']);
+
+        $this->assertSame($seconds, $result[0]['duration_seconds']);
+    }
+
+    public static function durations(): array
+    {
+        return [
+            'short' => ['PT45S', 45],
+            'minutes and seconds' => ['PT2M59S', 179],
+            'hours' => ['PT1H2M3S', 3723],
+            'a day-long archive is not a short' => ['P1DT0H0M0S', 86400],
+            'days and hours' => ['P1DT2H', 93600],
+        ];
     }
 }

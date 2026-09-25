@@ -136,8 +136,10 @@ class YouTubeService
             $duration = $video->getContentDetails()?->getDuration();
             if ($duration) {
                 try {
+                    // ISO 8601 (PT1H2M3S; very long archives come as P1DT2H) — the day
+                    // part matters, or a day-long video would count as a short.
                     $interval = new \DateInterval($duration);
-                    $durationSeconds = $interval->h * 3600 + $interval->i * 60 + $interval->s;
+                    $durationSeconds = $interval->d * 86400 + $interval->h * 3600 + $interval->i * 60 + $interval->s;
                 } catch (\Exception $e) {
                 }
             }
