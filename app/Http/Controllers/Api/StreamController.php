@@ -59,7 +59,9 @@ class StreamController extends Controller
             'title' => $stream->title,
             'start' => $stream->scheduled_at->toIso8601String(),
             'end' => $stream->actual_end_at?->toIso8601String(),
-            'url' => "https://www.youtube.com/watch?v={$stream->video_id}",
+            'url' => ($stream->type ?? 'stream') === 'short'
+                ? "https://www.youtube.com/shorts/{$stream->video_id}"
+                : "https://www.youtube.com/watch?v={$stream->video_id}",
             'color' => $stream->channel->color,
             'extendedProps' => [
                 'channel_id' => $stream->channel_id,
@@ -67,8 +69,8 @@ class StreamController extends Controller
                 'channel_thumbnail_url' => $stream->channel->thumbnail_url,
                 'thumbnail_url' => $stream->thumbnail_url,
                 'status' => $stream->status,
+                'type' => $stream->type ?? 'stream',
                 'is_members_only' => $stream->is_members_only,
-                // When we first saw this entry — the page badges anything newer than the visitor's last visit.
                 'created_at' => $stream->created_at?->toIso8601String(),
             ],
         ]);

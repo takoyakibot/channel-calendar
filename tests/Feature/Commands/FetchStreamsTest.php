@@ -282,7 +282,98 @@ class FetchStreamsTest extends TestCase
             'actual_end_at' => null,
             'status' => 'upcoming',
             'is_broadcast' => true,
+            'published_at' => now()->toIso8601String(),
+            'duration_seconds' => null,
         ], $overrides);
+    }
+
+    private function shortDetail(string $id, array $overrides = []): array
+    {
+        return array_merge([
+            'video_id' => $id,
+            'title' => "Short {$id}",
+            'thumbnail_url' => null,
+            'scheduled_at' => null,
+            'actual_start_at' => null,
+            'actual_end_at' => null,
+            'status' => 'upcoming',
+            'is_broadcast' => false,
+            'published_at' => now()->toIso8601String(),
+            'duration_seconds' => 30,
+        ], $overrides);
+    }
+
+    public function test_fetch_streams_imports_shorts_with_type_short(): void
+    {
+        $channel = Channel::factory()->create(['channel_id' => 'UC_test']);
+
+        $mockService = $this->mockYouTube();
+        $mockService->shouldReceive('listRecentUploadIds')->with('UC_test')->andReturn(['s1', 'vid1']);
+        $mockService->shouldReceive('getVideoDetails')->andReturn([
+            $this->shortDetail('s1', ['published_at' => now()->subHours(2)->toIso8601String()]),
+            $this->detail('vid1'),
+        ]);
+        $this->app->instance(YouTubeService::class, $mockService);
+
+        $this->artisan('streams:fetch')->assertSuccessful();
+
+        $this->assertDatabaseHas('streams', ['video_id' => 's1', 'type' => 'short', 'status' => 'completed']);
+        $this->assertDatabaseHas('streams', ['video_id' => 'vid1', 'type' => 'stream', 'status' => 'upcoming']);
+    }
+
+    public function test_fetch_streams_skips_shorts_older_than_backfill_window(): void
+    {
+        config(['services.youtube.backfill_days' => 14]);
+        Channel::factory()->create(['channel_id' => 'UC_test']);
+
+        $mockService = $this->mockYouTube();
+        $mockService->shouldReceive('listRecentUploadIds')->with('UC_test')->andReturn(['old_short']);
+        $mockService->shouldReceive('getVideoDetails')->andReturn([
+            $this->shortDetail('old_short', ['published_at' => now()->subDays(20)->toIso8601String()]),
+        ]);
+        $this->app->instance(YouTubeService::class, $mockService);
+
+        $this->artisan('streams:fetch')->assertSuccessful();
+
+        $this->assertDatabaseMissing('streams', ['video_id' => 'old_short']);
+    }
+
+    public function test_fetch_streams_imports_regular_uploads_as_type_upload(): void
+    {
+        $channel = Channel::factory()->create(['channel_id' => 'UC_test']);
+
+        $mockService = $this->mockYouTube();
+        $mockService->shouldReceive('listRecentUploadIds')->with('UC_test')->andReturn(['long1']);
+        $mockService->shouldReceive('getVideoDetails')->andReturn([
+            $this->shortDetail('long1', ['duration_seconds' => 600]),
+        ]);
+        $this->app->instance(YouTubeService::class, $mockService);
+
+        $this->artisan('streams:fetch')->assertSuccessful();
+
+        $this->assertDatabaseHas('streams', ['video_id' => 'long1', 'type' => 'upload', 'status' => 'completed']);
+    }
+
+    public function test_short_does_not_remove_overlapping_manual_schedule(): void
+    {
+        $channel = Channel::factory()->create(['channel_id' => 'UC_test']);
+        $user = \App\Models\User::factory()->create();
+        $at = now()->addHours(3)->startOfSecond();
+        $manual = \App\Models\ManualSchedule::create([
+            'user_id' => $user->id, 'channel_id' => $channel->id, 'title' => '告知あり',
+            'scheduled_at' => $at, 'is_all_day' => false,
+        ]);
+
+        $mockService = $this->mockYouTube();
+        $mockService->shouldReceive('listRecentUploadIds')->with('UC_test')->andReturn(['s1']);
+        $mockService->shouldReceive('getVideoDetails')->andReturn([
+            $this->shortDetail('s1', ['published_at' => $at->toIso8601String()]),
+        ]);
+        $this->app->instance(YouTubeService::class, $mockService);
+
+        $this->artisan('streams:fetch')->assertSuccessful();
+
+        $this->assertDatabaseHas('manual_schedules', ['id' => $manual->id]);
     }
 
     public function test_fetch_streams_imports_live_stream_that_was_started_without_a_reservation(): void
@@ -312,20 +403,20 @@ class FetchStreamsTest extends TestCase
         ]);
     }
 
-    public function test_fetch_streams_skips_plain_uploads_that_are_not_broadcasts(): void
+    public function test_fetch_streams_skips_non_broadcast_without_published_at(): void
     {
         Channel::factory()->create(['channel_id' => 'UC_test']);
 
         $mockService = $this->mockYouTube();
-        $mockService->shouldReceive('listRecentUploadIds')->with('UC_test')->andReturn(['short1']);
-        $mockService->shouldReceive('getVideoDetails')->with(['short1'])->andReturn([
-            $this->detail('short1', ['scheduled_at' => null, 'status' => 'upcoming', 'is_broadcast' => false]),
+        $mockService->shouldReceive('listRecentUploadIds')->with('UC_test')->andReturn(['orphan1']);
+        $mockService->shouldReceive('getVideoDetails')->with(['orphan1'])->andReturn([
+            $this->shortDetail('orphan1', ['published_at' => null]),
         ]);
         $this->app->instance(YouTubeService::class, $mockService);
 
         $this->artisan('streams:fetch')->assertSuccessful();
 
-        $this->assertDatabaseMissing('streams', ['video_id' => 'short1']);
+        $this->assertDatabaseMissing('streams', ['video_id' => 'orphan1']);
     }
 
     public function test_fetch_streams_creates_new_upcoming_stream_from_uploads(): void

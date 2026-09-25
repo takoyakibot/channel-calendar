@@ -115,13 +115,11 @@ class YouTubeService
             return [];
         }
 
-        $response = $this->youtube->videos->listVideos('snippet,liveStreamingDetails', [
+        $response = $this->youtube->videos->listVideos('snippet,liveStreamingDetails,contentDetails', [
             'id' => implode(',', $videoIds),
         ]);
 
         return array_map(function ($video) {
-            // Only broadcasts (live streams, premieres) carry liveStreamingDetails;
-            // plain uploads and shorts have none.
             $details = $video->getLiveStreamingDetails();
             $actualStart = $details?->getActualStartTime();
             $actualEnd = $details?->getActualEndTime();
@@ -134,17 +132,29 @@ class YouTubeService
                 $status = 'upcoming';
             }
 
+            $durationSeconds = null;
+            $duration = $video->getContentDetails()?->getDuration();
+            if ($duration) {
+                try {
+                    // ISO 8601 (PT1H2M3S; very long archives come as P1DT2H) — the day
+                    // part matters, or a day-long video would count as a short.
+                    $interval = new \DateInterval($duration);
+                    $durationSeconds = $interval->d * 86400 + $interval->h * 3600 + $interval->i * 60 + $interval->s;
+                } catch (\Exception $e) {
+                }
+            }
+
             return [
                 'video_id' => $video->getId(),
                 'title' => $video->getSnippet()->getTitle(),
                 'thumbnail_url' => $this->extractThumbnailUrl($video->getSnippet()),
                 'is_broadcast' => $details !== null,
-                // A stream started on the spot has no reservation time; slot it at
-                // the moment it actually went live.
                 'scheduled_at' => $details?->getScheduledStartTime() ?? $actualStart,
                 'actual_start_at' => $actualStart,
                 'actual_end_at' => $actualEnd,
                 'status' => $status,
+                'published_at' => $video->getSnippet()->getPublishedAt(),
+                'duration_seconds' => $durationSeconds,
             ];
         }, $response->getItems());
     }
