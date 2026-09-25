@@ -166,6 +166,8 @@
         .badge.live { background: #dc2626; color: #fff; }
         .badge.done { background: var(--cc-border); color: var(--cc-text-tertiary); }
         .badge.members { background: #f3e8ff; color: #6b21a8; margin-left: 0.25rem; }
+        .badge.short { background: #fee2e2; color: #991b1b; }
+        .dark .badge.short { background: #7f1d1d; color: #fecaca; }
         .badge.new { background: #fde047; color: #713f12; }
         .fc-ev .badge.new { font-size: 0.55rem; padding: 0 0.3rem; margin-left: 0; }
         .card-head .badge + .badge { margin-left: 0.25rem; }
@@ -567,9 +569,9 @@
             meta.className = 'card-meta';
             var time = document.createElement('span');
             time.className = 'time';
-            if (props.status === 'manual') {
-                // Manual entries: "手動" stands where the time would be (the exact time is
-                // usually approximate anyway); append it when one was given.
+            if (props.type === 'short') {
+                time.textContent = 'Short';
+            } else if (props.status === 'manual') {
                 time.textContent = props.is_all_day ? '手動' : '手動 ' + fmtTime(start);
             } else {
                 time.textContent = fmtTime(start);
@@ -581,6 +583,12 @@
             meta.appendChild(ch);
             head.appendChild(meta);
 
+            if (props.type === 'short') {
+                var shortBadge = document.createElement('span');
+                shortBadge.className = 'badge short';
+                shortBadge.textContent = 'Short';
+                head.appendChild(shortBadge);
+            }
             if (isNewEvent(ev)) {
                 var fresh = document.createElement('span');
                 fresh.className = 'badge new';
@@ -713,10 +721,13 @@
                 var body = document.createElement('div');
                 body.className = 'day-body';
                 var list = (byDay[key] || []).slice().sort(function (a, b) {
-                    // All-day (time unknown) entries lead the day, then chronological.
+                    // All-day manual entries first, then streams, then shorts at the end.
                     var aAll = a.extendedProps.is_all_day ? 0 : 1;
                     var bAll = b.extendedProps.is_all_day ? 0 : 1;
                     if (aAll !== bAll) return aAll - bAll;
+                    var aShort = a.extendedProps.type === 'short' ? 1 : 0;
+                    var bShort = b.extendedProps.type === 'short' ? 1 : 0;
+                    if (aShort !== bShort) return aShort - bShort;
                     return new Date(a.start) - new Date(b.start);
                 });
                 if (list.length === 0) {
@@ -837,7 +848,8 @@
                     wrap.appendChild(avatarNode(props, arg.event.backgroundColor || arg.event.borderColor, 'fc-ev-img'));
                     var t = document.createElement('span');
                     t.className = 'fc-ev-time';
-                    t.textContent = props.status === 'live' ? 'LIVE'
+                    t.textContent = props.type === 'short' ? 'Short'
+                        : props.status === 'live' ? 'LIVE'
                         : (props.status === 'manual' ? (props.is_all_day ? '手動' : '手動 ' + fmtTime(arg.event.start)) : fmtTime(arg.event.start));
                     if (props.status === 'live') { t.style.color = '#dc2626'; }
                     var ti = document.createElement('span');
