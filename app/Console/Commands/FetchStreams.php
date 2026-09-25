@@ -226,17 +226,25 @@ class FetchStreams extends Command
 
     private function upsertDetail(Channel $channel, array $detail, Carbon $windowStart): bool
     {
-        // Plain uploads have no liveStreamingDetails — they are not streams.
-        // Streams started without a reservation are broadcasts too: they have
-        // no scheduledStartTime, so YouTubeService falls back to actualStartTime.
-        if (! $detail['is_broadcast'] || $detail['scheduled_at'] === null) {
-            return false;
+        if ($detail['is_broadcast']) {
+            // Broadcasts without a schedule (no scheduledStartTime, no actualStartTime) are unusable.
+            if ($detail['scheduled_at'] === null) {
+                return false;
+            }
+            $type = 'stream';
+            $scheduledAt = $detail['scheduled_at'];
+        } else {
+            $scheduledAt = $detail['published_at'] ?? null;
+            if ($scheduledAt === null) {
+                return false;
+            }
+            $type = (($detail['duration_seconds'] ?? null) !== null && $detail['duration_seconds'] <= 180)
+                ? 'short'
+                : 'upload';
+            $detail['status'] = 'completed';
         }
 
-        // Keep every upcoming/live broadcast, but only backfill ended ones from
-        // the recent window so the board shows history without importing the
-        // whole archive.
-        if ($detail['status'] === 'completed' && Carbon::parse($detail['scheduled_at'])->lt($windowStart)) {
+        if ($detail['status'] === 'completed' && Carbon::parse($scheduledAt)->lt($windowStart)) {
             return false;
         }
 
@@ -244,10 +252,11 @@ class FetchStreams extends Command
             'channel_id' => $channel->id,
             'title' => $detail['title'],
             'thumbnail_url' => $detail['thumbnail_url'],
-            'scheduled_at' => $detail['scheduled_at'],
+            'scheduled_at' => $scheduledAt,
             'actual_start_at' => $detail['actual_start_at'],
             'actual_end_at' => $detail['actual_end_at'],
             'status' => $detail['status'],
+            'type' => $type,
         ];
 
         if (in_array($detail['video_id'], $this->membersOnlyIds, true)) {
@@ -255,7 +264,6 @@ class FetchStreams extends Command
         } elseif (in_array($detail['video_id'], $this->publicIds, true)) {
             $attributes['is_members_only'] = false;
         }
-        // Otherwise the video was only re-verified via videos.list; keep the stored flag.
 
         Stream::updateOrCreate(['video_id' => $detail['video_id']], $attributes);
 
@@ -271,6 +279,7 @@ class FetchStreams extends Command
     private function markOldStreamsCompleted(): void
     {
         $query = Stream::whereIn('status', ['upcoming', 'live'])
+            ->where('type', 'stream')
             ->where('scheduled_at', '<', now()->subHours(24));
 
         if (! empty($this->fetchedVideoIds)) {
@@ -303,6 +312,7 @@ class FetchStreams extends Command
                     : [$at->copy()->subHour(), $at->copy()->addHour()];
 
                 return Stream::where('channel_id', $manual->channel_id)
+                    ->where('type', 'stream')
                     ->whereBetween('scheduled_at', [$from, $to])
                     ->exists();
             })

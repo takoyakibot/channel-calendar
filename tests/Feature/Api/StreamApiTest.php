@@ -39,7 +39,7 @@ class StreamApiTest extends TestCase
             'channel_thumbnail_url' => 'https://example.com/ch.jpg',
         ]);
         $response->assertJsonStructure([
-            ['id', 'title', 'start', 'url', 'color', 'extendedProps' => ['channel_name', 'channel_id', 'channel_thumbnail_url', 'status', 'is_members_only']],
+            ['id', 'title', 'start', 'url', 'color', 'extendedProps' => ['channel_name', 'channel_id', 'channel_thumbnail_url', 'status', 'type', 'is_members_only']],
         ]);
         $response->assertJsonFragment(['is_members_only' => false]);
     }
@@ -137,6 +137,24 @@ class StreamApiTest extends TestCase
 
         $response->assertOk();
         $response->assertJsonCount(0);
+    }
+
+    public function test_streams_endpoint_returns_shorts_url_for_short_type(): void
+    {
+        $channel = Channel::factory()->create();
+        Stream::factory()->create([
+            'channel_id' => $channel->id,
+            'video_id' => 'short_vid',
+            'scheduled_at' => '2026-09-15 12:00:00',
+            'type' => 'short',
+            'status' => 'completed',
+        ]);
+
+        $response = $this->getJson('/api/streams?start=2026-09-01&end=2026-09-30');
+
+        $response->assertOk();
+        $response->assertJsonFragment(['url' => 'https://www.youtube.com/shorts/short_vid']);
+        $response->assertJsonFragment(['type' => 'short']);
     }
 
     public function test_streams_endpoint_accepts_iso8601_start_with_offset(): void
