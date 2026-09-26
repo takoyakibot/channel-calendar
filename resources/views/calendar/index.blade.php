@@ -230,8 +230,17 @@
         .fc-ev.is-done { opacity: 0.55; }
         /* Block events (all-day manual entries) sit on the pastel channel colour, not
            on the page surface, so their text must stay dark in both themes. */
-        .fc-daygrid-block-event .fc-ev-time { color: #111827; }
-        .fc-daygrid-block-event .fc-ev-title { color: #1f2937; }
+        /* Month blocks: a pale tint of the channel colour on the page surface plus a
+           solid colour bar on the left (like the board cards), so the theme's text
+           colours stay readable whatever the channel colour is. */
+        .fc .fc-daygrid-event.cc-tint { --ev: #9ca3af; background-color: color-mix(in srgb, var(--ev) 24%, var(--cc-surface)) !important; border: 1px solid transparent !important; border-left: 3px solid var(--ev) !important; }
+        .fc-daygrid-block-event .fc-ev-time { color: var(--cc-text); }
+        .fc-daygrid-block-event .fc-ev-title { color: var(--cc-text-sub); }
+        @supports not (background: color-mix(in srgb, red 50%, blue)) {
+            .fc .fc-daygrid-event.cc-tint { background-color: var(--ev) !important; }
+            .fc-daygrid-block-event .fc-ev-time { color: #111827; }
+            .fc-daygrid-block-event .fc-ev-title { color: #1f2937; }
+        }
 
         .tooltip { position: absolute; z-index: 50; background: var(--cc-surface); border: 1px solid var(--cc-border); border-radius: 0.5rem; padding: 0.75rem; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); pointer-events: none; max-width: 320px; font-size: 0.875rem; }
         .tooltip .channel-name { font-weight: 600; margin-bottom: 0.25rem; }
@@ -1023,6 +1032,9 @@
                     }).catch(failureCallback);
                 },
                 eventDidMount: function (info) {
+                    // Hand the channel colour to CSS as a variable; the tint follows the theme.
+                    info.el.style.setProperty('--ev', info.event.backgroundColor || info.event.borderColor || '#9ca3af');
+                    info.el.classList.add('cc-tint');
                     if (highlightEventId && String(info.event.id) === highlightEventId) {
                         info.el.classList.add('is-new');
                         setTimeout(function () { info.el.classList.remove('is-new'); }, 4000);
