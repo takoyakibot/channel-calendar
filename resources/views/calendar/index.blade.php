@@ -175,7 +175,8 @@
         .trend-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 0.75rem 1.5rem; }
         .trends h4 { margin: 0 0 0.375rem; font-size: 0.8125rem; font-weight: 700; color: var(--cc-text-secondary); }
         .trends ul { list-style: none; margin: 0; padding: 0; }
-        .trend-row { display: flex; align-items: center; gap: 0.5rem; padding: 0.2rem 0; font-size: 0.875rem; color: var(--cc-text); }
+        .trend-row { display: flex; align-items: center; gap: 0.5rem; padding: 0.25rem 0.5rem; font-size: 0.875rem; color: var(--cc-text); border-radius: 0.25rem; }
+        .trend-row:nth-child(odd) { background: var(--cc-surface-alt); }
         .trend-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .trend-count { flex: none; font-weight: 700; font-size: 0.8125rem; }
         .trend-delta { margin-left: 0.25rem; font-size: 0.6875rem; font-weight: 700; }
