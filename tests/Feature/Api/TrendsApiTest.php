@@ -66,17 +66,55 @@ class TrendsApiTest extends TestCase
         $this->assertSame(0, $prev['原神']['prev_count']);
     }
 
-    public function test_lists_unmatched_terms_by_frequency(): void
+    public function test_lists_unmatched_terms_by_frequency_scoped_to_the_group(): void
     {
-        Channel::factory()->create();
-        Stream::factory()->create(['title' => '【Woodo】1', 'scheduled_at' => '2026-09-22 11:00:00']);
-        Stream::factory()->create(['title' => '【Woodo】2', 'scheduled_at' => '2026-09-22 12:00:00']);
-        Stream::factory()->create(['title' => '【歌枠】', 'scheduled_at' => '2026-09-22 13:00:00']);
+        $groupA = Group::factory()->create(['slug' => 'aaaa']);
+        $groupB = Group::factory()->create(['slug' => 'bbbb']);
+        $a = Channel::factory()->create();
+        $b = Channel::factory()->create();
+        $a->groups()->attach($groupA);
+        $b->groups()->attach($groupB);
+        Stream::factory()->create(['channel_id' => $a->id, 'title' => '【Woodo】1', 'scheduled_at' => '2026-09-22 11:00:00']);
+        Stream::factory()->create(['channel_id' => $a->id, 'title' => '【Woodo】2', 'scheduled_at' => '2026-09-22 12:00:00']);
+        Stream::factory()->create(['channel_id' => $a->id, 'title' => '【歌枠】', 'scheduled_at' => '2026-09-22 13:00:00']);
+        Stream::factory()->create(['channel_id' => $b->id, 'title' => '【#天和うる】別グループの語', 'scheduled_at' => '2026-09-22 13:00:00']);
         (new StreamTagger())->retagAll();
 
-        $response = $this->getJson('/api/trends')->assertOk();
+        $all = $this->getJson('/api/trends')->assertOk();
+        // Most frequent first; ties in term (byte) order.
+        $this->assertSame(['woodo', '天和うる', '歌枠'], array_column($all->json('unmatched'), 'term'));
+        $this->assertSame([['term' => 'woodo', 'display' => 'Woodo', 'count' => 2], ['term' => '天和うる', 'display' => '#天和うる', 'count' => 1], ['term' => '歌枠', 'display' => '歌枠', 'count' => 1]], $all->json('unmatched'));
+        $this->assertSame([], $all->json('tags'));
 
-        $this->assertSame([['term' => 'woodo', 'display' => 'Woodo', 'count' => 2], ['term' => '歌枠', 'display' => '歌枠', 'count' => 1]], $response->json('unmatched'));
-        $this->assertSame([], $response->json('tags'));
+        $this->assertSame(['woodo', '歌枠'], array_column($this->getJson('/api/trends?group=aaaa')->json('unmatched'), 'term'));
+        $this->assertSame(['天和うる'], array_column($this->getJson('/api/trends?group=bbbb')->json('unmatched'), 'term'));
+    }
+
+    public function test_channels_parameter_narrows_within_the_group_but_never_beyond_it(): void
+    {
+        $groupA = Group::factory()->create(['slug' => 'aaaa']);
+        $groupB = Group::factory()->create(['slug' => 'bbbb']);
+        $a1 = Channel::factory()->create(['name' => 'A1']);
+        $a2 = Channel::factory()->create(['name' => 'A2']);
+        $b1 = Channel::factory()->create(['name' => 'B1']);
+        $a1->groups()->attach($groupA);
+        $a2->groups()->attach($groupA);
+        $b1->groups()->attach($groupB);
+        Tag::createWithAlias('原神', 'game');
+        foreach ([$a1, $a2, $b1] as $ch) {
+            Stream::factory()->create(['channel_id' => $ch->id, 'title' => '【原神】', 'scheduled_at' => '2026-09-22 11:00:00']);
+            Stream::factory()->create(['channel_id' => $ch->id, 'title' => '【Woodo】', 'scheduled_at' => '2026-09-23 11:00:00']);
+        }
+        (new StreamTagger())->retagAll();
+
+        // Sub-group toggle / hidden channels: only A1 is on show.
+        $narrowed = $this->getJson("/api/trends?group=aaaa&channels={$a1->id},{$b1->id}")->assertOk();
+        $genshin = collect($narrowed->json('tags'))->firstWhere('name', '原神');
+        $this->assertSame(1, $genshin['count']);
+        $this->assertSame(['A1'], array_column($genshin['members'], 'name'));
+        $this->assertSame([['term' => 'woodo', 'display' => 'Woodo', 'count' => 1]], $narrowed->json('unmatched'));
+
+        // Without the parameter the whole group counts.
+        $this->assertSame(2, collect($this->getJson('/api/trends?group=aaaa')->json('tags'))->firstWhere('name', '原神')['count']);
     }
 }

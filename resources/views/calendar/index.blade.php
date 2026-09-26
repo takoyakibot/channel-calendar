@@ -1108,6 +1108,7 @@
         if (subgroupContainer) {
             function refreshSubgroupUI() {
                 renderBoard();
+                loadTrends();
                 if (calendar) { calendar.refetchEvents(); }
             }
             var subgroupButtons = Array.from(subgroupContainer.querySelectorAll('button[data-group-id]'));
@@ -1174,6 +1175,7 @@
                         saveHiddenChannels();
                         syncPrefsToServer();
                         renderBoard();
+                        loadTrends();
                         if (calendar) { calendar.refetchEvents(); }
                     });
                     label.appendChild(checkbox);
@@ -1680,7 +1682,16 @@
 
         function loadTrends() {
             if (!trendsPanel) return;
-            fetch(apiUrl('/api/trends', { week: dateKey(mondayOf(boardStart)) }), { headers: { Accept: 'application/json' } })
+            var params = { week: dateKey(mondayOf(boardStart)) };
+            // Follow the board's filters: sub-group toggles and hidden channels
+            // narrow the trends too (omitted when everything is on show).
+            if (channelList.length) {
+                var shown = channelList.filter(function (c) { return !hiddenChannels[c.id] && isVisibleBySubgroup(c.id); });
+                if (shown.length !== channelList.length) {
+                    params.channels = shown.map(function (c) { return c.id; }).join(',') || '0';
+                }
+            }
+            fetch(apiUrl('/api/trends', params), { headers: { Accept: 'application/json' } })
                 .then(function (r) { return r.ok ? r.json() : null; })
                 .then(function (d) {
                     if (!d) return;
