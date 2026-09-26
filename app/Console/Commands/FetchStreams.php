@@ -257,6 +257,8 @@ class FetchStreams extends Command
             'actual_end_at' => $detail['actual_end_at'],
             'status' => $detail['status'],
             'type' => $type,
+            // YouTube reports P0D while a broadcast is live; keep null until it is real.
+            'duration_seconds' => ($detail['duration_seconds'] ?? null) ?: null,
         ];
 
         if (in_array($detail['video_id'], $this->membersOnlyIds, true)) {

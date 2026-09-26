@@ -157,6 +157,21 @@ class StreamApiTest extends TestCase
         $response->assertJsonFragment(['type' => 'short']);
     }
 
+    public function test_streams_endpoint_derives_the_end_from_the_real_duration_or_the_broadcast_end(): void
+    {
+        $channel = Channel::factory()->create();
+        Stream::factory()->create(['channel_id' => $channel->id, 'video_id' => 'short_late', 'type' => 'short', 'status' => 'completed', 'scheduled_at' => '2026-09-21 14:45:00', 'duration_seconds' => 95]);
+        Stream::factory()->create(['channel_id' => $channel->id, 'video_id' => 'ended', 'status' => 'completed', 'scheduled_at' => '2026-09-21 14:00:00', 'actual_end_at' => '2026-09-21 16:30:00', 'duration_seconds' => 9000]);
+        Stream::factory()->create(['channel_id' => $channel->id, 'video_id' => 'reserved', 'status' => 'upcoming', 'scheduled_at' => '2026-09-22 14:30:00', 'duration_seconds' => null]);
+
+        $response = $this->getJson('/api/streams?start=2026-09-01&end=2026-09-30')->assertOk();
+
+        $byId = collect($response->json())->keyBy(fn ($e) => str_contains($e['url'], 'short_late') ? 'short' : (str_contains($e['url'], 'ended') ? 'ended' : 'reserved'));
+        $this->assertSame('2026-09-21T14:46:35+00:00', $byId['short']['end']);
+        $this->assertSame('2026-09-21T16:30:00+00:00', $byId['ended']['end']);
+        $this->assertNull($byId['reserved']['end']);
+    }
+
     public function test_streams_endpoint_accepts_iso8601_start_with_offset(): void
     {
         $channel = Channel::factory()->create();

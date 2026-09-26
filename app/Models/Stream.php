@@ -21,6 +21,7 @@ class Stream extends Model
         'actual_end_at',
         'status',
         'type',
+        'duration_seconds',
         'is_members_only',
         'announced_at',
         'announced_tweet_id',

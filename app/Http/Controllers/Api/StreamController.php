@@ -58,7 +58,10 @@ class StreamController extends Controller
             'id' => $stream->id,
             'title' => $stream->title,
             'start' => $stream->scheduled_at->toIso8601String(),
-            'end' => $stream->actual_end_at?->toIso8601String(),
+            // Real end when known: the broadcast's end, or start + length for videos.
+            'end' => ($stream->actual_end_at
+                ?? ($stream->duration_seconds ? $stream->scheduled_at->copy()->addSeconds($stream->duration_seconds) : null)
+            )?->toIso8601String(),
             'url' => ($stream->type ?? 'stream') === 'short'
                 ? "https://www.youtube.com/shorts/{$stream->video_id}"
                 : "https://www.youtube.com/watch?v={$stream->video_id}",
