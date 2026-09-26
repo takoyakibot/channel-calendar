@@ -186,6 +186,15 @@
         .trend-avatars img, .trend-avatars .fc-ev-dot { width: 1.25rem; height: 1.25rem; border-radius: 50%; object-fit: cover; }
         .trend-more { font-size: 0.6875rem; color: var(--cc-text-tertiary); }
         .trend-empty { font-size: 0.8125rem; color: var(--cc-text-muted); }
+        .trend-table { width: 100%; border-collapse: collapse; font-size: 0.8125rem; }
+        .trend-table th { text-align: left; font-weight: 600; color: var(--cc-text-tertiary); padding: 0.2rem 0.5rem; white-space: nowrap; }
+        .trend-table td { padding: 0.25rem 0.5rem; color: var(--cc-text); }
+        .trend-table th.num, .trend-table td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+        .trend-table td.zero { color: var(--cc-text-muted); }
+        .trend-table tbody tr:nth-child(odd) { background: var(--cc-surface-alt); }
+        .trend-table .member { display: flex; align-items: center; gap: 0.375rem; min-width: 0; }
+        .trend-table .member span.name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .trend-table .member img, .trend-table .member .fc-ev-dot { width: 1.25rem; height: 1.25rem; border-radius: 50%; object-fit: cover; flex: none; }
         .unmatched-list { display: flex; flex-wrap: wrap; gap: 0.375rem; margin-top: 0.375rem; }
         .unmatched-chip { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 0.25rem; padding: 0.2rem 0.5rem; border: 1px dashed var(--cc-border-light); border-radius: 0.5rem; font-size: 0.8125rem; color: var(--cc-text); }
         .unmatched-chip.is-busy { opacity: 0.5; pointer-events: none; }
@@ -358,6 +367,24 @@
                     <div>
                         <h4>🏷 カテゴリ</h4>
                         <ul id="trend-categories"></ul>
+                    </div>
+                </div>
+                <div id="trend-members-wrap" style="margin-top: 0.75rem;">
+                    <h4>👤 メンバー別</h4>
+                    <div style="overflow-x: auto;">
+                        <table class="trend-table">
+                            <thead>
+                                <tr>
+                                    <th>メンバー</th>
+                                    <th class="num" title="配信（予約枠・ゲリラ）">配信</th>
+                                    <th class="num">Short</th>
+                                    <th class="num">動画</th>
+                                    <th class="num" title="登録された切り抜き">切り抜き</th>
+                                    <th class="num" title="他チャンネルへの出演">出演</th>
+                                </tr>
+                            </thead>
+                            <tbody id="trend-members"></tbody>
+                        </table>
                     </div>
                 </div>
                 <div id="trend-unmatched-wrap" hidden style="margin-top: 0.75rem;">
@@ -1630,6 +1657,43 @@
             });
         }
 
+        // Per-member output for the period: streams / shorts / uploads / clips / guest spots.
+        function renderMembers(rows) {
+            var tbody = document.getElementById('trend-members');
+            var wrap = document.getElementById('trend-members-wrap');
+            if (!tbody || !wrap) return;
+            tbody.textContent = '';
+            wrap.hidden = !rows.length;
+            rows.forEach(function (m) {
+                var tr = document.createElement('tr');
+                var who = document.createElement('td');
+                var cell = document.createElement('div');
+                cell.className = 'member';
+                cell.appendChild(avatarNode({ channel_thumbnail_url: m.thumbnail_url, channel_name: m.name }, m.color, 'fc-ev-img'));
+                var nm = document.createElement('span');
+                nm.className = 'name';
+                nm.textContent = m.name;
+                cell.appendChild(nm);
+                who.appendChild(cell);
+                tr.appendChild(who);
+                [['streams', m.prev_streams], ['shorts', null], ['uploads', null], ['clips', null], ['guests', null]].forEach(function (col) {
+                    var td = document.createElement('td');
+                    td.className = 'num' + (m[col[0]] ? '' : ' zero');
+                    td.textContent = String(m[col[0]]);
+                    if (col[1] !== null && m[col[0]] - col[1] !== 0) {
+                        var delta = m[col[0]] - col[1];
+                        var d = document.createElement('span');
+                        d.className = 'trend-delta ' + (delta > 0 ? 'up' : 'down');
+                        d.textContent = (delta > 0 ? '▲' : '▼') + Math.abs(delta);
+                        d.title = (trendsPeriod === 'month' ? '先月 ' : '先週 ') + col[1] + '本';
+                        td.appendChild(d);
+                    }
+                    tr.appendChild(td);
+                });
+                tbody.appendChild(tr);
+            });
+        }
+
         // Unclassified bracket terms: one click teaches the dictionary.
         function renderUnmatched(items) {
             var wrap = document.getElementById('trend-unmatched-wrap');
@@ -1748,6 +1812,7 @@
                         : mdLabel(d.start) + ' 〜 ' + mdLabel(d.end);
                     renderTrendList(document.getElementById('trend-games'), d.tags.filter(function (t) { return t.kind === 'game'; }));
                     renderTrendList(document.getElementById('trend-categories'), d.tags.filter(function (t) { return t.kind === 'category'; }));
+                    renderMembers(d.members || []);
                     renderUnmatched(d.unmatched || []);
                 })
                 .catch(function () {});

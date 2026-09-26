@@ -88,6 +88,26 @@ class StreamTaggerTest extends TestCase
         $this->assertDatabaseMissing('unmatched_terms', ['term' => '隼丸ちゅん']);
     }
 
+    public function test_streams_that_name_another_member_get_the_collab_category(): void
+    {
+        $hayamaru = Channel::factory()->create(['name' => 'Hayamaru ch. 隼丸ちゅん', 'handle' => '@hayamaru_chun']);
+        $noluna = Channel::factory()->create(['name' => 'Noluna Ch. 閃光ノルナ', 'handle' => '@nolunach']);
+        $collab = Stream::factory()->create(['channel_id' => $hayamaru->id, 'title' => '【雑談】閃光ノルナと一緒に！']);
+        $self = Stream::factory()->create(['channel_id' => $hayamaru->id, 'title' => '【縦型雑談】【#はやまる中】隼丸ちゅんの朝']);
+        $solo = Stream::factory()->create(['channel_id' => $noluna->id, 'title' => '【歌枠】ひとりで歌う']);
+
+        (new StreamTagger())->retagAll();
+
+        $this->assertSame(['コラボ'], $collab->fresh()->tags->pluck('name')->all());
+        $this->assertSame('category', Tag::where('name', 'コラボ')->first()->kind);
+        $this->assertSame([], $self->fresh()->tags->pluck('name')->all());   // naming yourself is not a collab
+        $this->assertSame([], $solo->fresh()->tags->pluck('name')->all());
+        // The word itself in a title also counts, through the tag's own alias.
+        $word = Stream::factory()->create(['channel_id' => $noluna->id, 'title' => '【初心者コラボ】']);
+        (new StreamTagger())->tag($word);
+        $this->assertSame(['コラボ'], $word->fresh()->tags->pluck('name')->all());
+    }
+
     public function test_retag_all_applies_a_new_alias_to_past_streams(): void
     {
         $mc = Tag::createWithAlias('Minecraft', 'game');

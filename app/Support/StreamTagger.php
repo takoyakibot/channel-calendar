@@ -5,6 +5,7 @@ namespace App\Support;
 use App\Models\Channel;
 use App\Models\IgnoredTerm;
 use App\Models\Stream;
+use App\Models\Tag;
 use App\Models\TagAlias;
 use App\Models\UnmatchedTerm;
 use Illuminate\Database\Eloquent\Builder;
@@ -25,6 +26,12 @@ class StreamTagger
     /** @var array<int, string> */
     private array $ignored = [];
 
+    /** @var \Illuminate\Support\Collection<int, Channel> */
+    private $channels;
+
+    /** The category given to a stream whose title names another member. */
+    public const COLLAB_TAG = 'コラボ';
+
     public function __construct()
     {
         $this->reload();
@@ -36,6 +43,20 @@ class StreamTagger
             ->map(fn (TagAlias $a) => ['alias' => $a->alias, 'tag_id' => (int) $a->tag_id, 'ascii' => TermNormalizer::isAscii($a->alias)])
             ->all();
         $this->ignored = IgnoredTerm::pluck('term')->all();
+        $this->channels = Channel::all();
+    }
+
+    /** Streams that mention another registered member are collabs; the tag is created on first use. */
+    private function collabTagId(): int
+    {
+        static $id = null;
+        if ($id === null || ! Tag::whereKey($id)->exists()) {
+            $tag = Tag::where('name', self::COLLAB_TAG)->first() ?? Tag::createWithAlias(self::COLLAB_TAG, 'category');
+            $id = $tag->id;
+            $this->reload();
+        }
+
+        return $id;
     }
 
     /** @return array<int, int> tag ids whose alias occurs in the title */
@@ -62,6 +83,10 @@ class StreamTagger
     public function tag(Stream $stream): void
     {
         $matched = $this->matchTagIds($stream->title);
+        $others = array_diff(MemberDetector::detect($stream->title, $this->channels), [(int) $stream->channel_id]);
+        if ($others !== [] && ! in_array($this->collabTagId(), $matched, true)) {
+            $matched[] = $this->collabTagId();
+        }
         $current = $stream->tags()->get();
         $manual = $current->filter(fn ($t) => $t->pivot->source === 'manual')->pluck('id')->all();
         $auto = $current->filter(fn ($t) => $t->pivot->source === 'auto')->pluck('id')->all();
@@ -80,7 +105,7 @@ class StreamTagger
     {
         $this->reload();
         $n = 0;
-        Stream::query()->select('id', 'title')->chunkById(200, function ($streams) use (&$n) {
+        Stream::query()->select('id', 'title', 'channel_id')->chunkById(200, function ($streams) use (&$n) {
             foreach ($streams as $stream) {
                 $this->tag($stream);
                 $n++;
@@ -114,7 +139,7 @@ class StreamTagger
      */
     public function unmatchedIn(Builder $streams): array
     {
-        $channels = Channel::all();
+        $channels = $this->channels;
         $found = [];
 
         $streams->select('streams.id', 'streams.title')->chunkById(200, function ($chunk) use (&$found, $channels) {
