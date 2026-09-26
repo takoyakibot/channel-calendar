@@ -352,6 +352,55 @@ class YouTubeServiceTest extends TestCase
         $this->assertSame($seconds, $result[0]['duration_seconds']);
     }
 
+    public function test_get_video_info_returns_the_fields_needed_to_register_a_video_post(): void
+    {
+        $thumb = new Thumbnail();
+        $thumb->setUrl('https://i.ytimg.com/vi/abc123DEF45/default.jpg');
+        $thumbs = new ThumbnailDetails();
+        $thumbs->setDefault($thumb);
+        $snippet = new VideoSnippet();
+        $snippet->setTitle('【切り抜き】神回');
+        $snippet->setDescription('本人: @hayamaru_chun');
+        $snippet->setChannelId('UC_clipper');
+        $snippet->setChannelTitle('切り抜きch');
+        $snippet->setPublishedAt('2026-09-24T12:34:56Z');
+        $snippet->setThumbnails($thumbs);
+        $content = new \Google\Service\YouTube\VideoContentDetails();
+        $content->setDuration('PT1M35S');
+        $video = new Video();
+        $video->setId('abc123DEF45');
+        $video->setSnippet($snippet);
+        $video->setContentDetails($content);
+        $response = new VideoListResponse();
+        $response->setItems([$video]);
+
+        $mockVideos = Mockery::mock(Videos::class);
+        $mockVideos->shouldReceive('listVideos')->with('snippet,contentDetails', ['id' => 'abc123DEF45'])->andReturn($response);
+        $this->mockYouTube->videos = $mockVideos;
+
+        $this->assertSame([
+            'video_id' => 'abc123DEF45',
+            'title' => '【切り抜き】神回',
+            'description' => '本人: @hayamaru_chun',
+            'channel_id' => 'UC_clipper',
+            'channel_title' => '切り抜きch',
+            'thumbnail_url' => 'https://i.ytimg.com/vi/abc123DEF45/default.jpg',
+            'published_at' => '2026-09-24T12:34:56Z',
+            'duration_seconds' => 95,
+        ], $this->service->getVideoInfo('abc123DEF45'));
+    }
+
+    public function test_get_video_info_is_null_for_an_unknown_video(): void
+    {
+        $response = new VideoListResponse();
+        $response->setItems([]);
+        $mockVideos = Mockery::mock(Videos::class);
+        $mockVideos->shouldReceive('listVideos')->andReturn($response);
+        $this->mockYouTube->videos = $mockVideos;
+
+        $this->assertNull($this->service->getVideoInfo('nope0000000'));
+    }
+
     public static function durations(): array
     {
         return [

@@ -27,7 +27,8 @@ class ActivityLog extends Model
         return $this->belongsTo(User::class);
     }
 
-    public static function record(int $userId, string $action, ?string $targetType = null, ?int $targetId = null, ?array $payload = null): self
+    /** $userId is null for actions taken without logging in (video post registration). */
+    public static function record(?int $userId, string $action, ?string $targetType = null, ?int $targetId = null, ?array $payload = null): self
     {
         return self::create([
             'user_id' => $userId,

@@ -6,6 +6,7 @@ use App\Http\Controllers\Admin\FetchController as AdminFetchController;
 use App\Http\Controllers\Admin\GroupController as AdminGroupController;
 use App\Http\Controllers\Admin\SettingController as AdminSettingController;
 use App\Http\Controllers\Admin\UserController as AdminUserController;
+use App\Http\Controllers\Admin\VideoPostController as AdminVideoPostController;
 use App\Http\Controllers\CalendarController;
 use App\Models\Group;
 use Illuminate\Support\Facades\Route;
@@ -35,6 +36,8 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->group(function () {
     Route::get('users', [AdminUserController::class, 'index']);
     Route::patch('users/{user}/toggle-ban', [AdminUserController::class, 'toggleBan']);
     Route::get('activity-logs', [AdminActivityLogController::class, 'index']);
+    Route::get('video-posts', [AdminVideoPostController::class, 'index']);
+    Route::delete('video-posts/{videoPost}', [AdminVideoPostController::class, 'destroy']);
 });
 
 require __DIR__.'/auth.php';

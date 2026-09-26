@@ -166,6 +166,19 @@
         .badge.live { background: #dc2626; color: #fff; }
         .badge.done { background: var(--cc-border); color: var(--cc-text-tertiary); }
         .badge.members { background: #f3e8ff; color: #6b21a8; margin-left: 0.25rem; }
+        /* Clips / guest appearances registered from a URL (issue #46, #47). */
+        .card.is-post .card-meta .time { font-size: 0.8125rem; }
+        .video-btn { display: inline-flex; align-items: center; gap: 0.25rem; padding: 0.375rem 0.75rem; font-size: 0.875rem; border: 1px solid var(--cc-border-light); border-radius: 0.5rem; background: var(--cc-surface); color: var(--cc-text-secondary); cursor: pointer; white-space: nowrap; }
+        .video-btn:hover { background: var(--cc-surface-alt); color: var(--cc-text); }
+        .kind-radios { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; }
+        .kind-radios label { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.875rem; color: var(--cc-text); cursor: pointer; }
+        .member-checks { display: flex; flex-wrap: wrap; gap: 0.375rem; max-height: 10rem; overflow-y: auto; }
+        .member-checks label { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.2rem 0.6rem; border: 1px solid var(--cc-border); border-radius: 9999px; font-size: 0.8125rem; color: var(--cc-text); cursor: pointer; }
+        .member-checks label:has(input:checked) { background: var(--cc-active-bg); color: var(--cc-active-text); border-color: var(--cc-active-bg); }
+        .video-preview { margin-top: 0.5rem; padding: 0.5rem 0.625rem; background: var(--cc-tweet-bg); border: 1px solid var(--cc-border); border-radius: 0.375rem; font-size: 0.8125rem; display: flex; gap: 0.5rem; align-items: flex-start; }
+        .video-preview img { width: 4.5rem; border-radius: 0.25rem; flex: none; }
+        .video-preview .vp-title { font-weight: 600; color: var(--cc-text); overflow-wrap: anywhere; }
+        .video-preview .vp-meta { color: var(--cc-text-tertiary); font-size: 0.75rem; margin-top: 0.125rem; }
         .badge.short { background: #fee2e2; color: #991b1b; }
         .dark .badge.short { background: #7f1d1d; color: #fecaca; }
         .badge.upload { background: #dbeafe; color: #1e40af; }
@@ -200,7 +213,7 @@
         .modal .modal-field label { font-size: 0.75rem; font-weight: 600; color: var(--cc-text-tertiary); }
         /* Not checkboxes: the `background` shorthand would wipe the check-mark image
            and `color` would make the checked fill blend into the surface. */
-        .modal .modal-field input:not([type=checkbox]), .modal .modal-field select { padding: 0.5rem; border: 1px solid var(--cc-border-light); border-radius: 0.375rem; font-size: 0.875rem; background: var(--cc-input-bg); color: var(--cc-text); }
+        .modal .modal-field input:not([type=checkbox]):not([type=radio]), .modal .modal-field select { padding: 0.5rem; border: 1px solid var(--cc-border-light); border-radius: 0.375rem; font-size: 0.875rem; background: var(--cc-input-bg); color: var(--cc-text); }
         .modal .modal-actions { display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 1rem; }
         .modal .modal-actions button { padding: 0.5rem 1rem; border-radius: 0.375rem; font-size: 0.875rem; cursor: pointer; }
         .modal .btn-cancel { background: var(--cc-surface); border: 1px solid var(--cc-border-light); color: var(--cc-text-secondary); }
@@ -243,6 +256,7 @@
                 <button type="button" class="theme-toggle" id="theme-toggle" title="テーマ切り替え">
                     <span id="theme-icon">🌙</span>
                 </button>
+                <button type="button" class="video-btn" id="video-post-btn" title="切り抜き動画や、他チャンネルへの出演を URL から登録（ログイン不要）">📎 動画を登録</button>
                 <div class="share-buttons">
                     <a class="share-btn x"
                        href="https://x.com/intent/tweet?url={{ urlencode($pageUrl) }}&text={{ urlencode($pageTitle) }}"
@@ -368,6 +382,43 @@
         </div>
     </div>
     @endauth
+
+    {{-- Clips / guest appearances: anyone can register one from a URL; the date comes from the video. --}}
+    <div id="video-modal" class="modal-overlay" hidden>
+        <div class="modal">
+            <h3>切り抜き・出演を登録</h3>
+            <div class="modal-field">
+                <label for="vp-url">YouTube 動画の URL</label>
+                <input type="url" id="vp-url" placeholder="https://www.youtube.com/watch?v=… / https://youtu.be/…" maxlength="2048">
+                <span class="modal-hint-text">切り抜きチャンネルの動画や、メンバーがゲスト出演した他チャンネルの動画を登録できます（ログイン不要）。動画の公開日時の欄に載ります。</span>
+                <span id="vp-status" class="modal-hint-text" hidden></span>
+                <div id="vp-preview" class="video-preview" hidden>
+                    <img id="vp-thumb" alt="" hidden>
+                    <div>
+                        <div class="vp-title" id="vp-title"></div>
+                        <div class="vp-meta" id="vp-meta"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-field">
+                <label>種別</label>
+                <div class="kind-radios">
+                    <label><input type="radio" name="vp-kind" value="clip" checked> 切り抜き</label>
+                    <label><input type="radio" name="vp-kind" value="guest"> コラボ出演（他チャンネルにゲスト出演）</label>
+                </div>
+            </div>
+            <div class="modal-field">
+                <label>該当するメンバー</label>
+                <div id="vp-members" class="member-checks"></div>
+                <span class="modal-hint-text">タイトル・概要欄から見つかったメンバーにはチェックが入っています。違っていれば直してください。</span>
+            </div>
+            <p id="vp-error" class="modal-error" hidden></p>
+            <div class="modal-actions">
+                <button type="button" class="btn-cancel" id="vp-cancel">キャンセル</button>
+                <button type="button" class="btn-submit" id="vp-submit" disabled>登録</button>
+            </div>
+        </div>
+    </div>
 
     <x-cookie-consent />
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
@@ -553,14 +604,18 @@
             var props = ev.extendedProps;
             var start = new Date(ev.start);
             var a = document.createElement('a');
+            var isPost = props.status === 'posted';  // clip / guest appearance on another channel
             a.className = 'card'
                 + (props.status === 'completed' ? ' is-done' : '')
-                + (props.status === 'manual' ? ' is-manual' : '');
+                + (props.status === 'manual' ? ' is-manual' : '')
+                + (isPost ? ' is-post' : '');
             a.dataset.eventId = String(ev.id);
             a.href = ev.url;
             a.target = '_blank';
             a.rel = 'noopener noreferrer';
-            a.title = props.channel_name + ' ' + fmtTime(start) + '\n' + ev.title;
+            a.title = isPost
+                ? (props.members || []).map(function (m) { return m.name; }).join(', ') + ' — ' + props.source_channel_name + '\n' + ev.title
+                : props.channel_name + ' ' + fmtTime(start) + '\n' + ev.title;
             a.style.borderLeftColor = ev.color || '#9ca3af';
 
             var head = document.createElement('div');
@@ -571,7 +626,9 @@
             meta.className = 'card-meta';
             var time = document.createElement('span');
             time.className = 'time';
-            if (props.type === 'short' || props.type === 'upload') {
+            if (isPost) {
+                time.textContent = props.type === 'clip' ? '切り抜き' : '出演';
+            } else if (props.type === 'short' || props.type === 'upload') {
                 time.textContent = props.type === 'short' ? 'Short' : '動画';
             } else if (props.status === 'manual') {
                 time.textContent = props.is_all_day ? '手動' : '手動 ' + fmtTime(start);
@@ -580,7 +637,8 @@
             }
             var ch = document.createElement('span');
             ch.className = 'ch';
-            ch.textContent = props.channel_name;
+            // The avatar already says which member; for posts the news is where the video is.
+            ch.textContent = isPost ? props.source_channel_name : props.channel_name;
             meta.appendChild(time);
             meta.appendChild(ch);
             head.appendChild(meta);
@@ -666,15 +724,18 @@
 
         // After creating a manual schedule: jump the board to its week if needed,
         // re-render, then flash the new card so it is easy to spot.
-        function focusNewSchedule(created) {
-            highlightEventId = 'ms_' + created.id;
-            var when = startOfDay(new Date(created.scheduled_at));
+        function focusNewEvent(eventId, whenIso) {
+            highlightEventId = String(eventId);
+            var when = startOfDay(new Date(whenIso));
             var windowEnd = addDays(boardStart, BOARD_DAYS);
             if (when < boardStart || when >= windowEnd) {
                 boardStart = mondayOf(when);
             }
             loadBoard();
             if (calendar) calendar.refetchEvents();
+        }
+        function focusNewSchedule(created) {
+            focusNewEvent('ms_' + created.id, created.scheduled_at);
         }
 
         function flashHighlightedCard() {
@@ -727,8 +788,8 @@
                     var aAll = a.extendedProps.is_all_day ? 0 : 1;
                     var bAll = b.extendedProps.is_all_day ? 0 : 1;
                     if (aAll !== bAll) return aAll - bAll;
-                    var aVideo = (a.extendedProps.type === 'short' || a.extendedProps.type === 'upload') ? 1 : 0;
-                    var bVideo = (b.extendedProps.type === 'short' || b.extendedProps.type === 'upload') ? 1 : 0;
+                    var aVideo = (a.extendedProps.type === 'short' || a.extendedProps.type === 'upload' || a.extendedProps.status === 'posted') ? 1 : 0;
+                    var bVideo = (b.extendedProps.type === 'short' || b.extendedProps.type === 'upload' || b.extendedProps.status === 'posted') ? 1 : 0;
                     if (aVideo !== bVideo) return aVideo - bVideo;
                     return new Date(a.start) - new Date(b.start);
                 });
@@ -772,8 +833,9 @@
             Promise.all([
                 fetch(apiUrl('/api/streams', params), { headers: { Accept: 'application/json' } }).then(function (r) { return r.ok ? r.json() : []; }),
                 fetch(apiUrl('/api/manual-schedules', params), { headers: { Accept: 'application/json' } }).then(function (r) { return r.ok ? r.json() : []; }),
+                fetch(apiUrl('/api/video-posts', params), { headers: { Accept: 'application/json' } }).then(function (r) { return r.ok ? r.json() : []; }),
             ]).then(function (results) {
-                boardEvents = results[0].concat(results[1]);
+                boardEvents = results[0].concat(results[1], results[2]);
                 lastLoadedAt = Date.now();
                 markVisited();
                 renderBoard();
@@ -788,6 +850,8 @@
         function refreshIfDue(force) {
             if (document.hidden) return;
             if (modalOverlay && !modalOverlay.hidden) return;
+            var videoModalEl = document.getElementById('video-modal');
+            if (videoModalEl && !videoModalEl.hidden) return;
             if (!force && Date.now() - lastLoadedAt < AUTO_REFRESH_MS) return;
             flashBaseline = {};
             boardEvents.forEach(function (ev) { flashBaseline[String(ev.id)] = true; });
@@ -836,8 +900,9 @@
                     Promise.all([
                         fetch(apiUrl('/api/streams', p), { headers: { Accept: 'application/json' } }).then(function (r) { return r.ok ? r.json() : []; }),
                         fetch(apiUrl('/api/manual-schedules', p), { headers: { Accept: 'application/json' } }).then(function (r) { return r.ok ? r.json() : []; }),
+                        fetch(apiUrl('/api/video-posts', p), { headers: { Accept: 'application/json' } }).then(function (r) { return r.ok ? r.json() : []; }),
                     ]).then(function (results) {
-                        successCallback(results[0].concat(results[1]).filter(isVisible));
+                        successCallback(results[0].concat(results[1], results[2]).filter(isVisible));
                     }).catch(failureCallback);
                 },
                 eventDidMount: function (info) {
@@ -855,7 +920,8 @@
                     wrap.appendChild(avatarNode(props, arg.event.backgroundColor || arg.event.borderColor, 'fc-ev-img'));
                     var t = document.createElement('span');
                     t.className = 'fc-ev-time';
-                    t.textContent = props.type === 'short' ? 'Short'
+                    t.textContent = props.status === 'posted' ? (props.type === 'clip' ? '切り抜き' : '出演')
+                        : props.type === 'short' ? 'Short'
                         : props.type === 'upload' ? '動画'
                         : props.status === 'live' ? 'LIVE'
                         : (props.status === 'manual' ? (props.is_all_day ? '手動' : '手動 ' + fmtTime(arg.event.start)) : fmtTime(arg.event.start));
@@ -1201,6 +1267,126 @@
                     errEl.textContent = 'エラーが発生しました。';
                     errEl.hidden = false;
                 }).finally(function () { modalSubmitBtn.disabled = false; });
+            });
+        }
+
+        // "動画を登録": clips and guest appearances on other channels, open to everyone.
+        // The URL is resolved server-side (title, channel, publish date, suggested
+        // members); the person confirms the kind and members, and the card lands on
+        // the video's publish date.
+        var videoModal = document.getElementById('video-modal');
+        if (videoModal) {
+            var vpUrl = document.getElementById('vp-url');
+            var vpStatus = document.getElementById('vp-status');
+            var vpPreview = document.getElementById('vp-preview');
+            var vpMembers = document.getElementById('vp-members');
+            var vpError = document.getElementById('vp-error');
+            var vpSubmit = document.getElementById('vp-submit');
+            var vpReady = null;  // preview of the current URL once it resolved and may be registered
+
+            function vpSetStatus(text) { vpStatus.textContent = text || ''; vpStatus.hidden = !text; }
+            function vpRenderMembers(checkedIds) {
+                vpMembers.textContent = '';
+                channelList.forEach(function (ch) {
+                    var label = document.createElement('label');
+                    var cb = document.createElement('input');
+                    cb.type = 'checkbox';
+                    cb.value = String(ch.id);
+                    cb.checked = checkedIds.indexOf(ch.id) !== -1;
+                    label.appendChild(cb);
+                    label.appendChild(document.createTextNode(' ' + ch.name));
+                    vpMembers.appendChild(label);
+                });
+            }
+            function openVideoModal() {
+                vpUrl.value = '';
+                vpReady = null;
+                vpSubmit.disabled = true;
+                vpError.hidden = true;
+                vpPreview.hidden = true;
+                vpSetStatus('');
+                vpRenderMembers([]);
+                videoModal.hidden = false;
+                vpUrl.focus();
+            }
+            function closeVideoModal() { videoModal.hidden = true; }
+            document.getElementById('video-post-btn').addEventListener('click', openVideoModal);
+            document.getElementById('vp-cancel').addEventListener('click', closeVideoModal);
+            var vpPressedOnBackdrop = false;
+            videoModal.addEventListener('mousedown', function (e) { vpPressedOnBackdrop = (e.target === videoModal); });
+            videoModal.addEventListener('click', function (e) {
+                if (e.target === videoModal && vpPressedOnBackdrop) closeVideoModal();
+                vpPressedOnBackdrop = false;
+            });
+            document.addEventListener('keydown', function (e) {
+                if (e.key === 'Escape' && !videoModal.hidden) closeVideoModal();
+            });
+
+            vpUrl.addEventListener('change', function () {
+                var url = vpUrl.value.trim();
+                vpReady = null;
+                vpSubmit.disabled = true;
+                vpPreview.hidden = true;
+                vpError.hidden = true;
+                if (!url) { vpSetStatus(''); return; }
+                vpSetStatus('動画情報を読み込み中…');
+                fetch('/api/video-posts/preview?url=' + encodeURIComponent(url), { headers: { Accept: 'application/json' } })
+                    .then(function (res) { return res.json().then(function (data) { return { ok: res.ok, data: data }; }); })
+                    .then(function (r) {
+                        if (!r.ok) {
+                            vpSetStatus(r.data.message || (r.data.errors && r.data.errors.url && r.data.errors.url[0]) || '動画を取得できませんでした。');
+                            return;
+                        }
+                        var d = r.data;
+                        document.getElementById('vp-title').textContent = d.title || '';
+                        var when = d.published_at ? new Date(d.published_at) : null;
+                        document.getElementById('vp-meta').textContent = (d.source_channel_name || '')
+                            + (when ? ' · ' + fmtShort(when) + ' ' + fmtTime(when) + ' 公開' : '');
+                        var thumb = document.getElementById('vp-thumb');
+                        if (d.thumbnail_url) { thumb.src = d.thumbnail_url; thumb.hidden = false; } else { thumb.hidden = true; }
+                        vpPreview.hidden = false;
+                        vpRenderMembers(d.detected_channel_ids || []);
+                        if (d.already_registered) { vpSetStatus('この動画は登録済みです。'); return; }
+                        if (d.source_is_member) { vpSetStatus('メンバー自身のチャンネルの動画は自動で取り込まれるため、登録は不要です。'); return; }
+                        vpSetStatus((d.detected_channel_ids || []).length ? '' : 'メンバーを自動で判定できませんでした。該当するメンバーにチェックを入れてください。');
+                        vpReady = d;
+                        vpSubmit.disabled = false;
+                    })
+                    .catch(function () { vpSetStatus('動画を取得できませんでした。'); });
+            });
+
+            vpSubmit.addEventListener('click', function () {
+                if (!vpReady) return;
+                vpError.hidden = true;
+                var ids = Array.from(vpMembers.querySelectorAll('input:checked')).map(function (cb) { return Number(cb.value); });
+                if (!ids.length) {
+                    vpError.textContent = '該当するメンバーを 1 人以上選んでください。';
+                    vpError.hidden = false;
+                    return;
+                }
+                var kindInput = document.querySelector('input[name="vp-kind"]:checked');
+                vpSubmit.disabled = true;
+                fetch('/api/video-posts', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN, Accept: 'application/json' },
+                    body: JSON.stringify({ url: vpUrl.value.trim(), kind: kindInput ? kindInput.value : 'clip', channel_ids: ids }),
+                }).then(function (res) {
+                    return res.json().then(function (data) { return { ok: res.ok, data: data }; });
+                }).then(function (r) {
+                    if (r.ok) {
+                        closeVideoModal();
+                        focusNewEvent(r.data.id, r.data.start);
+                        return;
+                    }
+                    var firstError = r.data.errors ? Object.keys(r.data.errors).map(function (k) { return r.data.errors[k][0]; })[0] : null;
+                    vpError.textContent = r.data.message && !firstError ? r.data.message : (firstError || r.data.message || 'エラーが発生しました。');
+                    vpError.hidden = false;
+                    vpSubmit.disabled = false;
+                }).catch(function () {
+                    vpError.textContent = 'エラーが発生しました。';
+                    vpError.hidden = false;
+                    vpSubmit.disabled = false;
+                });
             });
         }
 

@@ -132,17 +132,7 @@ class YouTubeService
                 $status = 'upcoming';
             }
 
-            $durationSeconds = null;
-            $duration = $video->getContentDetails()?->getDuration();
-            if ($duration) {
-                try {
-                    // ISO 8601 (PT1H2M3S; very long archives come as P1DT2H) — the day
-                    // part matters, or a day-long video would count as a short.
-                    $interval = new \DateInterval($duration);
-                    $durationSeconds = $interval->d * 86400 + $interval->h * 3600 + $interval->i * 60 + $interval->s;
-                } catch (\Exception $e) {
-                }
-            }
+            $durationSeconds = self::durationToSeconds($video->getContentDetails()?->getDuration());
 
             return [
                 'video_id' => $video->getId(),
@@ -157,5 +147,52 @@ class YouTubeService
                 'duration_seconds' => $durationSeconds,
             ];
         }, $response->getItems());
+    }
+
+    /**
+     * One video's public details for registering a clip / guest appearance
+     * (1 quota unit). Null when YouTube does not return it (deleted, private).
+     *
+     * @return ?array{video_id: string, title: string, description: string, channel_id: ?string, channel_title: ?string, thumbnail_url: ?string, published_at: ?string, duration_seconds: ?int}
+     */
+    public function getVideoInfo(string $videoId): ?array
+    {
+        $response = $this->youtube->videos->listVideos('snippet,contentDetails', ['id' => $videoId]);
+        $items = $response->getItems() ?? [];
+        if (empty($items)) {
+            return null;
+        }
+
+        $video = $items[0];
+        $snippet = $video->getSnippet();
+
+        return [
+            'video_id' => $video->getId(),
+            'title' => $snippet->getTitle(),
+            'description' => (string) $snippet->getDescription(),
+            'channel_id' => $snippet->getChannelId(),
+            'channel_title' => $snippet->getChannelTitle(),
+            'thumbnail_url' => $this->extractThumbnailUrl($snippet),
+            'published_at' => $snippet->getPublishedAt(),
+            'duration_seconds' => self::durationToSeconds($video->getContentDetails()?->getDuration()),
+        ];
+    }
+
+    /**
+     * ISO 8601 duration (PT1H2M3S; very long archives come as P1DT2H) to seconds.
+     * The day part matters, or a day-long video would count as a short.
+     */
+    private static function durationToSeconds(?string $iso): ?int
+    {
+        if (! $iso) {
+            return null;
+        }
+        try {
+            $i = new \DateInterval($iso);
+        } catch (\Exception $e) {
+            return null;
+        }
+
+        return $i->d * 86400 + $i->h * 3600 + $i->i * 60 + $i->s;
     }
 }

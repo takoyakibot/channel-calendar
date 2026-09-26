@@ -19,7 +19,7 @@
                         @forelse ($logs as $log)
                             <tr class="border-b hover:bg-gray-50">
                                 <td class="py-2 px-2 whitespace-nowrap">{{ $log->created_at->format('Y-m-d H:i') }}</td>
-                                <td class="py-2 px-2">{{ $log->user?->name ?? '(deleted)' }}</td>
+                                <td class="py-2 px-2">{{ $log->user?->name ?? ($log->user_id ? '(deleted)' : '匿名') }}</td>
                                 <td class="py-2 px-2">{{ $log->action }}</td>
                                 <td class="py-2 px-2 text-xs text-gray-500 max-w-xs truncate" title="{{ $log->payload ? json_encode($log->payload, JSON_UNESCAPED_UNICODE) : '' }}">{{ $log->payload ? \Illuminate\Support\Str::limit(json_encode($log->payload, JSON_UNESCAPED_UNICODE), 120) : '' }}</td>
                             </tr>
