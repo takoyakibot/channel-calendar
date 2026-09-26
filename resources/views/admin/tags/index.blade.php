@@ -5,14 +5,15 @@
 
     <div class="py-12">
         <div class="max-w-6xl mx-auto sm:px-6 lg:px-8 space-y-8">
-            @if (session('success'))
-                <div class="p-3 bg-green-100 text-green-800 rounded">{{ session('success') }}</div>
-            @endif
-            @if (session('error'))
-                <div class="p-3 bg-red-100 text-red-800 rounded">{{ session('error') }}</div>
-            @endif
-            @if ($errors->any())
-                <div class="p-3 bg-red-100 text-red-800 rounded">{{ $errors->first() }}</div>
+            {{-- Every action is a form + redirect; a toast and a restored scroll position
+                 keep the flow going when classifying many terms in a row. --}}
+            @php($isError = session('error') || $errors->any())
+            @php($toast = session('success') ?? session('error') ?? ($errors->any() ? $errors->first() : null))
+            @if ($toast)
+                <div id="admin-toast" role="status" aria-live="polite"
+                     class="fixed bottom-6 right-6 z-50 max-w-md px-4 py-3 rounded-lg shadow-lg text-sm text-white {{ $isError ? 'bg-red-600' : 'bg-gray-900' }}">
+                    {{ $toast }}
+                </div>
             @endif
 
             <div class="bg-white shadow-sm sm:rounded-lg p-6">
@@ -129,4 +130,33 @@
             </div>
         </div>
     </div>
+
+    <script>
+    (function () {
+        // Remember where the page was scrolled when a form is sent, and come back
+        // there after the redirect so the next term is right under the cursor.
+        var KEY = 'admin.tags.scrollY';
+        document.querySelectorAll('form').forEach(function (form) {
+            form.addEventListener('submit', function () {
+                try { sessionStorage.setItem(KEY, String(window.scrollY)); } catch (e) {}
+            });
+        });
+        try {
+            var y = sessionStorage.getItem(KEY);
+            if (y !== null) {
+                sessionStorage.removeItem(KEY);
+                window.scrollTo(0, Number(y));
+            }
+        } catch (e) {}
+
+        var toast = document.getElementById('admin-toast');
+        if (toast) {
+            setTimeout(function () {
+                toast.style.transition = 'opacity 0.3s';
+                toast.style.opacity = '0';
+                setTimeout(function () { toast.remove(); }, 300);
+            }, 4000);
+        }
+    })();
+    </script>
 </x-app-layout>
