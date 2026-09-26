@@ -166,6 +166,41 @@
         .badge.live { background: #dc2626; color: #fff; }
         .badge.done { background: var(--cc-border); color: var(--cc-text-tertiary); }
         .badge.members { background: #f3e8ff; color: #6b21a8; margin-left: 0.25rem; }
+        /* Weekly trends panel (issue #50) and tagging (issue #51). */
+        .trends-section { margin-bottom: 1rem; }
+        .trends { margin-top: 0.5rem; padding: 0.75rem 1rem; background: var(--cc-surface); border: 1px solid var(--cc-border); border-radius: 0.5rem; }
+        .trend-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 0.75rem 1.5rem; }
+        .trends h4 { margin: 0 0 0.375rem; font-size: 0.8125rem; font-weight: 700; color: var(--cc-text-secondary); }
+        .trends ul { list-style: none; margin: 0; padding: 0; }
+        .trend-row { display: flex; align-items: center; gap: 0.5rem; padding: 0.2rem 0; font-size: 0.875rem; color: var(--cc-text); }
+        .trend-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .trend-count { flex: none; font-weight: 700; font-size: 0.8125rem; }
+        .trend-delta { margin-left: 0.25rem; font-size: 0.6875rem; font-weight: 700; }
+        .trend-delta.up { color: #dc2626; }
+        .trend-delta.down { color: #2563eb; }
+        .trend-avatars { display: inline-flex; gap: 0.125rem; margin-left: auto; flex: none; align-items: center; }
+        .trend-avatars img, .trend-avatars .fc-ev-dot { width: 1.25rem; height: 1.25rem; border-radius: 50%; object-fit: cover; }
+        .trend-more { font-size: 0.6875rem; color: var(--cc-text-tertiary); }
+        .trend-empty { font-size: 0.8125rem; color: var(--cc-text-muted); }
+        .unmatched-list { display: flex; flex-wrap: wrap; gap: 0.375rem; margin-top: 0.375rem; }
+        .unmatched-chip { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 0.25rem; padding: 0.2rem 0.5rem; border: 1px dashed var(--cc-border-light); border-radius: 0.5rem; font-size: 0.8125rem; color: var(--cc-text); }
+        .unmatched-chip.is-busy { opacity: 0.5; pointer-events: none; }
+        .unmatched-count { color: var(--cc-text-tertiary); font-size: 0.6875rem; }
+        .unmatched-actions { display: inline-flex; gap: 0.2rem; margin-left: 0.25rem; }
+        .unmatched-btn { padding: 0.1rem 0.45rem; font-size: 0.6875rem; border: 1px solid var(--cc-border-light); border-radius: 9999px; background: var(--cc-surface); color: var(--cc-text-secondary); cursor: pointer; }
+        .unmatched-btn:hover { background: var(--cc-surface-alt); color: var(--cc-text); }
+        .unmatched-btn.ok { background: var(--cc-active-bg); color: var(--cc-active-text); border-color: var(--cc-active-bg); }
+        .classify-picker { display: inline-flex; gap: 0.25rem; align-items: center; width: 100%; margin-top: 0.25rem; }
+        .classify-picker select { font-size: 0.75rem; padding: 0.15rem 0.3rem; border: 1px solid var(--cc-border-light); border-radius: 0.25rem; background: var(--cc-input-bg); color: var(--cc-text); max-width: 14rem; }
+        .trend-status { font-size: 0.75rem; color: #dc2626; margin-top: 0.25rem; }
+        .card-tags { display: flex; flex-wrap: wrap; gap: 0.2rem; margin-top: 0.3rem; }
+        .tag-chip { display: inline-block; padding: 0 0.4rem; border-radius: 9999px; font-size: 0.625rem; font-weight: 600; line-height: 1.5; }
+        .tag-chip.game { background: #dbeafe; color: #1e40af; }
+        .dark .tag-chip.game { background: #1e3a5f; color: #bfdbfe; }
+        .tag-chip.category { background: #dcfce7; color: #166534; }
+        .dark .tag-chip.category { background: #14532d; color: #bbf7d0; }
+        .tag-chip.add { border: 1px dashed var(--cc-border-light); color: var(--cc-text-muted); cursor: pointer; opacity: 0.6; }
+        .tag-chip.add:hover { opacity: 1; color: var(--cc-text); border-color: var(--cc-text-muted); }
         /* Clips / guest appearances registered from a URL (issue #46, #47). */
         .card.is-post .card-meta .time { font-size: 0.8125rem; }
         .video-btn { display: inline-flex; align-items: center; gap: 0.25rem; padding: 0.375rem 0.75rem; font-size: 0.875rem; border: 1px solid var(--cc-border-light); border-radius: 0.5rem; background: var(--cc-surface); color: var(--cc-text-secondary); cursor: pointer; white-space: nowrap; }
@@ -290,6 +325,35 @@
                 </div>
             @endif
         @endif
+
+        {{-- What the group is up to this week: streams per game / category, who did them,
+             and the bracket terms nobody has classified yet (issues #50, #51). --}}
+        <div class="trends-section">
+            <div class="filter-head">
+                <button type="button" id="trends-toggle" class="filter-toggle" aria-expanded="true" aria-controls="trends-panel">
+                    <span class="arrow" id="trends-arrow">▼</span>
+                    今週のトレンド
+                    <span class="subgroup-hint" id="trends-range"></span>
+                </button>
+            </div>
+            <div id="trends-panel" class="trends">
+                <div class="trend-cols">
+                    <div>
+                        <h4>🎮 ゲーム</h4>
+                        <ul id="trend-games"></ul>
+                    </div>
+                    <div>
+                        <h4>🏷 カテゴリ</h4>
+                        <ul id="trend-categories"></ul>
+                    </div>
+                </div>
+                <div id="trend-unmatched-wrap" hidden style="margin-top: 0.75rem;">
+                    <h4>未分類の語句 <span class="modal-hint-text">— タイトルの【】から拾った語です。分類すると、その語を含む配信すべてに自動でタグが付きます（誰でも操作できます）</span></h4>
+                    <div id="trend-unmatched" class="unmatched-list"></div>
+                    <div id="trend-status" class="trend-status" hidden></div>
+                </div>
+            </div>
+        </div>
 
         <div class="filter-section">
             {{-- Rendered collapsed so the list does not flash open before the script applies the saved state. --}}
@@ -416,6 +480,32 @@
             <div class="modal-actions">
                 <button type="button" class="btn-cancel" id="vp-cancel">キャンセル</button>
                 <button type="button" class="btn-submit" id="vp-submit" disabled>登録</button>
+            </div>
+        </div>
+    </div>
+
+    {{-- Add a game / category tag to one stream (issue #51): anyone can add, only admins remove. --}}
+    <div id="tag-modal" class="modal-overlay" hidden>
+        <div class="modal">
+            <h3>タグを付ける</h3>
+            <p class="modal-hint-text" id="tag-modal-title" style="margin: -0.5rem 0 0.75rem;"></p>
+            <div class="modal-field">
+                <label for="tag-select">既存のタグから選ぶ</label>
+                <select id="tag-select"></select>
+            </div>
+            <div class="modal-field">
+                <label for="tag-new-name">または新しいタグを作る</label>
+                <input type="text" id="tag-new-name" maxlength="60" placeholder="例: Minecraft、歌枠">
+                <div class="kind-radios" style="margin-top: 0.25rem;">
+                    <label><input type="radio" name="tag-new-kind" value="game" checked> ゲーム</label>
+                    <label><input type="radio" name="tag-new-kind" value="category"> カテゴリ</label>
+                </div>
+                <span class="modal-hint-text">新しいタグ名はそのまま辞書に入り、同じ語を含む他の配信にも自動で付きます。付けたタグを外せるのは管理者だけです。</span>
+            </div>
+            <p id="tag-error" class="modal-error" hidden></p>
+            <div class="modal-actions">
+                <button type="button" class="btn-cancel" id="tag-cancel">キャンセル</button>
+                <button type="button" class="btn-submit" id="tag-submit">付ける</button>
             </div>
         </div>
     </div>
@@ -682,6 +772,26 @@
             a.appendChild(head);
             a.appendChild(title);
 
+            // Game / category chips, plus a "＋" that opens the tag dialog (streams only).
+            if (!isPost && props.status !== 'manual') {
+                var tagsRow = document.createElement('div');
+                tagsRow.className = 'card-tags';
+                (props.tags || []).forEach(function (t) {
+                    var chip = document.createElement('span');
+                    chip.className = 'tag-chip ' + t.kind;
+                    chip.textContent = t.name;
+                    tagsRow.appendChild(chip);
+                });
+                var addChip = document.createElement('span');
+                addChip.className = 'tag-chip add';
+                addChip.setAttribute('role', 'button');
+                addChip.textContent = '＋';
+                addChip.title = 'ゲーム・カテゴリのタグを付ける';
+                addChip.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); openTagModal(ev); });
+                tagsRow.appendChild(addChip);
+                a.appendChild(tagsRow);
+            }
+
             if (props.status === 'manual') {
                 if (props.source_url) {
                     // A manual entry has no YouTube URL; the whole card links to its source,
@@ -839,6 +949,7 @@
                 lastLoadedAt = Date.now();
                 markVisited();
                 renderBoard();
+                loadTrends();
             }).catch(function () { boardEvents = []; renderBoard(); });
         }
 
@@ -852,6 +963,8 @@
             if (modalOverlay && !modalOverlay.hidden) return;
             var videoModalEl = document.getElementById('video-modal');
             if (videoModalEl && !videoModalEl.hidden) return;
+            var tagModalEl = document.getElementById('tag-modal');
+            if (tagModalEl && !tagModalEl.hidden) return;
             if (!force && Date.now() - lastLoadedAt < AUTO_REFRESH_MS) return;
             flashBaseline = {};
             boardEvents.forEach(function (ev) { flashBaseline[String(ev.id)] = true; });
@@ -1393,6 +1506,271 @@
                 });
             });
         }
+
+        // ---- Weekly trends (issue #50) and tagging (issue #51) ----
+        var tagList = [];
+        function loadTags() {
+            return fetch('/api/tags', { headers: { Accept: 'application/json' } })
+                .then(function (r) { return r.ok ? r.json() : tagList; })
+                .then(function (tags) { tagList = tags; return tags; })
+                .catch(function () { return tagList; });
+        }
+        function kindLabel(kind) { return kind === 'game' ? 'ゲーム' : 'カテゴリ'; }
+
+        var trendsPanel = document.getElementById('trends-panel');
+        var trendsToggle = document.getElementById('trends-toggle');
+        var trendsArrow = document.getElementById('trends-arrow');
+        var trendStatus = document.getElementById('trend-status');
+        var trendsCollapsed = false;
+        try { trendsCollapsed = localStorage.getItem('cc.trendsCollapsed') === '1'; } catch (e) {}
+        function applyTrendsCollapsed() {
+            trendsPanel.hidden = trendsCollapsed;
+            trendsArrow.classList.toggle('collapsed', trendsCollapsed);
+            trendsToggle.setAttribute('aria-expanded', String(!trendsCollapsed));
+        }
+        if (trendsPanel) {
+            applyTrendsCollapsed();
+            trendsToggle.addEventListener('click', function () {
+                trendsCollapsed = !trendsCollapsed;
+                applyTrendsCollapsed();
+                try { localStorage.setItem('cc.trendsCollapsed', trendsCollapsed ? '1' : '0'); } catch (e) {}
+            });
+        }
+        function setTrendStatus(text) {
+            if (!trendStatus) return;
+            trendStatus.textContent = text || '';
+            trendStatus.hidden = !text;
+        }
+
+        function renderTrendList(el, rows) {
+            el.textContent = '';
+            if (!rows.length) {
+                var li0 = document.createElement('li');
+                li0.className = 'trend-empty';
+                li0.textContent = 'この週はまだありません';
+                el.appendChild(li0);
+                return;
+            }
+            rows.forEach(function (row) {
+                var li = document.createElement('li');
+                li.className = 'trend-row';
+                var name = document.createElement('span');
+                name.className = 'trend-name';
+                name.textContent = row.name;
+                var count = document.createElement('span');
+                count.className = 'trend-count';
+                count.textContent = row.count + '本';
+                var delta = row.count - row.prev_count;
+                if (delta !== 0) {
+                    var d = document.createElement('span');
+                    d.className = 'trend-delta ' + (delta > 0 ? 'up' : 'down');
+                    d.textContent = (delta > 0 ? '▲' : '▼') + Math.abs(delta);
+                    d.title = '先週 ' + row.prev_count + '本';
+                    count.appendChild(d);
+                }
+                var av = document.createElement('span');
+                av.className = 'trend-avatars';
+                row.members.slice(0, 8).forEach(function (m) {
+                    av.appendChild(avatarNode({ channel_thumbnail_url: m.thumbnail_url, channel_name: m.name }, m.color, 'fc-ev-img'));
+                });
+                if (row.members.length > 8) {
+                    var more = document.createElement('span');
+                    more.className = 'trend-more';
+                    more.textContent = '+' + (row.members.length - 8);
+                    av.appendChild(more);
+                }
+                av.title = row.members.map(function (m) { return m.name; }).join(', ');
+                li.appendChild(name);
+                li.appendChild(count);
+                li.appendChild(av);
+                el.appendChild(li);
+            });
+        }
+
+        // Unclassified bracket terms: one click teaches the dictionary.
+        function renderUnmatched(items) {
+            var wrap = document.getElementById('trend-unmatched-wrap');
+            var el = document.getElementById('trend-unmatched');
+            if (!wrap || !el) return;
+            el.textContent = '';
+            wrap.hidden = !items.length;
+            items.forEach(function (item) {
+                var chip = document.createElement('div');
+                chip.className = 'unmatched-chip';
+                var label = document.createElement('span');
+                label.className = 'unmatched-term';
+                label.textContent = item.display;
+                label.title = item.count + '本の配信タイトルに出現';
+                var cnt = document.createElement('span');
+                cnt.className = 'unmatched-count';
+                cnt.textContent = '×' + item.count;
+                chip.appendChild(label);
+                chip.appendChild(cnt);
+                var actions = document.createElement('span');
+                actions.className = 'unmatched-actions';
+                [['game', '🎮 ゲーム'], ['category', '🏷 カテゴリ'], ['ignore', '無視']].forEach(function (pair) {
+                    var b = document.createElement('button');
+                    b.type = 'button';
+                    b.className = 'unmatched-btn ' + pair[0];
+                    b.textContent = pair[1];
+                    b.addEventListener('click', function () {
+                        if (pair[0] === 'ignore') { classifyTerm(item.term, 'ignore', null, null, chip); return; }
+                        showClassifyPicker(chip, item, pair[0]);
+                    });
+                    actions.appendChild(b);
+                });
+                chip.appendChild(actions);
+                el.appendChild(chip);
+            });
+        }
+        // "Is this a new tag, or a spelling of an existing one?"
+        function showClassifyPicker(chip, item, kind) {
+            var old = chip.querySelector('.classify-picker');
+            if (old) old.remove();
+            var picker = document.createElement('span');
+            picker.className = 'classify-picker';
+            var sel = document.createElement('select');
+            var optNew = document.createElement('option');
+            optNew.value = '';
+            optNew.textContent = '新しい' + kindLabel(kind) + '「' + item.display + '」';
+            sel.appendChild(optNew);
+            tagList.filter(function (t) { return t.kind === kind; }).forEach(function (t) {
+                var o = document.createElement('option');
+                o.value = String(t.id);
+                o.textContent = '既存: ' + t.name;
+                sel.appendChild(o);
+            });
+            var ok = document.createElement('button');
+            ok.type = 'button';
+            ok.className = 'unmatched-btn ok';
+            ok.textContent = '決定';
+            var cancel = document.createElement('button');
+            cancel.type = 'button';
+            cancel.className = 'unmatched-btn';
+            cancel.textContent = '×';
+            ok.addEventListener('click', function () { classifyTerm(item.term, kind, sel.value ? Number(sel.value) : null, item.display, chip); });
+            cancel.addEventListener('click', function () { picker.remove(); });
+            picker.appendChild(sel);
+            picker.appendChild(ok);
+            picker.appendChild(cancel);
+            chip.appendChild(picker);
+            sel.focus();
+        }
+        function classifyTerm(term, kind, tagId, name, chip) {
+            chip.classList.add('is-busy');
+            setTrendStatus('');
+            fetch('/api/terms/classify', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN, Accept: 'application/json' },
+                body: JSON.stringify({ term: term, kind: kind, tag_id: tagId, name: name }),
+            }).then(function (res) {
+                return res.json().then(function (data) { return { ok: res.ok, data: data }; });
+            }).then(function (r) {
+                if (!r.ok) {
+                    chip.classList.remove('is-busy');
+                    setTrendStatus(r.data.message || 'エラーが発生しました。');
+                    return;
+                }
+                loadTags().then(function () { loadBoard(); });
+            }).catch(function () {
+                chip.classList.remove('is-busy');
+                setTrendStatus('エラーが発生しました。');
+            });
+        }
+
+        function loadTrends() {
+            if (!trendsPanel) return;
+            fetch(apiUrl('/api/trends', { week: dateKey(mondayOf(boardStart)) }), { headers: { Accept: 'application/json' } })
+                .then(function (r) { return r.ok ? r.json() : null; })
+                .then(function (d) {
+                    if (!d) return;
+                    document.getElementById('trends-range').textContent =
+                        d.week_start.slice(5).replace('-', '/') + ' 〜 ' + d.week_end.slice(5).replace('-', '/');
+                    renderTrendList(document.getElementById('trend-games'), d.tags.filter(function (t) { return t.kind === 'game'; }));
+                    renderTrendList(document.getElementById('trend-categories'), d.tags.filter(function (t) { return t.kind === 'category'; }));
+                    renderUnmatched(d.unmatched || []);
+                })
+                .catch(function () {});
+        }
+
+        // Tag dialog for one stream card.
+        var tagModal = document.getElementById('tag-modal');
+        var tagModalStreamId = null;
+        function openTagModal(ev) {
+            if (!tagModal) return;
+            tagModalStreamId = ev.id;
+            document.getElementById('tag-modal-title').textContent = ev.title;
+            document.getElementById('tag-error').hidden = true;
+            document.getElementById('tag-new-name').value = '';
+            var sel = document.getElementById('tag-select');
+            sel.textContent = '';
+            var none = document.createElement('option');
+            none.value = '';
+            none.textContent = '（選ばない）';
+            sel.appendChild(none);
+            ['game', 'category'].forEach(function (kind) {
+                var group = document.createElement('optgroup');
+                group.label = kindLabel(kind);
+                tagList.filter(function (t) { return t.kind === kind; }).forEach(function (t) {
+                    var o = document.createElement('option');
+                    o.value = String(t.id);
+                    o.textContent = t.name;
+                    group.appendChild(o);
+                });
+                if (group.children.length) sel.appendChild(group);
+            });
+            tagModal.hidden = false;
+            sel.focus();
+        }
+        function closeTagModal() { if (tagModal) tagModal.hidden = true; }
+        if (tagModal) {
+            var tagPressedOnBackdrop = false;
+            tagModal.addEventListener('mousedown', function (e) { tagPressedOnBackdrop = (e.target === tagModal); });
+            tagModal.addEventListener('click', function (e) {
+                if (e.target === tagModal && tagPressedOnBackdrop) closeTagModal();
+                tagPressedOnBackdrop = false;
+            });
+            document.getElementById('tag-cancel').addEventListener('click', closeTagModal);
+            document.addEventListener('keydown', function (e) {
+                if (e.key === 'Escape' && !tagModal.hidden) closeTagModal();
+            });
+            document.getElementById('tag-submit').addEventListener('click', function () {
+                var btn = this;
+                var errEl = document.getElementById('tag-error');
+                errEl.hidden = true;
+                var tagId = document.getElementById('tag-select').value;
+                var name = document.getElementById('tag-new-name').value.trim();
+                var kindInput = document.querySelector('input[name="tag-new-kind"]:checked');
+                if (!tagId && !name) {
+                    errEl.textContent = 'タグを選ぶか、新しいタグ名を入力してください。';
+                    errEl.hidden = false;
+                    return;
+                }
+                btn.disabled = true;
+                fetch('/api/streams/' + tagModalStreamId + '/tags', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN, Accept: 'application/json' },
+                    body: JSON.stringify(tagId ? { tag_id: Number(tagId) } : { name: name, kind: kindInput ? kindInput.value : 'game' }),
+                }).then(function (res) {
+                    return res.json().then(function (data) { return { ok: res.ok, data: data }; });
+                }).then(function (r) {
+                    btn.disabled = false;
+                    if (!r.ok) {
+                        var firstError = r.data.errors ? Object.keys(r.data.errors).map(function (k) { return r.data.errors[k][0]; })[0] : null;
+                        errEl.textContent = firstError || r.data.message || 'エラーが発生しました。';
+                        errEl.hidden = false;
+                        return;
+                    }
+                    closeTagModal();
+                    loadTags().then(function () { loadBoard(); });
+                }).catch(function () {
+                    btn.disabled = false;
+                    errEl.textContent = 'エラーが発生しました。';
+                    errEl.hidden = false;
+                });
+            });
+        }
+        loadTags();
 
         var copyUrlBtn = document.getElementById('copy-url-btn');
         if (copyUrlBtn) {
