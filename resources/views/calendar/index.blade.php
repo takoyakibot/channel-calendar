@@ -892,6 +892,10 @@
                 // (reservations, live streams) must not be padded to an hour, or a
                 // 23:45 start would spill onto the next day.
                 defaultTimedEventDuration: '00:00:01',
+                // Every entry as a block with the channel colour behind it — otherwise
+                // only events with an end past midnight get a background and the rest
+                // show as dots, which reads as two different kinds of thing.
+                eventDisplay: 'block',
                 headerToolbar: { left: 'prev,next today', center: 'title', right: '' },
                 dayMaxEvents: false,
                 displayEventTime: false,
