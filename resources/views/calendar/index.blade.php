@@ -823,11 +823,11 @@
             calendar = new FullCalendar.Calendar(calendarEl, {
                 initialView: 'dayGridMonth',
                 locale: 'ja',
-                // Events without an end (shorts, uploads, upcoming streams) get a
-                // 1-hour display duration by default, so a 23:45 short spilled onto
-                // the next day. Only count an event on the next day when it runs
-                // past 06:00 there — a late-night stream belongs to the day it began.
-                nextDayThreshold: '06:00:00',
+                // Ended streams and videos carry their real end, so anything that truly
+                // runs past midnight shows on both days. Events whose end is unknown
+                // (reservations, live streams) must not be padded to an hour, or a
+                // 23:45 start would spill onto the next day.
+                defaultTimedEventDuration: '00:00:01',
                 headerToolbar: { left: 'prev,next today', center: 'title', right: '' },
                 dayMaxEvents: false,
                 displayEventTime: false,

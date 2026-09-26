@@ -317,8 +317,8 @@ class FetchStreamsTest extends TestCase
 
         $this->artisan('streams:fetch')->assertSuccessful();
 
-        $this->assertDatabaseHas('streams', ['video_id' => 's1', 'type' => 'short', 'status' => 'completed']);
-        $this->assertDatabaseHas('streams', ['video_id' => 'vid1', 'type' => 'stream', 'status' => 'upcoming']);
+        $this->assertDatabaseHas('streams', ['video_id' => 's1', 'type' => 'short', 'status' => 'completed', 'duration_seconds' => 30]);
+        $this->assertDatabaseHas('streams', ['video_id' => 'vid1', 'type' => 'stream', 'status' => 'upcoming', 'duration_seconds' => null]);
     }
 
     public function test_fetch_streams_skips_shorts_older_than_backfill_window(): void
