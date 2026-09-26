@@ -823,6 +823,11 @@
             calendar = new FullCalendar.Calendar(calendarEl, {
                 initialView: 'dayGridMonth',
                 locale: 'ja',
+                // Events without an end (shorts, uploads, upcoming streams) get a
+                // 1-hour display duration by default, so a 23:45 short spilled onto
+                // the next day. Only count an event on the next day when it runs
+                // past 06:00 there — a late-night stream belongs to the day it began.
+                nextDayThreshold: '06:00:00',
                 headerToolbar: { left: 'prev,next today', center: 'title', right: '' },
                 dayMaxEvents: false,
                 displayEventTime: false,
