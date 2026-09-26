@@ -7,6 +7,7 @@ use App\Models\IgnoredTerm;
 use App\Models\Stream;
 use App\Models\TagAlias;
 use App\Models\UnmatchedTerm;
+use Illuminate\Database\Eloquent\Builder;
 
 /**
  * Applies the tag dictionary to stream titles and keeps the list of bracket
@@ -96,11 +97,28 @@ class StreamTagger
      */
     public function rebuildUnmatched(): void
     {
-        $channels = Channel::all();
-        $found = [];   // term => [display, count]
+        $found = $this->unmatchedIn(Stream::query());
 
-        Stream::query()->select('id', 'title')->chunkById(200, function ($streams) use (&$found, $channels) {
-            foreach ($streams as $stream) {
+        UnmatchedTerm::query()->delete();
+        $now = now();
+        foreach ($found as $term => [$display, $count]) {
+            UnmatchedTerm::create(['term' => $term, 'display' => mb_substr($display, 0, 80), 'count' => $count, 'last_seen_at' => $now]);
+        }
+    }
+
+    /**
+     * Unclassified bracket terms in the titles the query yields, most frequent
+     * first — the trends panel uses this scoped to one group's channels.
+     *
+     * @return array<string, array{0: string, 1: int}> term => [display, count]
+     */
+    public function unmatchedIn(Builder $streams): array
+    {
+        $channels = Channel::all();
+        $found = [];
+
+        $streams->select('streams.id', 'streams.title')->chunkById(200, function ($chunk) use (&$found, $channels) {
+            foreach ($chunk as $stream) {
                 foreach ($this->bracketPieces($stream->title) as $display) {
                     $term = TermNormalizer::normalize($display);
                     if (mb_strlen($term) < 2 || in_array($term, $this->ignored, true)) {
@@ -114,11 +132,9 @@ class StreamTagger
             }
         });
 
-        UnmatchedTerm::query()->delete();
-        $now = now();
-        foreach ($found as $term => [$display, $count]) {
-            UnmatchedTerm::create(['term' => $term, 'display' => mb_substr($display, 0, 80), 'count' => $count, 'last_seen_at' => $now]);
-        }
+        uksort($found, fn ($a, $b) => [$found[$b][1], $a] <=> [$found[$a][1], $b]);
+
+        return $found;
     }
 
     /** @return array<int, string> */

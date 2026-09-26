@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Channel;
 use App\Models\Group;
 use App\Models\Stream;
-use App\Models\UnmatchedTerm;
+use App\Support\StreamTagger;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -21,14 +21,25 @@ class TrendController extends Controller
 {
     private const TZ = 'Asia/Tokyo';
 
+    public function __construct(private StreamTagger $tagger)
+    {
+    }
+
     public function show(Request $request): JsonResponse
     {
         $request->validate([
             'group' => 'nullable|string|max:255',
             'week' => 'nullable|date',
+            // Optional narrowing to the channels the page is currently showing
+            // (sub-group toggles, hidden channels); never widens past the group.
+            'channels' => 'nullable|string|max:2000',
         ]);
 
         $channelIds = $this->channelIds($request->input('group'));
+        if ($request->filled('channels')) {
+            $wanted = array_map('intval', array_filter(explode(',', $request->channels), 'is_numeric'));
+            $channelIds = array_values(array_intersect($channelIds, $wanted));
+        }
 
         $anchor = $request->filled('week') ? Carbon::parse($request->week, self::TZ) : now(self::TZ);
         $weekStart = $anchor->copy()->startOfWeek(Carbon::MONDAY)->startOfDay();
@@ -51,9 +62,12 @@ class TrendController extends Controller
             'week_start' => $weekStart->toDateString(),
             'week_end' => $weekEnd->copy()->subDay()->toDateString(),
             'tags' => $tags,
-            'unmatched' => UnmatchedTerm::orderByDesc('count')->orderBy('term')->limit(40)->get()
-                ->map(fn (UnmatchedTerm $t) => ['term' => $t->term, 'display' => $t->display, 'count' => $t->count])
-                ->values(),
+            // Only terms from these channels' titles: a group page must not ask
+            // people to classify another group's vocabulary.
+            'unmatched' => collect($this->tagger->unmatchedIn(Stream::whereIn('channel_id', $channelIds)))
+                ->map(fn (array $row, string $term) => ['term' => $term, 'display' => $row[0], 'count' => $row[1]])
+                ->values()
+                ->take(40),
         ]);
     }
 
