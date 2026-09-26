@@ -47,8 +47,9 @@ class TrendsApiTest extends TestCase
 
         $response = $this->getJson('/api/trends?group=aaaa')->assertOk();
 
-        $this->assertSame('2026-09-21', $response->json('week_start'));
-        $this->assertSame('2026-09-27', $response->json('week_end'));
+        $this->assertSame('week', $response->json('period'));
+        $this->assertSame('2026-09-21', $response->json('start'));
+        $this->assertSame('2026-09-27', $response->json('end'));
         $tags = collect($response->json('tags'))->keyBy('name');
         $this->assertSame(2, $tags['原神']['count']);
         $this->assertSame(1, $tags['原神']['prev_count']);
@@ -60,10 +61,36 @@ class TrendsApiTest extends TestCase
 
         // Whole site: the other group's stream counts too.
         $this->assertSame(3, collect($this->getJson('/api/trends')->json('tags'))->firstWhere('name', '原神')['count']);
-        // An explicit week.
+        // An explicit week (both spellings of the anchor date).
         $prev = collect($this->getJson('/api/trends?group=aaaa&week=2026-09-16')->json('tags'))->keyBy('name');
         $this->assertSame(1, $prev['原神']['count']);
         $this->assertSame(0, $prev['原神']['prev_count']);
+        $this->assertSame(1, collect($this->getJson('/api/trends?group=aaaa&period=week&date=2026-09-16')->json('tags'))->firstWhere('name', '原神')['count']);
+    }
+
+    public function test_month_period_aggregates_the_jst_month_and_compares_with_the_previous_month(): void
+    {
+        $channel = Channel::factory()->create(['name' => 'A1']);
+        Tag::createWithAlias('原神', 'game');
+        Stream::factory()->create(['channel_id' => $channel->id, 'title' => '【原神】8月末', 'scheduled_at' => '2026-08-31 14:59:00']); // Aug 31 23:59 JST
+        Stream::factory()->create(['channel_id' => $channel->id, 'title' => '【原神】9月頭', 'scheduled_at' => '2026-08-31 15:00:00']); // Sep 1 00:00 JST
+        Stream::factory()->create(['channel_id' => $channel->id, 'title' => '【原神】9月中', 'scheduled_at' => '2026-09-15 11:00:00']);
+        Stream::factory()->create(['channel_id' => $channel->id, 'title' => '【原神】9月末', 'scheduled_at' => '2026-09-30 14:59:00']); // Sep 30 23:59 JST
+        Stream::factory()->create(['channel_id' => $channel->id, 'title' => '【原神】10月', 'scheduled_at' => '2026-09-30 15:00:00']); // Oct 1 00:00 JST
+        (new StreamTagger())->retagAll();
+
+        $response = $this->getJson('/api/trends?period=month&date=2026-09-10')->assertOk();
+
+        $this->assertSame('month', $response->json('period'));
+        $this->assertSame('2026-09-01', $response->json('start'));
+        $this->assertSame('2026-09-30', $response->json('end'));
+        $genshin = collect($response->json('tags'))->firstWhere('name', '原神');
+        $this->assertSame(3, $genshin['count']);
+        $this->assertSame(1, $genshin['prev_count']);
+
+        // Defaults to the current month when no date is given.
+        $this->assertSame('2026-09-01', $this->getJson('/api/trends?period=month')->json('start'));
+        $this->getJson('/api/trends?period=year')->assertStatus(422);
     }
 
     public function test_lists_unmatched_terms_by_frequency_scoped_to_the_group(): void

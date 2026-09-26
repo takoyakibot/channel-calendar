@@ -11,6 +11,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Validation\Rule;
 
 /**
  * "What is the group up to this week": streams per game / category for a JST
@@ -29,6 +30,10 @@ class TrendController extends Controller
     {
         $request->validate([
             'group' => 'nullable|string|max:255',
+            // "week" (Mon–Sun, the board) or "month" (the month view); "date" is any
+            // day inside the period. "week" as a date is the older spelling of "date".
+            'period' => ['nullable', Rule::in(['week', 'month'])],
+            'date' => 'nullable|date',
             'week' => 'nullable|date',
             // Optional narrowing to the channels the page is currently showing
             // (sub-group toggles, hidden channels); never widens past the group.
@@ -41,13 +46,21 @@ class TrendController extends Controller
             $channelIds = array_values(array_intersect($channelIds, $wanted));
         }
 
-        $anchor = $request->filled('week') ? Carbon::parse($request->week, self::TZ) : now(self::TZ);
-        $weekStart = $anchor->copy()->startOfWeek(Carbon::MONDAY)->startOfDay();
-        $weekEnd = $weekStart->copy()->addWeek();
-        $prevStart = $weekStart->copy()->subWeek();
+        $period = $request->input('period', 'week');
+        $anchorInput = $request->input('date') ?? $request->input('week');
+        $anchor = $anchorInput ? Carbon::parse($anchorInput, self::TZ) : now(self::TZ);
+        if ($period === 'month') {
+            $start = $anchor->copy()->startOfMonth()->startOfDay();
+            $end = $start->copy()->addMonth();
+            $prevStart = $start->copy()->subMonth();
+        } else {
+            $start = $anchor->copy()->startOfWeek(Carbon::MONDAY)->startOfDay();
+            $end = $start->copy()->addWeek();
+            $prevStart = $start->copy()->subWeek();
+        }
 
-        $current = $this->aggregate($this->streamsBetween($channelIds, $weekStart, $weekEnd));
-        $previous = $this->aggregate($this->streamsBetween($channelIds, $prevStart, $weekStart));
+        $current = $this->aggregate($this->streamsBetween($channelIds, $start, $end));
+        $previous = $this->aggregate($this->streamsBetween($channelIds, $prevStart, $start));
 
         $tags = collect($current)->map(fn (array $row, int $tagId) => [
             'id' => $tagId,
@@ -59,8 +72,9 @@ class TrendController extends Controller
         ])->sortBy([['count', 'desc'], ['name', 'asc']])->values();
 
         return response()->json([
-            'week_start' => $weekStart->toDateString(),
-            'week_end' => $weekEnd->copy()->subDay()->toDateString(),
+            'period' => $period,
+            'start' => $start->toDateString(),
+            'end' => $end->copy()->subDay()->toDateString(),
             'tags' => $tags,
             // Only terms from these channels' titles: a group page must not ask
             // people to classify another group's vocabulary.
