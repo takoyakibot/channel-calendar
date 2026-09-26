@@ -6,6 +6,7 @@ use App\Models\Channel;
 use App\Models\Group;
 use App\Models\Stream;
 use App\Models\Tag;
+use App\Models\VideoPost;
 use App\Support\StreamTagger;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
@@ -66,6 +67,37 @@ class TrendsApiTest extends TestCase
         $this->assertSame(1, $prev['原神']['count']);
         $this->assertSame(0, $prev['原神']['prev_count']);
         $this->assertSame(1, collect($this->getJson('/api/trends?group=aaaa&period=week&date=2026-09-16')->json('tags'))->firstWhere('name', '原神')['count']);
+    }
+
+    public function test_member_activity_counts_streams_shorts_uploads_clips_and_guest_appearances(): void
+    {
+        $group = Group::factory()->create(['slug' => 'aaaa']);
+        $a1 = Channel::factory()->create(['name' => 'A1']);
+        $a2 = Channel::factory()->create(['name' => 'A2']);
+        $b1 = Channel::factory()->create(['name' => 'B1']);
+        $a1->groups()->attach($group);
+        $a2->groups()->attach($group);
+        Stream::factory()->create(['channel_id' => $a1->id, 'title' => 's1', 'scheduled_at' => '2026-09-22 11:00:00']);
+        Stream::factory()->create(['channel_id' => $a1->id, 'title' => 's2', 'scheduled_at' => '2026-09-23 11:00:00']);
+        Stream::factory()->create(['channel_id' => $a1->id, 'title' => 'short', 'type' => 'short', 'status' => 'completed', 'scheduled_at' => '2026-09-23 12:00:00']);
+        Stream::factory()->create(['channel_id' => $a1->id, 'title' => 'last week', 'scheduled_at' => '2026-09-15 11:00:00']);
+        Stream::factory()->create(['channel_id' => $a2->id, 'title' => 'upload', 'type' => 'upload', 'status' => 'completed', 'scheduled_at' => '2026-09-24 11:00:00']);
+        Stream::factory()->create(['channel_id' => $b1->id, 'title' => 'other group', 'scheduled_at' => '2026-09-24 11:00:00']);
+        $clip = VideoPost::create(['video_id' => 'clip0000001', 'kind' => 'clip', 'title' => 'clip', 'source_channel_id' => 'UC_x', 'source_channel_name' => 'x', 'published_at' => '2026-09-25 10:00:00']);
+        $clip->channels()->attach([$a1->id, $a2->id]);
+        $guest = VideoPost::create(['video_id' => 'guest000001', 'kind' => 'guest', 'title' => 'guest', 'source_channel_id' => 'UC_y', 'source_channel_name' => 'y', 'published_at' => '2026-09-26 10:00:00']);
+        $guest->channels()->attach($a2);
+        $old = VideoPost::create(['video_id' => 'oldclip0001', 'kind' => 'clip', 'title' => 'old', 'source_channel_id' => 'UC_x', 'source_channel_name' => 'x', 'published_at' => '2026-09-10 10:00:00']);
+        $old->channels()->attach($a1);
+
+        $members = $this->getJson('/api/trends?group=aaaa')->assertOk()->json('members');
+
+        $this->assertSame(['A1', 'A2'], array_column($members, 'name'));
+        $this->assertSame(['streams' => 2, 'prev_streams' => 1, 'shorts' => 1, 'uploads' => 0, 'clips' => 1, 'guests' => 0],
+            array_intersect_key($members[0], array_flip(['streams', 'prev_streams', 'shorts', 'uploads', 'clips', 'guests'])));
+        $this->assertSame(['streams' => 0, 'prev_streams' => 0, 'shorts' => 0, 'uploads' => 1, 'clips' => 1, 'guests' => 1],
+            array_intersect_key($members[1], array_flip(['streams', 'prev_streams', 'shorts', 'uploads', 'clips', 'guests'])));
+        $this->assertSame([], $this->getJson("/api/trends?group=aaaa&channels=0")->json('members'));
     }
 
     public function test_month_period_aggregates_the_jst_month_and_compares_with_the_previous_month(): void

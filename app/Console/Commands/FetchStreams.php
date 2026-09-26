@@ -283,7 +283,7 @@ class FetchStreams extends Command
             return;
         }
         $tagger = app(StreamTagger::class);
-        foreach (Stream::whereIn('video_id', $this->fetchedVideoIds)->get(['id', 'title']) as $stream) {
+        foreach (Stream::whereIn('video_id', $this->fetchedVideoIds)->get(['id', 'title', 'channel_id']) as $stream) {
             $tagger->tag($stream);
         }
         $tagger->rebuildUnmatched();

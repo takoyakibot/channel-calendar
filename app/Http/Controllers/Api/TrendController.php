@@ -11,6 +11,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 /**
@@ -76,6 +77,7 @@ class TrendController extends Controller
             'start' => $start->toDateString(),
             'end' => $end->copy()->subDay()->toDateString(),
             'tags' => $tags,
+            'members' => $this->memberActivity($channelIds, $start, $end, $prevStart),
             // Only terms from these channels' titles: a group page must not ask
             // people to classify another group's vocabulary.
             'unmatched' => collect($this->tagger->unmatchedIn(Stream::whereIn('channel_id', $channelIds)))
@@ -97,6 +99,67 @@ class TrendController extends Controller
         }
 
         return $query->pluck('id')->all();
+    }
+
+    /**
+     * How much each member put out in the period: streams, shorts, uploads on
+     * their own channel, and clips / guest appearances registered for them.
+     *
+     * @param  array<int, int>  $channelIds
+     * @return array<int, array<string, mixed>>
+     */
+    private function memberActivity(array $channelIds, Carbon $start, Carbon $end, Carbon $prevStart): array
+    {
+        if ($channelIds === []) {
+            return [];
+        }
+
+        $streamCounts = function (Carbon $from, Carbon $to) use ($channelIds): array {
+            $rows = Stream::whereIn('channel_id', $channelIds)
+                ->where('scheduled_at', '>=', $from->copy()->utc())
+                ->where('scheduled_at', '<', $to->copy()->utc())
+                ->selectRaw('channel_id, type, count(*) as n')
+                ->groupBy('channel_id', 'type')
+                ->get();
+            $out = [];
+            foreach ($rows as $r) {
+                $out[$r->channel_id][$r->type] = (int) $r->n;
+            }
+
+            return $out;
+        };
+        $current = $streamCounts($start, $end);
+        $previous = $streamCounts($prevStart, $start);
+
+        $posts = [];
+        $postRows = DB::table('channel_video_post')
+            ->join('video_posts', 'video_posts.id', '=', 'channel_video_post.video_post_id')
+            ->whereIn('channel_video_post.channel_id', $channelIds)
+            ->where('video_posts.published_at', '>=', $start->copy()->utc())
+            ->where('video_posts.published_at', '<', $end->copy()->utc())
+            ->selectRaw('channel_video_post.channel_id as channel_id, video_posts.kind as kind, count(*) as n')
+            ->groupBy('channel_video_post.channel_id', 'video_posts.kind')
+            ->get();
+        foreach ($postRows as $r) {
+            $posts[$r->channel_id][$r->kind] = (int) $r->n;
+        }
+
+        return Channel::whereIn('id', $channelIds)->orderBy('name')->get()
+            ->map(fn (Channel $c) => [
+                'id' => $c->id,
+                'name' => $c->name,
+                'thumbnail_url' => $c->thumbnail_url,
+                'color' => $c->color,
+                'streams' => $current[$c->id]['stream'] ?? 0,
+                'prev_streams' => $previous[$c->id]['stream'] ?? 0,
+                'shorts' => $current[$c->id]['short'] ?? 0,
+                'uploads' => $current[$c->id]['upload'] ?? 0,
+                'clips' => $posts[$c->id]['clip'] ?? 0,
+                'guests' => $posts[$c->id]['guest'] ?? 0,
+            ])
+            ->sortBy([['streams', 'desc'], ['shorts', 'desc'], ['name', 'asc']])
+            ->values()
+            ->all();
     }
 
     /** @param  array<int, int>  $channelIds */
