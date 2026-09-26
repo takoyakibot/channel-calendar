@@ -21,6 +21,9 @@
                     <x-nav-link :href="url('/admin/users')" :active="request()->is('admin/users*')">
                         {{ __('ユーザー') }}
                     </x-nav-link>
+                    <x-nav-link :href="url('/admin/video-posts')" :active="request()->is('admin/video-posts*')">
+                        {{ __('切り抜き・出演') }}
+                    </x-nav-link>
                     <x-nav-link :href="url('/admin/activity-logs')" :active="request()->is('admin/activity-logs*')">
                         {{ __('操作ログ') }}
                     </x-nav-link>
@@ -90,6 +93,9 @@
             </x-responsive-nav-link>
             <x-responsive-nav-link :href="url('/admin/users')" :active="request()->is('admin/users*')">
                 {{ __('ユーザー') }}
+            </x-responsive-nav-link>
+            <x-responsive-nav-link :href="url('/admin/video-posts')" :active="request()->is('admin/video-posts*')">
+                {{ __('切り抜き・出演') }}
             </x-responsive-nav-link>
             <x-responsive-nav-link :href="url('/admin/activity-logs')" :active="request()->is('admin/activity-logs*')">
                 {{ __('操作ログ') }}
