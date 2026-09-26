@@ -341,7 +341,7 @@
             <div class="filter-head">
                 <button type="button" id="trends-toggle" class="filter-toggle" aria-expanded="true" aria-controls="trends-panel">
                     <span class="arrow" id="trends-arrow">▼</span>
-                    今週のトレンド
+                    集計結果
                     <span class="subgroup-hint" id="trends-range"></span>
                 </button>
             </div>
@@ -1019,6 +1019,8 @@
                 // show as dots, which reads as two different kinds of thing.
                 eventDisplay: 'block',
                 headerToolbar: { left: 'prev,next today', center: 'title', right: '' },
+                // Month navigation drives the summary panel while the month view is up.
+                datesSet: function () { loadTrends(); },
                 dayMaxEvents: false,
                 displayEventTime: false,
                 events: function (info, successCallback, failureCallback) {
@@ -1110,6 +1112,7 @@
                 calendar.updateSize();
             }
             try { localStorage.setItem('cc.view', isBoard ? 'board' : 'month'); } catch (e) {}
+            loadTrends();  // week of the board, or month of the calendar
         }
         toggleButtons.forEach(function (b) {
             b.addEventListener('click', function () { setView(b.dataset.view); syncPrefsToServer(); });
@@ -1561,7 +1564,7 @@
             if (!rows.length) {
                 var li0 = document.createElement('li');
                 li0.className = 'trend-empty';
-                li0.textContent = 'この週はまだありません';
+                li0.textContent = 'この期間はまだありません';
                 el.appendChild(li0);
                 return;
             }
@@ -1579,7 +1582,7 @@
                     var d = document.createElement('span');
                     d.className = 'trend-delta ' + (delta > 0 ? 'up' : 'down');
                     d.textContent = (delta > 0 ? '▲' : '▼') + Math.abs(delta);
-                    d.title = '先週 ' + row.prev_count + '本';
+                    d.title = (trendsPeriod === 'month' ? '先月 ' : '先週 ') + row.prev_count + '本';
                     count.appendChild(d);
                 }
                 var av = document.createElement('span');
@@ -1692,9 +1695,15 @@
             });
         }
 
+        var trendsPeriod = 'week';
+        function mdLabel(iso) { var p = iso.split('-'); return Number(p[1]) + '/' + Number(p[2]); }
         function loadTrends() {
             if (!trendsPanel) return;
-            var params = { week: dateKey(mondayOf(boardStart)) };
+            // The board sums up its Monday-to-Sunday week; the month view its month.
+            var monthMode = monthView && !monthView.hidden && calendar;
+            var params = monthMode
+                ? { period: 'month', date: dateKey(calendar.getDate()) }
+                : { period: 'week', date: dateKey(mondayOf(boardStart)) };
             // Follow the board's filters: sub-group toggles and hidden channels
             // narrow the trends too (omitted when everything is on show).
             if (channelList.length) {
@@ -1707,8 +1716,10 @@
                 .then(function (r) { return r.ok ? r.json() : null; })
                 .then(function (d) {
                     if (!d) return;
-                    document.getElementById('trends-range').textContent =
-                        d.week_start.slice(5).replace('-', '/') + ' 〜 ' + d.week_end.slice(5).replace('-', '/');
+                    trendsPeriod = d.period;
+                    document.getElementById('trends-range').textContent = d.period === 'month'
+                        ? d.start.slice(0, 4) + '年' + Number(d.start.slice(5, 7)) + '月'
+                        : mdLabel(d.start) + ' 〜 ' + mdLabel(d.end);
                     renderTrendList(document.getElementById('trend-games'), d.tags.filter(function (t) { return t.kind === 'game'; }));
                     renderTrendList(document.getElementById('trend-categories'), d.tags.filter(function (t) { return t.kind === 'category'; }));
                     renderUnmatched(d.unmatched || []);
