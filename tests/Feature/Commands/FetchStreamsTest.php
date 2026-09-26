@@ -5,6 +5,7 @@ namespace Tests\Feature\Commands;
 use App\Models\Channel;
 use App\Models\Setting;
 use App\Models\Stream;
+use App\Models\Tag;
 use App\Services\YouTubeService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Log;
@@ -231,6 +232,27 @@ class FetchStreamsTest extends TestCase
         $this->app->instance(YouTubeService::class, $mockService);
 
         $this->artisan('streams:fetch', ['--watched' => true])->assertSuccessful();
+    }
+
+    public function test_fetch_streams_tags_new_streams_from_the_dictionary_and_collects_unmatched_terms(): void
+    {
+        Channel::factory()->create(['channel_id' => 'UC_test']);
+        Tag::createWithAlias('Minecraft', 'game');
+
+        $mockService = $this->mockYouTube();
+        $mockService->shouldReceive('listRecentUploadIds')->with('UC_test')->andReturn(['v1', 'v2']);
+        $mockService->shouldReceive('getVideoDetails')->andReturn([
+            $this->detail('v1', ['title' => '【Minecraft】建築する']),
+            $this->detail('v2', ['title' => '【Woodo/初見歓迎】遊ぶ']),
+        ]);
+        $this->app->instance(YouTubeService::class, $mockService);
+
+        $this->artisan('streams:fetch')->assertSuccessful();
+
+        $this->assertSame(['Minecraft'], Stream::where('video_id', 'v1')->first()->tags->pluck('name')->all());
+        $this->assertDatabaseHas('unmatched_terms', ['term' => 'woodo', 'count' => 1]);
+        $this->assertDatabaseHas('unmatched_terms', ['term' => '初見歓迎', 'count' => 1]);
+        $this->assertDatabaseMissing('unmatched_terms', ['term' => 'minecraft']);
     }
 
     public function test_fetch_streams_imports_members_only_streams_and_flags_them(): void

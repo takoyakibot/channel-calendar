@@ -5,6 +5,7 @@ use App\Http\Controllers\Admin\ChannelController as AdminChannelController;
 use App\Http\Controllers\Admin\FetchController as AdminFetchController;
 use App\Http\Controllers\Admin\GroupController as AdminGroupController;
 use App\Http\Controllers\Admin\SettingController as AdminSettingController;
+use App\Http\Controllers\Admin\TagController as AdminTagController;
 use App\Http\Controllers\Admin\UserController as AdminUserController;
 use App\Http\Controllers\Admin\VideoPostController as AdminVideoPostController;
 use App\Http\Controllers\CalendarController;
@@ -38,6 +39,14 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->group(function () {
     Route::get('activity-logs', [AdminActivityLogController::class, 'index']);
     Route::get('video-posts', [AdminVideoPostController::class, 'index']);
     Route::delete('video-posts/{videoPost}', [AdminVideoPostController::class, 'destroy']);
+    Route::get('tags', [AdminTagController::class, 'index']);
+    Route::put('tags/{tag}', [AdminTagController::class, 'update']);
+    Route::delete('tags/{tag}', [AdminTagController::class, 'destroy']);
+    Route::post('tags/{tag}/aliases', [AdminTagController::class, 'addAlias']);
+    Route::post('tags/{tag}/merge', [AdminTagController::class, 'merge']);
+    Route::delete('tag-aliases/{tagAlias}', [AdminTagController::class, 'destroyAlias']);
+    Route::delete('ignored-terms/{ignoredTerm}', [AdminTagController::class, 'unignore']);
+    Route::post('terms/classify', [AdminTagController::class, 'classify']);
 });
 
 require __DIR__.'/auth.php';

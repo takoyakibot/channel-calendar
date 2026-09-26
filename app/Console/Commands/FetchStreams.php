@@ -7,6 +7,7 @@ use App\Models\ManualSchedule;
 use App\Models\Setting;
 use App\Models\Stream;
 use App\Services\YouTubeService;
+use App\Support\StreamTagger;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
@@ -112,6 +113,7 @@ class FetchStreams extends Command
         if (! $watched) {
             $this->markOldStreamsCompleted();
             $this->removePastManualSchedules();
+            $this->tagFetchedStreams();
             Setting::set(self::LAST_FETCHED_AT_KEY, now()->toIso8601String());
         }
 
@@ -272,6 +274,19 @@ class FetchStreams extends Command
         $this->fetchedVideoIds[] = $detail['video_id'];
 
         return true;
+    }
+
+    /** Apply the game/category dictionary to what this run touched, and refresh the unmatched-term list. */
+    private function tagFetchedStreams(): void
+    {
+        if (empty($this->fetchedVideoIds)) {
+            return;
+        }
+        $tagger = app(StreamTagger::class);
+        foreach (Stream::whereIn('video_id', $this->fetchedVideoIds)->get(['id', 'title']) as $stream) {
+            $tagger->tag($stream);
+        }
+        $tagger->rebuildUnmatched();
     }
 
     /**

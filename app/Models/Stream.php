@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class Stream extends Model
 {
@@ -38,5 +39,11 @@ class Stream extends Model
     public function channel(): BelongsTo
     {
         return $this->belongsTo(Channel::class);
+    }
+
+    /** Games / categories, from the dictionary (pivot source "auto") or added by hand ("manual"). */
+    public function tags(): BelongsToMany
+    {
+        return $this->belongsToMany(Tag::class, 'stream_tag')->withPivot('source');
     }
 }

@@ -43,7 +43,7 @@ class StreamController extends Controller
         $start = $start->utc();
         $end = $end->utc();
 
-        $streams = Stream::with('channel')
+        $streams = Stream::with('channel', 'tags')
             ->whereHas('channel', function ($q) use ($groupIds) {
                 $q->where('is_active', true);
                 if ($groupIds !== null) {
@@ -74,6 +74,7 @@ class StreamController extends Controller
                 'status' => $stream->status,
                 'type' => $stream->type ?? 'stream',
                 'is_members_only' => $stream->is_members_only,
+                'tags' => $stream->tags->map(fn ($t) => $t->toArrayForApi())->values(),
                 'created_at' => $stream->created_at?->toIso8601String(),
             ],
         ]);
