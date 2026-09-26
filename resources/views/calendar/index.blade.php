@@ -76,6 +76,9 @@
         .channel-filter { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem; }
         .channel-filter label { display: flex; align-items: center; gap: 0.35rem; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.875rem; cursor: pointer; border: 1px solid var(--cc-border); background: var(--cc-surface); }
         .channel-filter label:hover { background-color: var(--cc-surface-alt); }
+        .channel-filter .filter-bulk { flex-basis: 100%; display: flex; gap: 0.375rem; }
+        .channel-filter .filter-bulk button { padding: 0.2rem 0.6rem; font-size: 0.75rem; border: 1px solid var(--cc-border-light); border-radius: 9999px; background: var(--cc-surface); color: var(--cc-text-secondary); cursor: pointer; }
+        .channel-filter .filter-bulk button:hover { background: var(--cc-surface-alt); color: var(--cc-text); }
         .channel-filter img { width: 1.25rem; height: 1.25rem; border-radius: 50%; object-fit: cover; }
         .channel-filter .x-link { margin-left: 0.25rem; font-size: 0.75rem; color: var(--cc-text-tertiary); text-decoration: none; padding: 0 0.2rem; border-radius: 0.25rem; }
         .channel-filter .x-link:hover { color: var(--cc-text); background: var(--cc-border); }
@@ -1179,6 +1182,28 @@
         fetch(apiUrl('/api/channels', {}), { headers: { Accept: 'application/json' } })
             .then(function (res) { return res.json(); })
             .then(function (channels) {
+                // One click to show or hide every channel, then fine-tune below.
+                var bulk = document.createElement('div');
+                bulk.className = 'filter-bulk';
+                [['all', 'すべて表示'], ['none', 'すべて非表示']].forEach(function (pair) {
+                    var b = document.createElement('button');
+                    b.type = 'button';
+                    b.textContent = pair[1];
+                    b.addEventListener('click', function () {
+                        channels.forEach(function (c) {
+                            if (pair[0] === 'all') { delete hiddenChannels[c.id]; } else { hiddenChannels[c.id] = true; }
+                        });
+                        filterEl.querySelectorAll('input[type=checkbox]').forEach(function (cb) { cb.checked = pair[0] === 'all'; });
+                        saveHiddenChannels();
+                        syncPrefsToServer();
+                        renderBoard();
+                        loadTrends();
+                        if (calendar) { calendar.refetchEvents(); }
+                    });
+                    bulk.appendChild(b);
+                });
+                filterEl.appendChild(bulk);
+
                 channels.forEach(function (ch) {
                     var label = document.createElement('label');
                     label.dataset.channelId = ch.id;
