@@ -183,6 +183,30 @@ class ChannelCrudTest extends TestCase
         ])->assertSessionHasErrors('short_name');
     }
 
+    public function test_admin_can_set_twitch_login_from_a_channel_url_and_changing_it_resets_the_cached_user_id(): void
+    {
+        $channel = Channel::factory()->create(['twitch_login' => 'oldlogin', 'twitch_user_id' => '1']);
+
+        $this->actingAs($this->admin)->put("/admin/channels/{$channel->id}", [
+            'color' => '#00FF00', 'is_active' => true, 'twitch_login' => 'https://www.twitch.tv/AmawaUru?tt=1',
+        ])->assertRedirect('/admin/channels');
+        $this->assertDatabaseHas('channels', ['id' => $channel->id, 'twitch_login' => 'amawauru', 'twitch_user_id' => null]);
+
+        $channel->forceFill(['twitch_user_id' => '42'])->save();
+        $this->actingAs($this->admin)->put("/admin/channels/{$channel->id}", [
+            'color' => '#00FF00', 'is_active' => true, 'twitch_login' => 'amawauru',
+        ])->assertRedirect('/admin/channels');
+        $this->assertDatabaseHas('channels', ['id' => $channel->id, 'twitch_login' => 'amawauru', 'twitch_user_id' => '42']);
+
+        $this->actingAs($this->admin)->put("/admin/channels/{$channel->id}", [
+            'color' => '#00FF00', 'is_active' => true, 'twitch_login' => 'https://youtube.com/@x',
+        ])->assertSessionHasErrors('twitch_login');
+        $this->actingAs($this->admin)->put("/admin/channels/{$channel->id}", [
+            'color' => '#00FF00', 'is_active' => true, 'twitch_login' => '',
+        ])->assertRedirect('/admin/channels');
+        $this->assertDatabaseHas('channels', ['id' => $channel->id, 'twitch_login' => null, 'twitch_user_id' => null]);
+    }
+
     public function test_admin_can_clear_x_handle(): void
     {
         $channel = Channel::factory()->create(['x_handle' => 'old_user']);

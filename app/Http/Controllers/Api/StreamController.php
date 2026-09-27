@@ -62,9 +62,7 @@ class StreamController extends Controller
             'end' => ($stream->actual_end_at
                 ?? ($stream->duration_seconds ? $stream->scheduled_at->copy()->addSeconds($stream->duration_seconds) : null)
             )?->toIso8601String(),
-            'url' => ($stream->type ?? 'stream') === 'short'
-                ? "https://www.youtube.com/shorts/{$stream->video_id}"
-                : "https://www.youtube.com/watch?v={$stream->video_id}",
+            'url' => $stream->url(),
             'color' => $stream->channel->color,
             'extendedProps' => [
                 'channel_id' => $stream->channel_id,
@@ -73,6 +71,7 @@ class StreamController extends Controller
                 'thumbnail_url' => $stream->thumbnail_url,
                 'status' => $stream->status,
                 'type' => $stream->type ?? 'stream',
+                'platform' => $stream->platform ?? 'youtube',
                 'is_members_only' => $stream->is_members_only,
                 'tags' => $stream->tags->map(fn ($t) => $t->toArrayForApi())->values(),
                 'created_at' => $stream->created_at?->toIso8601String(),

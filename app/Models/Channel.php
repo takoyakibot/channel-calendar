@@ -17,6 +17,8 @@ class Channel extends Model
         'handle',
         'x_handle',
         'x_search_keywords',
+        'twitch_login',
+        'twitch_user_id',
         'name',
         'short_name',
         'thumbnail_url',

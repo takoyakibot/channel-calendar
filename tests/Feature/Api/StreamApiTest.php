@@ -172,6 +172,18 @@ class StreamApiTest extends TestCase
         $this->assertNull($byId['reserved']['end']);
     }
 
+    public function test_twitch_streams_link_to_twitch_and_carry_the_platform(): void
+    {
+        $channel = Channel::factory()->create(['twitch_login' => 'amawauru']);
+        Stream::factory()->create(['channel_id' => $channel->id, 'video_id' => 'tw:9001', 'platform' => 'twitch', 'status' => 'completed', 'scheduled_at' => '2026-09-15 12:00:00', 'url' => 'https://www.twitch.tv/videos/555']);
+        Stream::factory()->create(['channel_id' => $channel->id, 'video_id' => 'yt1', 'scheduled_at' => '2026-09-16 12:00:00']);
+
+        $events = collect($this->getJson('/api/streams?start=2026-09-01&end=2026-09-30')->assertOk()->json())->keyBy('url');
+
+        $this->assertSame('twitch', $events['https://www.twitch.tv/videos/555']['extendedProps']['platform']);
+        $this->assertSame('youtube', $events['https://www.youtube.com/watch?v=yt1']['extendedProps']['platform']);
+    }
+
     public function test_streams_endpoint_accepts_iso8601_start_with_offset(): void
     {
         $channel = Channel::factory()->create();

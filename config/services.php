@@ -61,6 +61,12 @@ return [
         ],
     ],
 
+    // Twitch Helix with an app access token (client credentials): public data only.
+    'twitch' => [
+        'client_id' => env('TWITCH_CLIENT_ID'),
+        'client_secret' => env('TWITCH_CLIENT_SECRET'),
+    ],
+
     'youtube' => [
         'api_key' => env('YOUTUBE_API_KEY'),
         // How many days of already-ended streams to import so a freshly added
