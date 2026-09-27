@@ -80,4 +80,54 @@ class StreamController extends Controller
 
         return response()->json($events);
     }
+
+    /**
+     * Title search within the group, newest first — used to see which streams a
+     * bracket term came from before classifying it, and as a plain search box.
+     */
+    public function search(Request $request): JsonResponse
+    {
+        $request->validate([
+            'q' => 'required|string|min:1|max:100',
+            'group' => 'nullable|string|max:255',
+        ]);
+
+        $groupIds = null;
+        if ($request->filled('group')) {
+            $group = Group::resolvePath($request->group);
+            abort_unless($group, 404);
+            $groupIds = $group->subtreeIds();
+        }
+
+        $needle = addcslashes(trim($request->q), '%_\\');
+
+        $streams = Stream::with('channel', 'tags')
+            ->whereHas('channel', function ($q) use ($groupIds) {
+                $q->where('is_active', true);
+                if ($groupIds !== null) {
+                    $q->whereHas('groups', fn ($g) => $g->whereIn('groups.id', $groupIds));
+                }
+            })
+            ->where('title', 'like', "%{$needle}%")
+            ->orderByDesc('scheduled_at')
+            ->limit(50)
+            ->get();
+
+        return response()->json($streams->map(fn (Stream $s) => [
+            'id' => $s->id,
+            'title' => $s->title,
+            'start' => $s->scheduled_at->toIso8601String(),
+            'url' => $s->url(),
+            'status' => $s->status,
+            'type' => $s->type ?? 'stream',
+            'platform' => $s->platform ?? 'youtube',
+            'channel' => [
+                'id' => $s->channel->id,
+                'name' => $s->channel->name,
+                'thumbnail_url' => $s->channel->thumbnail_url,
+                'color' => $s->channel->color,
+            ],
+            'tags' => $s->tags->map(fn ($t) => $t->toArrayForApi())->values(),
+        ])->values());
+    }
 }

@@ -207,6 +207,21 @@
         .classify-picker { display: inline-flex; gap: 0.25rem; align-items: center; width: 100%; margin-top: 0.25rem; }
         .classify-picker select { font-size: 0.75rem; padding: 0.15rem 0.3rem; border: 1px solid var(--cc-border-light); border-radius: 0.25rem; background: var(--cc-input-bg); color: var(--cc-text); max-width: 14rem; }
         .trend-status { font-size: 0.75rem; color: #dc2626; margin-top: 0.25rem; }
+        .stream-search { padding: 0.3rem 0.6rem; font-size: 0.8125rem; border: 1px solid var(--cc-border-light); border-radius: 9999px; background: var(--cc-input-bg); color: var(--cc-text); width: 14rem; max-width: 100%; }
+        .modal.wide { max-width: 40rem; }
+        .search-classify { display: flex; flex-wrap: wrap; align-items: center; gap: 0.375rem; margin: -0.25rem 0 0.75rem; font-size: 0.8125rem; color: var(--cc-text-secondary); }
+        .search-results { list-style: none; margin: 0; padding: 0; max-height: 60vh; overflow-y: auto; }
+        .search-results li { display: flex; gap: 0.5rem; align-items: flex-start; padding: 0.4rem 0.25rem; border-top: 1px solid var(--cc-border); font-size: 0.8125rem; }
+        .search-results li:first-child { border-top: none; }
+        .search-results .when { flex: none; width: 5.5rem; color: var(--cc-text-tertiary); font-variant-numeric: tabular-nums; }
+        .search-results .who { flex: none; width: 1.25rem; }
+        .search-results .who img, .search-results .who .fc-ev-dot { width: 1.25rem; height: 1.25rem; border-radius: 50%; object-fit: cover; }
+        .search-results .what { min-width: 0; flex: 1; }
+        .search-results .what a { color: var(--cc-text); text-decoration: none; overflow-wrap: anywhere; }
+        .search-results .what a:hover { text-decoration: underline; }
+        .search-results .meta { display: flex; flex-wrap: wrap; gap: 0.2rem; margin-top: 0.15rem; align-items: center; }
+        .search-results .meta .ch { font-size: 0.6875rem; color: var(--cc-text-tertiary); margin-right: 0.25rem; }
+        .search-empty { font-size: 0.8125rem; color: var(--cc-text-muted); padding: 0.5rem 0; }
         .card-tags { display: flex; flex-wrap: wrap; gap: 0.2rem; margin-top: 0.3rem; }
         .tag-chip { display: inline-block; padding: 0 0.4rem; border-radius: 9999px; font-size: 0.625rem; font-weight: 600; line-height: 1.5; }
         .tag-chip.game { background: #dbeafe; color: #1e40af; }
@@ -360,6 +375,7 @@
                     集計結果
                     <span class="subgroup-hint" id="trends-range"></span>
                 </button>
+                <input type="search" id="stream-search" class="stream-search" placeholder="🔍 配信タイトルを検索" aria-label="配信タイトルを検索">
             </div>
             <div id="trends-panel" class="trends">
                 <div class="trend-cols">
@@ -533,6 +549,18 @@
             <div class="modal-actions">
                 <button type="button" class="btn-cancel" id="vp-cancel">キャンセル</button>
                 <button type="button" class="btn-submit" id="vp-submit" disabled>登録</button>
+            </div>
+        </div>
+    </div>
+
+    {{-- Title search results; opened from the search box or from an unclassified term's 🔍. --}}
+    <div id="search-modal" class="modal-overlay" hidden>
+        <div class="modal wide">
+            <h3 id="search-title">配信を検索</h3>
+            <div id="search-classify" class="search-classify" hidden></div>
+            <ul id="search-results" class="search-results"></ul>
+            <div class="modal-actions">
+                <button type="button" class="btn-cancel" id="search-close">閉じる</button>
             </div>
         </div>
     </div>
@@ -1025,6 +1053,8 @@
             if (videoModalEl && !videoModalEl.hidden) return;
             var tagModalEl = document.getElementById('tag-modal');
             if (tagModalEl && !tagModalEl.hidden) return;
+            var searchModalEl = document.getElementById('search-modal');
+            if (searchModalEl && !searchModalEl.hidden) return;
             if (!force && Date.now() - lastLoadedAt < AUTO_REFRESH_MS) return;
             flashBaseline = {};
             boardEvents.forEach(function (ev) { flashBaseline[String(ev.id)] = true; });
@@ -1789,6 +1819,13 @@
                 chip.appendChild(cnt);
                 var actions = document.createElement('span');
                 actions.className = 'unmatched-actions';
+                var look = document.createElement('button');
+                look.type = 'button';
+                look.className = 'unmatched-btn';
+                look.textContent = '🔍';
+                look.title = 'この語を含む配信を見る';
+                look.addEventListener('click', function () { openSearch(item.display, item); });
+                actions.appendChild(look);
                 [['game', '🎮 ゲーム'], ['category', '🏷 カテゴリ'], ['ignore', '無視']].forEach(function (pair) {
                     var b = document.createElement('button');
                     b.type = 'button';
@@ -1852,6 +1889,7 @@
                     setTrendStatus(r.data.message || 'エラーが発生しました。');
                     return;
                 }
+                closeSearch();   // when classified from the search results
                 loadTags().then(function () { loadBoard(); });
             }).catch(function () {
                 chip.classList.remove('is-busy');
@@ -1890,6 +1928,121 @@
                     renderUnmatched(d.unmatched || []);
                 })
                 .catch(function () {});
+        }
+
+        // Title search: from the box in the summary head, or from a term's 🔍 (then
+        // the classify buttons sit above the list so the call can be made right there).
+        var searchModal = document.getElementById('search-modal');
+        var searchInput = document.getElementById('stream-search');
+        function closeSearch() { if (searchModal) searchModal.hidden = true; }
+        function openSearch(q, term) {
+            if (!searchModal || !q) return;
+            var title = document.getElementById('search-title');
+            var classify = document.getElementById('search-classify');
+            var list = document.getElementById('search-results');
+            title.textContent = '「' + q + '」を含む配信';
+            list.textContent = '';
+            classify.textContent = '';
+            classify.hidden = !term;
+            if (term) {
+                var lead = document.createElement('span');
+                lead.textContent = 'この語は…';
+                classify.appendChild(lead);
+                var host = document.createElement('div');
+                host.className = 'unmatched-chip';
+                host.style.border = 'none';
+                host.style.padding = '0';
+                [['game', '🎮 ゲーム'], ['category', '🏷 カテゴリ'], ['ignore', '無視']].forEach(function (pair) {
+                    var b = document.createElement('button');
+                    b.type = 'button';
+                    b.className = 'unmatched-btn ' + pair[0];
+                    b.textContent = pair[1];
+                    b.addEventListener('click', function () {
+                        if (pair[0] === 'ignore') { classifyTerm(term.term, 'ignore', null, null, host); closeSearch(); return; }
+                        showClassifyPicker(host, term, pair[0]);
+                    });
+                    host.appendChild(b);
+                });
+                classify.appendChild(host);
+            }
+            var loading = document.createElement('li');
+            loading.className = 'search-empty';
+            loading.textContent = '検索中…';
+            list.appendChild(loading);
+            searchModal.hidden = false;
+            fetch(apiUrl('/api/streams/search', { q: q }), { headers: { Accept: 'application/json' } })
+                .then(function (r) { return r.ok ? r.json() : []; })
+                .then(function (rows) {
+                    list.textContent = '';
+                    title.textContent = '「' + q + '」を含む配信（' + rows.length + '件' + (rows.length >= 50 ? '・新しい順に50件まで' : '') + '）';
+                    if (!rows.length) {
+                        var none = document.createElement('li');
+                        none.className = 'search-empty';
+                        none.textContent = '見つかりませんでした。';
+                        list.appendChild(none);
+                        return;
+                    }
+                    rows.forEach(function (s) {
+                        var li = document.createElement('li');
+                        var when = document.createElement('span');
+                        when.className = 'when';
+                        var d = new Date(s.start);
+                        when.textContent = (d.getMonth() + 1) + '/' + d.getDate() + ' ' + fmtTime(d);
+                        var who = document.createElement('span');
+                        who.className = 'who';
+                        who.title = s.channel.name;
+                        who.appendChild(avatarNode({ channel_thumbnail_url: s.channel.thumbnail_url, channel_name: s.channel.name }, s.channel.color, 'fc-ev-img'));
+                        var what = document.createElement('div');
+                        what.className = 'what';
+                        var a = document.createElement('a');
+                        a.href = s.url;
+                        a.target = '_blank';
+                        a.rel = 'noopener noreferrer';
+                        a.textContent = s.title;
+                        what.appendChild(a);
+                        var meta = document.createElement('div');
+                        meta.className = 'meta';
+                        var ch = document.createElement('span');
+                        ch.className = 'ch';
+                        ch.textContent = s.channel.name + (s.platform === 'twitch' ? '（Twitch）' : '') + (s.type === 'short' ? '・Short' : s.type === 'upload' ? '・動画' : '');
+                        meta.appendChild(ch);
+                        (s.tags || []).forEach(function (t) {
+                            var chip = document.createElement('span');
+                            chip.className = 'tag-chip ' + t.kind;
+                            chip.textContent = t.name;
+                            meta.appendChild(chip);
+                        });
+                        what.appendChild(meta);
+                        li.appendChild(when);
+                        li.appendChild(who);
+                        li.appendChild(what);
+                        list.appendChild(li);
+                    });
+                })
+                .catch(function () {
+                    list.textContent = '';
+                    var err = document.createElement('li');
+                    err.className = 'search-empty';
+                    err.textContent = '検索できませんでした。';
+                    list.appendChild(err);
+                });
+        }
+        if (searchModal) {
+            var searchPressedOnBackdrop = false;
+            searchModal.addEventListener('mousedown', function (e) { searchPressedOnBackdrop = (e.target === searchModal); });
+            searchModal.addEventListener('click', function (e) {
+                if (e.target === searchModal && searchPressedOnBackdrop) closeSearch();
+                searchPressedOnBackdrop = false;
+            });
+            document.getElementById('search-close').addEventListener('click', closeSearch);
+            document.addEventListener('keydown', function (e) {
+                if (e.key === 'Escape' && !searchModal.hidden) closeSearch();
+            });
+        }
+        if (searchInput) {
+            searchInput.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter') { e.preventDefault(); openSearch(searchInput.value.trim(), null); }
+            });
         }
 
         // Tag dialog for one stream card.

@@ -29,6 +29,7 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
 });
 
 Route::get('/streams', [StreamController::class, 'index']);
+Route::get('/streams/search', [StreamController::class, 'search']);
 Route::get('/channels', [ChannelController::class, 'index']);
 Route::get('/manual-schedules', [ManualScheduleController::class, 'index']);
 Route::get('/video-posts', [VideoPostController::class, 'index']);
