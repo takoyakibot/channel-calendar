@@ -72,6 +72,9 @@ class ChannelController extends Controller
             'color' => $request->color,
             'is_active' => $request->boolean('is_active'),
             'short_name' => trim((string) $request->input('short_name')) ?: null,
+            'twitch_login' => $twitchLogin = $request->normalizedTwitchLogin(),
+            // The cached Twitch user id belongs to the login; a new login is resolved on the next fetch.
+            'twitch_user_id' => $twitchLogin === $channel->twitch_login ? $channel->twitch_user_id : null,
             'x_handle' => $request->normalizedXHandle(),
             'x_search_keywords' => XSearchKeywords::normalize($request->input('x_search_keywords')),
         ]);

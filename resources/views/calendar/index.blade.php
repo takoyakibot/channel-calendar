@@ -192,6 +192,7 @@
         .trend-table th.num, .trend-table td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
         .trend-table td.zero { color: var(--cc-text-muted); }
         .trend-table tbody tr:nth-child(odd) { background: var(--cc-surface-alt); }
+        .trend-table tr.total td { font-weight: 700; }
         .trend-table .member { display: flex; align-items: center; gap: 0.375rem; min-width: 0; }
         .trend-table .member span.name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .trend-table .member img, .trend-table .member .fc-ev-dot { width: 1.25rem; height: 1.25rem; border-radius: 50%; object-fit: cover; flex: none; }
@@ -232,6 +233,8 @@
         .badge.upload { background: #dbeafe; color: #1e40af; }
         .dark .badge.upload { background: #1e3a5f; color: #bfdbfe; }
         .badge.new { background: #fde047; color: #713f12; }
+        .badge.twitch { background: #9146ff; color: #fff; }
+        .fc-ev .badge.twitch { font-size: 0.55rem; padding: 0 0.3rem; margin-left: 0; }
         .fc-ev .badge.new { font-size: 0.55rem; padding: 0 0.3rem; margin-left: 0; }
         .card-head .badge + .badge { margin-left: 0.25rem; }
 
@@ -370,12 +373,12 @@
                     </div>
                 </div>
                 <div id="trend-members-wrap" style="margin-top: 0.75rem;">
-                    <h4>👤 メンバー別</h4>
+                    <h4>📊 本数</h4>
                     <div style="overflow-x: auto;">
                         <table class="trend-table">
                             <thead>
                                 <tr>
-                                    <th>メンバー</th>
+                                    <th></th>
                                     <th class="num" title="配信（予約枠・ゲリラ）">配信</th>
                                     <th class="num">Short</th>
                                     <th class="num">動画</th>
@@ -383,6 +386,16 @@
                                     <th class="num" title="他チャンネルへの出演">出演</th>
                                 </tr>
                             </thead>
+                            <tbody id="trend-totals"></tbody>
+                        </table>
+                    </div>
+                    {{-- Per-member numbers exist for the curious, folded away and in name order — not a ranking. --}}
+                    <button type="button" id="trend-members-toggle" class="filter-toggle" aria-expanded="false" aria-controls="trend-members-detail" style="margin-top: 0.375rem; font-size: 0.75rem; font-weight: 500;">
+                        <span class="arrow collapsed" id="trend-members-arrow">▼</span>
+                        メンバー別の内訳
+                    </button>
+                    <div id="trend-members-detail" hidden style="overflow-x: auto;">
+                        <table class="trend-table">
                             <tbody id="trend-members"></tbody>
                         </table>
                     </div>
@@ -779,6 +792,13 @@
                 typeBadge.textContent = props.type === 'short' ? 'Short' : '動画';
                 head.appendChild(typeBadge);
             }
+            if (props.platform === 'twitch') {
+                var tw = document.createElement('span');
+                tw.className = 'badge twitch';
+                tw.textContent = 'Twitch';
+                tw.title = 'Twitch の配信';
+                head.appendChild(tw);
+            }
             if (isNewEvent(ev)) {
                 var fresh = document.createElement('span');
                 fresh.className = 'badge new';
@@ -1093,6 +1113,12 @@
                     ti.textContent = (props.is_members_only ? '🔒 ' : '') + arg.event.title;
                     wrap.appendChild(t);
                     wrap.appendChild(ti);
+                    if (props.platform === 'twitch') {
+                        var twb = document.createElement('span');
+                        twb.className = 'badge twitch';
+                        twb.textContent = 'Twitch';
+                        wrap.appendChild(twb);
+                    }
                     if (isNewEvent(arg.event)) {
                         var nb = document.createElement('span');
                         nb.className = 'badge new';
@@ -1657,16 +1683,62 @@
             });
         }
 
-        // Per-member output for the period: streams / shorts / uploads / clips / guest spots.
+        // Output for the period: one row for the whole page, one per sub-group,
+        // and (folded away, name order) the per-member breakdown.
+        var COUNT_COLS = ['streams', 'shorts', 'uploads', 'clips', 'guests'];
+        function countRow(labelNode, sums, prevStreams, extraClass) {
+            var tr = document.createElement('tr');
+            if (extraClass) tr.className = extraClass;
+            var who = document.createElement('td');
+            who.appendChild(labelNode);
+            tr.appendChild(who);
+            COUNT_COLS.forEach(function (col) {
+                var td = document.createElement('td');
+                td.className = 'num' + (sums[col] ? '' : ' zero');
+                td.textContent = String(sums[col]);
+                if (col === 'streams' && prevStreams !== null && sums.streams - prevStreams !== 0) {
+                    var delta = sums.streams - prevStreams;
+                    var d = document.createElement('span');
+                    d.className = 'trend-delta ' + (delta > 0 ? 'up' : 'down');
+                    d.textContent = (delta > 0 ? '▲' : '▼') + Math.abs(delta);
+                    d.title = (trendsPeriod === 'month' ? '先月 ' : '先週 ') + prevStreams + '本';
+                    td.appendChild(d);
+                }
+                tr.appendChild(td);
+            });
+            return tr;
+        }
+        function sumRows(rows) {
+            var sums = { streams: 0, shorts: 0, uploads: 0, clips: 0, guests: 0, prev_streams: 0 };
+            rows.forEach(function (m) {
+                COUNT_COLS.forEach(function (col) { sums[col] += m[col]; });
+                sums.prev_streams += m.prev_streams;
+            });
+            return sums;
+        }
         function renderMembers(rows) {
+            var totals = document.getElementById('trend-totals');
             var tbody = document.getElementById('trend-members');
             var wrap = document.getElementById('trend-members-wrap');
-            if (!tbody || !wrap) return;
+            if (!totals || !tbody || !wrap) return;
+            totals.textContent = '';
             tbody.textContent = '';
             wrap.hidden = !rows.length;
-            rows.forEach(function (m) {
-                var tr = document.createElement('tr');
-                var who = document.createElement('td');
+
+            var all = sumRows(rows);
+            var allLabel = document.createElement('span');
+            allLabel.textContent = '全体';
+            totals.appendChild(countRow(allLabel, all, all.prev_streams, 'total'));
+            // Sub-groups of this page; a channel in several counts in each.
+            CHILD_GROUPS.forEach(function (g) {
+                var ids = CHILD_CHANNEL_MAP[g.id] || [];
+                var part = sumRows(rows.filter(function (m) { return ids.indexOf(m.id) !== -1; }));
+                var label = document.createElement('span');
+                label.textContent = g.name;
+                totals.appendChild(countRow(label, part, part.prev_streams, ''));
+            });
+
+            rows.slice().sort(function (a, b) { return a.name.localeCompare(b.name, 'ja'); }).forEach(function (m) {
                 var cell = document.createElement('div');
                 cell.className = 'member';
                 cell.appendChild(avatarNode({ channel_thumbnail_url: m.thumbnail_url, channel_name: m.name }, m.color, 'fc-ev-img'));
@@ -1674,23 +1746,25 @@
                 nm.className = 'name';
                 nm.textContent = m.name;
                 cell.appendChild(nm);
-                who.appendChild(cell);
-                tr.appendChild(who);
-                [['streams', m.prev_streams], ['shorts', null], ['uploads', null], ['clips', null], ['guests', null]].forEach(function (col) {
-                    var td = document.createElement('td');
-                    td.className = 'num' + (m[col[0]] ? '' : ' zero');
-                    td.textContent = String(m[col[0]]);
-                    if (col[1] !== null && m[col[0]] - col[1] !== 0) {
-                        var delta = m[col[0]] - col[1];
-                        var d = document.createElement('span');
-                        d.className = 'trend-delta ' + (delta > 0 ? 'up' : 'down');
-                        d.textContent = (delta > 0 ? '▲' : '▼') + Math.abs(delta);
-                        d.title = (trendsPeriod === 'month' ? '先月 ' : '先週 ') + col[1] + '本';
-                        td.appendChild(d);
-                    }
-                    tr.appendChild(td);
-                });
-                tbody.appendChild(tr);
+                tbody.appendChild(countRow(cell, m, m.prev_streams, ''));
+            });
+        }
+        var membersToggle = document.getElementById('trend-members-toggle');
+        if (membersToggle) {
+            var membersDetail = document.getElementById('trend-members-detail');
+            var membersArrow = document.getElementById('trend-members-arrow');
+            var membersOpen = false;
+            try { membersOpen = localStorage.getItem('cc.trendMembersOpen') === '1'; } catch (e) {}
+            function applyMembersOpen() {
+                membersDetail.hidden = !membersOpen;
+                membersArrow.classList.toggle('collapsed', !membersOpen);
+                membersToggle.setAttribute('aria-expanded', String(membersOpen));
+            }
+            applyMembersOpen();
+            membersToggle.addEventListener('click', function () {
+                membersOpen = !membersOpen;
+                applyMembersOpen();
+                try { localStorage.setItem('cc.trendMembersOpen', membersOpen ? '1' : '0'); } catch (e) {}
             });
         }
 

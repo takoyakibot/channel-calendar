@@ -17,6 +17,8 @@ class Kernel extends ConsoleKernel
         // Between full runs, poll only channels whose manual schedule says they
         // should be live about now (:00 and :30 are covered by the full run).
         $schedule->command('streams:fetch --watched')->cron('10,20,40,50 * * * *')->withoutOverlapping();
+        // Twitch has no quota to speak of; keep live/ended within ten minutes.
+        $schedule->command('streams:fetch-twitch')->cron('5,15,25,35,45,55 * * * *')->withoutOverlapping();
         // One X post a day (pay-per-use pricing makes per-stream posts too costly):
         // what is live at noon JST plus the reservations still ahead.
         $schedule->command('streams:digest')->dailyAt('12:00')->timezone('Asia/Tokyo')->withoutOverlapping();

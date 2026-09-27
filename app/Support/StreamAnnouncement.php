@@ -28,7 +28,7 @@ class StreamAnnouncement
             ->copy()->setTimezone('Asia/Tokyo');
         $time = $when->format('n/j') . '(' . self::WEEKDAYS[$when->dayOfWeek] . ') ' . $when->format('H:i');
 
-        $video = "https://www.youtube.com/watch?v={$stream->video_id}";
+        $video = $stream->url();
         $channel = trim($stream->channel->name);
 
         $build = fn (string $title): string => implode("\n", [

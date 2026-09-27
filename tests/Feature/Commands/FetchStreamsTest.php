@@ -234,6 +234,26 @@ class FetchStreamsTest extends TestCase
         $this->artisan('streams:fetch', ['--watched' => true])->assertSuccessful();
     }
 
+    public function test_youtube_sync_leaves_twitch_rows_alone(): void
+    {
+        $channel = Channel::factory()->create(['channel_id' => 'UC_test', 'twitch_login' => 'amawauru']);
+        $twitchLive = Stream::factory()->create(['channel_id' => $channel->id, 'video_id' => 'tw:9001', 'platform' => 'twitch', 'status' => 'live', 'scheduled_at' => now()->subHour()]);
+        $twitchSched = Stream::factory()->create(['channel_id' => $channel->id, 'video_id' => 'tw:sched:abc', 'platform' => 'twitch', 'status' => 'upcoming', 'scheduled_at' => now()->addMinutes(10)]);
+
+        $mockService = $this->mockYouTube();
+        $mockService->shouldReceive('listRecentUploadIds')->with('UC_test')->andReturn(['yt1']);
+        // Only YouTube ids may reach videos.list — never the Twitch keys.
+        $mockService->shouldReceive('getVideoDetails')->with(['yt1'])->andReturn([$this->detail('yt1')]);
+        $this->app->instance(YouTubeService::class, $mockService);
+
+        $this->artisan('streams:fetch')->assertSuccessful();
+        $this->artisan('streams:fetch', ['--watched' => true])->assertSuccessful();
+
+        $this->assertDatabaseHas('streams', ['id' => $twitchLive->id, 'status' => 'live']);
+        $this->assertDatabaseHas('streams', ['id' => $twitchSched->id, 'status' => 'upcoming']);
+        $this->assertDatabaseHas('streams', ['video_id' => 'yt1', 'platform' => 'youtube']);
+    }
+
     public function test_fetch_streams_tags_new_streams_from_the_dictionary_and_collects_unmatched_terms(): void
     {
         Channel::factory()->create(['channel_id' => 'UC_test']);

@@ -157,7 +157,9 @@ class TrendController extends Controller
                 'clips' => $posts[$c->id]['clip'] ?? 0,
                 'guests' => $posts[$c->id]['guest'] ?? 0,
             ])
-            ->sortBy([['streams', 'desc'], ['shorts', 'desc'], ['name', 'asc']])
+            // Name order, deliberately not by output: the page shows totals and
+            // keeps the per-member breakdown as a list, not a ranking.
+            ->sortBy('name')
             ->values()
             ->all();
     }

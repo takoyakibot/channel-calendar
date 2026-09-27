@@ -61,6 +61,7 @@ class FetchStreams extends Command
             // re-checked by id so the board flips to live / ended within minutes.
             $dueStreams = Stream::with('channel')
                 ->whereHas('channel', fn ($q) => $q->active())
+                ->where('platform', 'youtube')
                 ->whereNotIn('channel_id', $channels->pluck('id'))
                 ->where(function ($q) {
                     $q->where(fn ($u) => $u->where('status', 'upcoming')->whereBetween('scheduled_at', [
@@ -147,6 +148,7 @@ class FetchStreams extends Command
         // they fell off the top of the list (still exist → refresh) or YouTube no
         // longer serves them (deleted / private → drop them too).
         $unseen = Stream::where('channel_id', $channel->id)
+            ->where('platform', 'youtube')   // Twitch rows are reconciled by streams:fetch-twitch
             ->where('scheduled_at', '>=', $windowStart)
             ->whereNotIn('video_id', $seen)
             ->pluck('video_id')

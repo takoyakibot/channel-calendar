@@ -22,6 +22,8 @@ class Stream extends Model
         'actual_end_at',
         'status',
         'type',
+        'platform',
+        'url',
         'duration_seconds',
         'is_members_only',
         'announced_at',
@@ -39,6 +41,18 @@ class Stream extends Model
     public function channel(): BelongsTo
     {
         return $this->belongsTo(Channel::class);
+    }
+
+    /** Where the entry links: the YouTube video (shorts get the shorts URL), or the stored Twitch URL. */
+    public function url(): string
+    {
+        if ($this->platform === 'twitch') {
+            return $this->url ?: 'https://www.twitch.tv/';
+        }
+
+        return $this->type === 'short'
+            ? "https://www.youtube.com/shorts/{$this->video_id}"
+            : "https://www.youtube.com/watch?v={$this->video_id}";
     }
 
     /** Games / categories, from the dictionary (pivot source "auto") or added by hand ("manual"). */

@@ -39,6 +39,15 @@
                         <p class="text-xs text-gray-500 mt-1">毎日 12:00 の X ダイジェストでチャンネル名の代わりに使います。未設定なら「{{ \App\Models\Channel::abbreviate($channel->name) }}」のように自動で短くします。</p>
                     </div>
                     <div class="mb-4">
+                        <label for="twitch_login" class="block text-sm font-medium text-gray-700 mb-1">Twitch アカウント（任意）</label>
+                        <div class="flex items-center gap-1">
+                            <span class="text-gray-500 text-sm">twitch.tv/</span>
+                            <input type="text" name="twitch_login" id="twitch_login" value="{{ old('twitch_login', $channel->twitch_login) }}"
+                                   class="border-gray-300 rounded-md shadow-sm" placeholder="login" maxlength="255">
+                        </div>
+                        <p class="text-xs text-gray-500 mt-1">ログイン名か <code>https://www.twitch.tv/login</code> の形で入力。登録すると Twitch の配信予定・配信中・アーカイブもこのチャンネルとしてカレンダーに載ります（10 分ごとに取得）。</p>
+                    </div>
+                    <div class="mb-4">
                         <label for="x_handle" class="block text-sm font-medium text-gray-700 mb-1">X（Twitter）アカウント（任意）</label>
                         <div class="flex items-center gap-1">
                             <span class="text-gray-500 text-sm">@</span>

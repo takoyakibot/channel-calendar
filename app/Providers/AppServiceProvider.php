@@ -11,6 +11,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
+        $this->app->singleton(\App\Services\TwitchService::class, function () {
+            return new \App\Services\TwitchService(config('services.twitch.client_id'), config('services.twitch.client_secret'));
+        });
         $this->app->singleton(\App\Services\YouTubeService::class, function ($app) {
             $client = new \Google\Client();
             $client->setDeveloperKey($app->make(\App\Support\YouTubeApiKey::class)->resolve() ?? '');
