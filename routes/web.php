@@ -29,6 +29,8 @@ Route::view('/terms', 'legal.terms');
 
 Route::middleware(['auth', 'admin'])->prefix('admin')->group(function () {
     Route::resource('channels', AdminChannelController::class)->except(['show']);
+    Route::post('channels/{channel}/aliases', [AdminChannelController::class, 'addAlias']);
+    Route::delete('channel-aliases/{channelAlias}', [AdminChannelController::class, 'destroyAlias']);
     Route::resource('groups', AdminGroupController::class)->except(['show']);
     Route::get('settings', [AdminSettingController::class, 'edit']);
     Route::put('settings', [AdminSettingController::class, 'update']);

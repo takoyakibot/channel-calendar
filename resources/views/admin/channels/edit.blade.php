@@ -11,6 +11,9 @@
                         <ul>@foreach ($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul>
                     </div>
                 @endif
+                @if (session('error'))
+                    <div class="mb-4 p-4 bg-red-100 text-red-700 rounded">{{ session('error') }}</div>
+                @endif
 
                 <div class="mb-6 flex items-center gap-4">
                     @if ($channel->thumbnail_url)
@@ -76,6 +79,30 @@
                         <a href="{{ url('/admin/channels') }}" class="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300">キャンセル</a>
                     </div>
                 </form>
+
+                <hr class="my-6 border-gray-200">
+
+                <div>
+                    <h3 class="text-sm font-medium text-gray-700 mb-1">別名（エイリアス）</h3>
+                    <p class="text-xs text-gray-500 mb-2">表記揺れ（漢字・ひらがな・略称など）を登録すると、切り抜きやコラボの自動検出で名前マッチに使われます。</p>
+                    @if ($channel->aliases->isNotEmpty())
+                        <div class="flex flex-wrap gap-1 mb-2">
+                            @foreach ($channel->aliases as $alias)
+                                <form method="POST" action="{{ url('/admin/channel-aliases/' . $alias->id) }}" class="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 rounded-full text-xs">
+                                    @csrf
+                                    @method('DELETE')
+                                    <span>{{ $alias->alias }}</span>
+                                    <button type="submit" class="text-gray-400 hover:text-red-600" title="このエイリアスを削除">&times;</button>
+                                </form>
+                            @endforeach
+                        </div>
+                    @endif
+                    <form method="POST" action="{{ url('/admin/channels/' . $channel->id . '/aliases') }}" class="flex items-center gap-2">
+                        @csrf
+                        <input type="text" name="alias" placeholder="例: なきら, ナキラ" maxlength="80" class="border-gray-300 rounded text-sm w-48">
+                        <button type="submit" class="text-sm text-blue-600 hover:underline">追加</button>
+                    </form>
+                </div>
             </div>
         </div>
     </div>

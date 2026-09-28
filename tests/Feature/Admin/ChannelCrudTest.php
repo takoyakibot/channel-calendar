@@ -3,6 +3,7 @@
 namespace Tests\Feature\Admin;
 
 use App\Models\Channel;
+use App\Models\ChannelAlias;
 use App\Models\User;
 use App\Services\YouTubeService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -282,5 +283,104 @@ class ChannelCrudTest extends TestCase
 
         $response->assertRedirect('/admin/channels');
         $this->assertDatabaseMissing('channels', ['id' => $channel->id]);
+    }
+
+    public function test_admin_can_add_channel_alias(): void
+    {
+        $channel = Channel::factory()->create(['name' => '奈煌 Ch.']);
+
+        $response = $this->actingAs($this->admin)->post("/admin/channels/{$channel->id}/aliases", [
+            'alias' => 'なきら',
+        ]);
+
+        $response->assertRedirect("/admin/channels/{$channel->id}/edit");
+        $this->assertDatabaseHas('channel_aliases', ['channel_id' => $channel->id, 'alias' => 'なきら']);
+    }
+
+    public function test_channel_alias_is_normalised(): void
+    {
+        $channel = Channel::factory()->create();
+
+        $this->actingAs($this->admin)->post("/admin/channels/{$channel->id}/aliases", [
+            'alias' => ' ＮＡＫＩＲＡ ',
+        ]);
+
+        $this->assertDatabaseHas('channel_aliases', ['channel_id' => $channel->id, 'alias' => 'nakira']);
+    }
+
+    public function test_duplicate_channel_alias_is_rejected(): void
+    {
+        $channel = Channel::factory()->create(['name' => 'Test']);
+        $channel->aliases()->create(['alias' => 'テスト']);
+
+        $response = $this->actingAs($this->admin)->post("/admin/channels/{$channel->id}/aliases", [
+            'alias' => 'テスト',
+        ]);
+
+        $response->assertRedirect("/admin/channels/{$channel->id}/edit");
+        $response->assertSessionHas('error');
+        $this->assertDatabaseCount('channel_aliases', 1);
+    }
+
+    public function test_admin_can_delete_channel_alias(): void
+    {
+        $channel = Channel::factory()->create();
+        $alias = $channel->aliases()->create(['alias' => 'テスト']);
+
+        $response = $this->actingAs($this->admin)->delete("/admin/channel-aliases/{$alias->id}");
+
+        $response->assertRedirect("/admin/channels/{$channel->id}/edit");
+        $this->assertDatabaseMissing('channel_aliases', ['id' => $alias->id]);
+    }
+
+    public function test_deleting_channel_cascades_to_aliases(): void
+    {
+        $channel = Channel::factory()->create();
+        $channel->aliases()->create(['alias' => 'テスト']);
+
+        $channel->delete();
+
+        $this->assertDatabaseCount('channel_aliases', 0);
+    }
+
+    public function test_find_channel_by_alias(): void
+    {
+        $channel = Channel::factory()->create(['name' => '奈煌 Ch.']);
+        $channel->aliases()->create(['alias' => 'なきら']);
+
+        $found = Channel::findByNameOrAlias('なきら');
+
+        $this->assertNotNull($found);
+        $this->assertEquals($channel->id, $found->id);
+    }
+
+    public function test_find_channel_by_alias_normalises_input(): void
+    {
+        $channel = Channel::factory()->create();
+        $channel->aliases()->create(['alias' => 'nakira']);
+
+        $found = Channel::findByNameOrAlias('ＮＡＫＩＲＡ');
+
+        $this->assertNotNull($found);
+        $this->assertEquals($channel->id, $found->id);
+    }
+
+    public function test_find_channel_by_alias_returns_null_for_unknown(): void
+    {
+        $this->assertNull(Channel::findByNameOrAlias('存在しない'));
+    }
+
+    public function test_edit_page_shows_existing_aliases(): void
+    {
+        $channel = Channel::factory()->create();
+        $channel->aliases()->create(['alias' => 'なきら']);
+        $channel->aliases()->create(['alias' => 'nakira']);
+
+        $response = $this->actingAs($this->admin)->get("/admin/channels/{$channel->id}/edit");
+
+        $response->assertOk();
+        $response->assertSee('なきら');
+        $response->assertSee('nakira');
+        $response->assertSee('別名');
     }
 }
