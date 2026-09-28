@@ -43,7 +43,7 @@ class StreamTagger
             ->map(fn (TagAlias $a) => ['alias' => $a->alias, 'tag_id' => (int) $a->tag_id, 'ascii' => TermNormalizer::isAscii($a->alias)])
             ->all();
         $this->ignored = IgnoredTerm::pluck('term')->all();
-        $this->channels = Channel::all();
+        $this->channels = Channel::with('aliases')->get();
     }
 
     /** Streams that mention another registered member are collabs; the tag is created on first use. */

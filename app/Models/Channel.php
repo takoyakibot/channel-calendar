@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\TermNormalizer;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Builder;
@@ -38,6 +39,28 @@ class Channel extends Model
     public function groups(): BelongsToMany
     {
         return $this->belongsToMany(Group::class, 'channel_group');
+    }
+
+    public function aliases(): HasMany
+    {
+        return $this->hasMany(ChannelAlias::class);
+    }
+
+    /** Find a channel whose name, short name or registered alias equals the text (normalised). */
+    public static function findByNameOrAlias(string $text): ?self
+    {
+        $normalised = TermNormalizer::normalize($text);
+        if ($normalised === '') {
+            return null;
+        }
+
+        $byName = static::all()->first(fn (self $c) => TermNormalizer::normalize($c->name) === $normalised
+            || ($c->short_name !== null && TermNormalizer::normalize($c->short_name) === $normalised));
+        if ($byName) {
+            return $byName;
+        }
+
+        return ChannelAlias::where('alias', $normalised)->first()?->channel;
     }
 
     public function scopeActive(Builder $query): Builder

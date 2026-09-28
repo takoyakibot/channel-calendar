@@ -32,6 +32,19 @@ class MemberDetectorTest extends TestCase
         $this->assertSame([$other->id], MemberDetector::detect('こてんぱう', $channels));
     }
 
+    public function test_registered_aliases_count_as_the_member(): void
+    {
+        $nakira = Channel::factory()->create(['name' => 'Nakira Ch. 奈煌🐼']);
+        $nakira->aliases()->create(['alias' => 'なきら']);
+        $nakira->aliases()->create(['alias' => 'nakira']);
+        Channel::factory()->create(['name' => 'こてんぱう']);
+        $channels = Channel::with('aliases')->get();
+
+        $this->assertSame([$nakira->id], MemberDetector::detect('なきらの神回', $channels));
+        $this->assertSame([$nakira->id], MemberDetector::detect('NAKIRA clip', $channels));
+        $this->assertSame([], MemberDetector::detect('ナキラ', $channels));   // not registered
+    }
+
     public function test_ignores_tokens_too_short_to_be_meaningful(): void
     {
         $channel = Channel::factory()->create(['name' => 'ゆ', 'short_name' => 'ゆ', 'handle' => '@yu_channel']);

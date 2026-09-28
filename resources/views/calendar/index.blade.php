@@ -333,7 +333,7 @@
                 </button>
                 <button type="button" class="video-btn" id="video-post-btn" title="切り抜き動画や、他チャンネルへの出演を URL から登録（ログイン不要）">📎 動画を登録</button>
                 <div class="share-buttons">
-                    <a class="share-btn x"
+                    <a class="share-btn x" id="share-x-btn"
                        href="https://x.com/intent/tweet?url={{ urlencode($pageUrl) }}&text={{ urlencode($pageTitle) }}"
                        target="_blank" rel="noopener noreferrer" title="Xで共有">𝕏</a>
                     <a class="share-btn line"
@@ -2123,6 +2123,29 @@
             });
         }
         loadTags();
+
+        // The digest is fetched on click so it reflects what is live/reserved right now.
+        // The tab is opened synchronously first, or popup blockers eat the post-fetch open.
+        var shareXBtn = document.getElementById('share-x-btn');
+        if (shareXBtn) {
+            shareXBtn.addEventListener('click', function (e) {
+                e.preventDefault();
+                var fallback = shareXBtn.href;
+                var win = window.open('', '_blank');
+                fetch(apiUrl('/api/share-digest', {}), { headers: { Accept: 'application/json' } })
+                    .then(function (r) { return r.ok ? r.json() : {}; })
+                    .then(function (d) { return d.text ? 'https://x.com/intent/tweet?text=' + encodeURIComponent(d.text) : fallback; })
+                    .catch(function () { return fallback; })
+                    .then(function (url) {
+                        if (win) {
+                            win.opener = null;
+                            win.location.href = url;
+                        } else {
+                            window.location.href = url;
+                        }
+                    });
+            });
+        }
 
         var copyUrlBtn = document.getElementById('copy-url-btn');
         if (copyUrlBtn) {

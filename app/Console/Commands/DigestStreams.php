@@ -3,12 +3,10 @@
 namespace App\Console\Commands;
 
 use App\Models\Setting;
-use App\Models\Stream;
 use App\Services\XPoster;
 use App\Services\XPosterException;
 use App\Support\StreamDigest;
 use Illuminate\Console\Command;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Log;
 
 class DigestStreams extends Command
@@ -39,10 +37,7 @@ class DigestStreams extends Command
             return self::SUCCESS;
         }
 
-        $live = $this->publicStreams()->where('status', 'live')->orderBy('scheduled_at')->get();
-        $upcoming = $this->publicStreams()->where('status', 'upcoming')->where('scheduled_at', '>', now())->orderBy('scheduled_at')->get();
-
-        $text = StreamDigest::text($live, $upcoming, now());
+        $text = StreamDigest::current();
         if ($text === null) {
             $this->info('Nothing live or reserved; no digest today.');
 
@@ -72,13 +67,5 @@ class DigestStreams extends Command
         $this->info("Posted today's digest (tweet {$tweetId}).");
 
         return self::SUCCESS;
-    }
-
-    /** Streams of active channels that anyone can watch. */
-    private function publicStreams(): Builder
-    {
-        return Stream::with('channel')
-            ->whereHas('channel', fn (Builder $q) => $q->where('is_active', true))
-            ->where('is_members_only', false);
     }
 }

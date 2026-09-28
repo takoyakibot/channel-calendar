@@ -8,10 +8,15 @@ use App\Http\Requests\StoreChannelRequest;
 use App\Models\Setting;
 use Illuminate\Support\Carbon;
 use App\Http\Requests\UpdateChannelRequest;
+use App\Models\ActivityLog;
 use App\Models\Channel;
+use App\Models\ChannelAlias;
 use App\Services\YouTubeService;
 use App\Support\ChannelInput;
+use App\Support\TermNormalizer;
 use App\Support\XSearchKeywords;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
 class ChannelController extends Controller
@@ -63,6 +68,8 @@ class ChannelController extends Controller
 
     public function edit(Channel $channel)
     {
+        $channel->load('aliases');
+
         return view('admin.channels.edit', compact('channel'));
     }
 
@@ -86,5 +93,31 @@ class ChannelController extends Controller
     {
         $channel->delete();
         return redirect('/admin/channels')->with('success', 'チャンネルを削除しました。');
+    }
+
+    public function addAlias(Request $request, Channel $channel): RedirectResponse
+    {
+        $validated = $request->validate(['alias' => 'required|string|max:80']);
+        $alias = TermNormalizer::normalize($validated['alias']);
+        // Member detection ignores tokens shorter than two characters, so such an alias would never match.
+        if (mb_strlen($alias) < 2) {
+            return redirect("/admin/channels/{$channel->id}/edit")->with('error', 'エイリアスは 2 文字以上にしてください。');
+        }
+        if ($existing = ChannelAlias::with('channel')->where('alias', $alias)->first()) {
+            return redirect("/admin/channels/{$channel->id}/edit")->with('error', "「{$alias}」は既に「{$existing->channel->name}」のエイリアスです。");
+        }
+        $channel->aliases()->create(['alias' => $alias]);
+        ActivityLog::record($request->user()->id, 'add_channel_alias', Channel::class, $channel->id, ['alias' => $alias]);
+
+        return redirect("/admin/channels/{$channel->id}/edit")->with('success', "「{$alias}」を追加しました。");
+    }
+
+    public function destroyAlias(Request $request, ChannelAlias $channelAlias): RedirectResponse
+    {
+        $channelId = $channelAlias->channel_id;
+        ActivityLog::record($request->user()->id, 'remove_channel_alias', Channel::class, $channelId, ['alias' => $channelAlias->alias]);
+        $channelAlias->delete();
+
+        return redirect("/admin/channels/{$channelId}/edit")->with('success', 'エイリアスを削除しました。');
     }
 }
