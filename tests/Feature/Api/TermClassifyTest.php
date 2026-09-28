@@ -64,6 +64,21 @@ class TermClassifyTest extends TestCase
         $this->postJson('/api/terms/classify', ['term' => 'WOODO', 'kind' => 'category'])->assertStatus(409);
     }
 
+    public function test_spacing_variants_of_a_japanese_term_are_one_term(): void
+    {
+        Channel::factory()->create();
+        Stream::factory()->create(['title' => '【卯乃花 露芭】1']);
+        Stream::factory()->create(['title' => '【卯乃花露芭】2']);
+        (new StreamTagger())->retagAll();
+        $this->assertDatabaseHas('unmatched_terms', ['term' => '卯乃花露芭', 'count' => 2]);
+
+        $this->postJson('/api/terms/classify', ['term' => '卯乃花 露芭', 'kind' => 'ignore'])->assertCreated();
+
+        $this->assertDatabaseHas('ignored_terms', ['term' => '卯乃花露芭']);
+        $this->assertDatabaseMissing('unmatched_terms', ['term' => '卯乃花露芭']);
+        $this->postJson('/api/terms/classify', ['term' => '卯乃花露芭', 'kind' => 'category'])->assertStatus(409);
+    }
+
     public function test_validation_and_bans(): void
     {
         $this->seedStreams();

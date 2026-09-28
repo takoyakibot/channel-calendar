@@ -49,13 +49,13 @@ class Channel extends Model
     /** Find a channel whose name, short name or registered alias equals the text (normalised). */
     public static function findByNameOrAlias(string $text): ?self
     {
-        $normalised = TermNormalizer::normalize($text);
+        $normalised = TermNormalizer::key($text);
         if ($normalised === '') {
             return null;
         }
 
-        $byName = static::all()->first(fn (self $c) => TermNormalizer::normalize($c->name) === $normalised
-            || ($c->short_name !== null && TermNormalizer::normalize($c->short_name) === $normalised));
+        $byName = static::all()->first(fn (self $c) => TermNormalizer::key($c->name) === $normalised
+            || ($c->short_name !== null && TermNormalizer::key($c->short_name) === $normalised));
         if ($byName) {
             return $byName;
         }

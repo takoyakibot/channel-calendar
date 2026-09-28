@@ -24,7 +24,7 @@ final class TermClassifier
     public static function classify(string $rawTerm, string $kind, ?int $tagId, ?string $newName, ?int $userId): ?Tag
     {
         $display = trim($rawTerm);
-        $term = TermNormalizer::normalize($display);
+        $term = TermNormalizer::key($display);
         if (mb_strlen($term) < 2) {
             throw ValidationException::withMessages(['term' => '語句が短すぎます。']);
         }
@@ -60,7 +60,7 @@ final class TermClassifier
         if ($existing = Tag::where('name', $name)->first()) {
             return $existing;
         }
-        if ($alias = TagAlias::with('tag')->where('alias', TermNormalizer::normalize($name))->first()) {
+        if ($alias = TagAlias::with('tag')->where('alias', TermNormalizer::key($name))->first()) {
             return $alias->tag;
         }
 

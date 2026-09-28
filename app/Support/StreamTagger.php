@@ -63,6 +63,7 @@ class StreamTagger
     public function matchTagIds(string $title): array
     {
         $haystack = TermNormalizer::normalize($title);
+        $compact = TermNormalizer::compact($title);   // non-ASCII aliases are stored without spaces
         $ids = [];
         foreach ($this->dictionary as $entry) {
             if (mb_strlen($entry['alias']) < 2) {
@@ -70,7 +71,7 @@ class StreamTagger
             }
             $hit = $entry['ascii']
                 ? preg_match('/(?<![a-z0-9])' . preg_quote($entry['alias'], '/') . '(?![a-z0-9])/u', $haystack) === 1
-                : str_contains($haystack, $entry['alias']);
+                : str_contains($compact, $entry['alias']);
             if ($hit) {
                 $ids[$entry['tag_id']] = true;
             }
@@ -145,7 +146,7 @@ class StreamTagger
         $streams->select('streams.id', 'streams.title')->chunkById(200, function ($chunk) use (&$found, $channels) {
             foreach ($chunk as $stream) {
                 foreach ($this->bracketPieces($stream->title) as $display) {
-                    $term = TermNormalizer::normalize($display);
+                    $term = TermNormalizer::key($display);
                     if (mb_strlen($term) < 2 || in_array($term, $this->ignored, true)) {
                         continue;
                     }

@@ -38,7 +38,7 @@ class TagController extends Controller
 
         $old = $tag->only('name', 'kind');
         $tag->update(['name' => trim($validated['name']), 'kind' => $validated['kind']]);
-        $alias = TermNormalizer::normalize($tag->name);
+        $alias = TermNormalizer::key($tag->name);
         if (! TagAlias::where('alias', $alias)->exists()) {
             $tag->aliases()->create(['alias' => $alias, 'created_by_user_id' => $request->user()->id]);
         }
@@ -51,7 +51,7 @@ class TagController extends Controller
     public function addAlias(Request $request, Tag $tag): RedirectResponse
     {
         $validated = $request->validate(['alias' => 'required|string|max:80']);
-        $alias = TermNormalizer::normalize($validated['alias']);
+        $alias = TermNormalizer::key($validated['alias']);
         if (mb_strlen($alias) < 2) {
             return redirect('/admin/tags')->with('error', 'エイリアスが短すぎます。');
         }

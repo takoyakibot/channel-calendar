@@ -20,12 +20,17 @@ final class MemberDetector
      */
     public static function detect(string $text, iterable $channels): array
     {
-        $haystack = mb_strtolower(preg_replace('/\s+/u', ' ', $text) ?? $text);
+        $haystack = TermNormalizer::normalize($text);
+        $compact = TermNormalizer::compact($text);   // Japanese names match regardless of spacing
 
         $ids = [];
         foreach ($channels as $channel) {
             foreach (self::tokens($channel) as $token) {
-                if (mb_strlen($token) >= self::MIN_TOKEN_LENGTH && str_contains($haystack, mb_strtolower($token))) {
+                $key = TermNormalizer::key($token);
+                if (mb_strlen($key) < self::MIN_TOKEN_LENGTH) {
+                    continue;
+                }
+                if (str_contains(TermNormalizer::isAscii($key) ? $haystack : $compact, $key)) {
                     $ids[] = $channel->id;
                     break;
                 }
