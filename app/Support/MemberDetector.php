@@ -43,6 +43,10 @@ final class MemberDetector
             $channel->short_name,
             Channel::abbreviate($channel->name),
         ];
+        // Admin-registered spellings (kanji / kana / nicknames) — see /admin/channels/{id}/edit.
+        foreach ($channel->aliases as $alias) {
+            $tokens[] = $alias->alias;
+        }
         if ($channel->handle) {
             $tokens[] = '@' . ltrim($channel->handle, '@');
         }

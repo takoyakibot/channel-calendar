@@ -46,7 +46,7 @@ class Channel extends Model
         return $this->hasMany(ChannelAlias::class);
     }
 
-    /** Find a channel whose name or alias matches the given text (normalised). */
+    /** Find a channel whose name, short name or registered alias equals the text (normalised). */
     public static function findByNameOrAlias(string $text): ?self
     {
         $normalised = TermNormalizer::normalize($text);
@@ -54,9 +54,13 @@ class Channel extends Model
             return null;
         }
 
-        $alias = ChannelAlias::where('alias', $normalised)->first();
+        $byName = static::all()->first(fn (self $c) => TermNormalizer::normalize($c->name) === $normalised
+            || ($c->short_name !== null && TermNormalizer::normalize($c->short_name) === $normalised));
+        if ($byName) {
+            return $byName;
+        }
 
-        return $alias?->channel;
+        return ChannelAlias::where('alias', $normalised)->first()?->channel;
     }
 
     public function scopeActive(Builder $query): Builder

@@ -99,8 +99,9 @@ class ChannelController extends Controller
     {
         $validated = $request->validate(['alias' => 'required|string|max:80']);
         $alias = TermNormalizer::normalize($validated['alias']);
-        if (mb_strlen($alias) < 1) {
-            return redirect("/admin/channels/{$channel->id}/edit")->with('error', 'エイリアスが空です。');
+        // Member detection ignores tokens shorter than two characters, so such an alias would never match.
+        if (mb_strlen($alias) < 2) {
+            return redirect("/admin/channels/{$channel->id}/edit")->with('error', 'エイリアスは 2 文字以上にしてください。');
         }
         if ($existing = ChannelAlias::with('channel')->where('alias', $alias)->first()) {
             return redirect("/admin/channels/{$channel->id}/edit")->with('error', "「{$alias}」は既に「{$existing->channel->name}」のエイリアスです。");

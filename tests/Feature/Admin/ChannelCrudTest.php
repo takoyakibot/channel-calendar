@@ -370,6 +370,23 @@ class ChannelCrudTest extends TestCase
         $this->assertNull(Channel::findByNameOrAlias('存在しない'));
     }
 
+    public function test_find_channel_by_name_or_short_name_before_aliases(): void
+    {
+        $channel = Channel::factory()->create(['name' => 'Nakira Ch. 奈煌', 'short_name' => '奈煌ちゃん']);
+
+        $this->assertSame($channel->id, Channel::findByNameOrAlias('nakira ch. 奈煌')->id);
+        $this->assertSame($channel->id, Channel::findByNameOrAlias('奈煌ちゃん')->id);
+    }
+
+    public function test_one_character_alias_is_rejected(): void
+    {
+        $channel = Channel::factory()->create();
+
+        $this->actingAs($this->admin)->post("/admin/channels/{$channel->id}/aliases", ['alias' => 'ゆ'])
+            ->assertRedirect("/admin/channels/{$channel->id}/edit")->assertSessionHas('error');
+        $this->assertDatabaseCount('channel_aliases', 0);
+    }
+
     public function test_edit_page_shows_existing_aliases(): void
     {
         $channel = Channel::factory()->create();

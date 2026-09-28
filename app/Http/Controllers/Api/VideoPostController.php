@@ -73,7 +73,7 @@ class VideoPostController extends Controller
             'thumbnail_url' => $info['thumbnail_url'],
             'published_at' => $info['published_at'] ? Carbon::parse($info['published_at'])->toIso8601String() : null,
             'duration_seconds' => $info['duration_seconds'],
-            'detected_channel_ids' => MemberDetector::detect($info['title'] . "\n" . $info['description'], Channel::active()->orderBy('id')->get()),
+            'detected_channel_ids' => MemberDetector::detect($info['title'] . "\n" . $info['description'], Channel::active()->with('aliases')->orderBy('id')->get()),
             'already_registered' => VideoPost::where('video_id', $videoId)->exists(),
             'source_is_member' => Channel::where('channel_id', $info['channel_id'])->exists(),
         ]);
