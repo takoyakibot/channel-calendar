@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\ChannelController;
 use App\Http\Controllers\Api\ManualScheduleController;
 use App\Http\Controllers\Api\PreferenceController;
+use App\Http\Controllers\Api\ShareDigestController;
 use App\Http\Controllers\Api\StreamController;
 use App\Http\Controllers\Api\StreamTagController;
 use App\Http\Controllers\Api\TagController;
@@ -35,6 +36,7 @@ Route::get('/manual-schedules', [ManualScheduleController::class, 'index']);
 Route::get('/video-posts', [VideoPostController::class, 'index']);
 Route::get('/tags', [TagController::class, 'index']);
 Route::get('/trends', [TrendController::class, 'show']);
+Route::get('/share-digest', [ShareDigestController::class, 'show'])->middleware('throttle:30,1');
 
 // Additions open to everyone (see issue #51), rate limited per IP. "web" so the
 // session (CSRF, and the user when logged in) is available.

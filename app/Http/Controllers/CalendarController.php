@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\Channel;
 use App\Models\Group;
-use App\Support\StreamDigest;
 use Illuminate\Database\Eloquent\Collection;
 
 class CalendarController extends Controller
@@ -34,16 +33,10 @@ class CalendarController extends Controller
 
         $children = $group->children()->orderBy('name')->get();
 
-        $channelIds = Channel::active()
-            ->whereHas('groups', fn ($g) => $g->whereIn('groups.id', $group->subtreeIds()))
-            ->pluck('id')
-            ->all();
-
         return view('calendar.index', [
             'group' => $group,
             'children' => $children,
             'childChannelMap' => $this->buildChildChannelMap($children),
-            'shareText' => StreamDigest::current($channelIds, url('/' . $group->path), $group->name),
         ]);
     }
 
