@@ -98,7 +98,7 @@ class ChannelController extends Controller
     public function addAlias(Request $request, Channel $channel): RedirectResponse
     {
         $validated = $request->validate(['alias' => 'required|string|max:80']);
-        $alias = TermNormalizer::normalize($validated['alias']);
+        $alias = TermNormalizer::key($validated['alias']);   // "卯乃花 露芭" and "卯乃花露芭" are the same alias
         // Member detection ignores tokens shorter than two characters, so such an alias would never match.
         if (mb_strlen($alias) < 2) {
             return redirect("/admin/channels/{$channel->id}/edit")->with('error', 'エイリアスは 2 文字以上にしてください。');

@@ -24,6 +24,34 @@ class StreamTaggerTest extends TestCase
         $this->assertSame('初心者 指示ok', TermNormalizer::normalize("初心者　　指示OK"));
         $this->assertTrue(TermNormalizer::isAscii('repo'));
         $this->assertFalse(TermNormalizer::isAscii('原神'));
+        // key(): ASCII keeps its spaces, anything else loses them.
+        $this->assertSame('space marine 2', TermNormalizer::key('Space  Marine 2'));
+        $this->assertSame('卯乃花露芭', TermNormalizer::key('卯乃花 露芭'));
+        $this->assertSame('卯乃花露芭', TermNormalizer::key('卯乃花　露芭'));
+        $this->assertSame('初心者指示ok', TermNormalizer::compact('初心者　指示OK'));
+    }
+
+    public function test_non_ascii_aliases_match_regardless_of_spacing(): void
+    {
+        $wings = Tag::createWithAlias('星の翼', 'category');
+        $tagger = new StreamTagger();
+
+        $this->assertSame([$wings->id], $tagger->matchTagIds('【星の 翼】新人歓迎'));
+        $this->assertSame([$wings->id], $tagger->matchTagIds('星の　翼メンバーで'));
+        $this->assertSame([$wings->id], $tagger->matchTagIds('【星の翼】'));
+    }
+
+    public function test_rebuild_unmatched_merges_spacing_variants_of_a_term(): void
+    {
+        Channel::factory()->create(['name' => 'こてんぱう']);
+        Stream::factory()->create(['title' => '【卯乃花 露芭】1']);
+        Stream::factory()->create(['title' => '【卯乃花露芭】2']);
+        Stream::factory()->create(['title' => '【卯乃花　露芭】3']);
+
+        (new StreamTagger())->rebuildUnmatched();
+
+        $this->assertDatabaseHas('unmatched_terms', ['term' => '卯乃花露芭', 'count' => 3]);
+        $this->assertSame(1, \App\Models\UnmatchedTerm::count());
     }
 
     public function test_matches_the_dictionary_anywhere_in_the_title_after_normalisation(): void

@@ -378,6 +378,17 @@ class ChannelCrudTest extends TestCase
         $this->assertSame($channel->id, Channel::findByNameOrAlias('奈煌ちゃん')->id);
     }
 
+    public function test_japanese_alias_is_stored_without_spaces(): void
+    {
+        $channel = Channel::factory()->create();
+
+        $this->actingAs($this->admin)->post("/admin/channels/{$channel->id}/aliases", ['alias' => '卯乃花 露芭'])->assertRedirect("/admin/channels/{$channel->id}/edit");
+        $this->assertDatabaseHas('channel_aliases', ['channel_id' => $channel->id, 'alias' => '卯乃花露芭']);
+
+        $this->actingAs($this->admin)->post("/admin/channels/{$channel->id}/aliases", ['alias' => '卯乃花　露芭'])->assertSessionHas('error');
+        $this->assertDatabaseCount('channel_aliases', 1);
+    }
+
     public function test_one_character_alias_is_rejected(): void
     {
         $channel = Channel::factory()->create();

@@ -45,6 +45,17 @@ class MemberDetectorTest extends TestCase
         $this->assertSame([], MemberDetector::detect('ナキラ', $channels));   // not registered
     }
 
+    public function test_japanese_names_match_regardless_of_spacing(): void
+    {
+        $tsuyuha = Channel::factory()->create(['name' => '卯乃花つゆは / Unohana Tsuyuha']);
+        $tsuyuha->aliases()->create(['alias' => '卯乃花露芭']);
+        $channels = Channel::with('aliases')->get();
+
+        $this->assertSame([$tsuyuha->id], MemberDetector::detect('【EMOVE / 卯乃花 露芭】雑談', $channels));
+        $this->assertSame([$tsuyuha->id], MemberDetector::detect('卯乃花　露芭と一緒', $channels));
+        $this->assertSame([$tsuyuha->id], MemberDetector::detect('卯乃花 つゆは', $channels));   // the name itself, spaced
+    }
+
     public function test_ignores_tokens_too_short_to_be_meaningful(): void
     {
         $channel = Channel::factory()->create(['name' => 'ゆ', 'short_name' => 'ゆ', 'handle' => '@yu_channel']);

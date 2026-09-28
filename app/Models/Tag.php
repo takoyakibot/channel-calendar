@@ -38,7 +38,7 @@ class Tag extends Model
     public static function createWithAlias(string $name, string $kind, ?int $userId = null): self
     {
         $tag = self::create(['name' => trim($name), 'kind' => $kind, 'created_by_user_id' => $userId]);
-        $tag->aliases()->create(['alias' => TermNormalizer::normalize($name), 'created_by_user_id' => $userId]);
+        $tag->aliases()->create(['alias' => TermNormalizer::key($name), 'created_by_user_id' => $userId]);
 
         return $tag;
     }

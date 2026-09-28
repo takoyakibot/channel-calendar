@@ -18,6 +18,24 @@ final class TermNormalizer
         return trim(preg_replace('/\s+/u', ' ', $s) ?? $s);
     }
 
+    /** normalize() with every space removed — the haystack non-ASCII terms are matched against. */
+    public static function compact(string $s): string
+    {
+        return preg_replace('/\s+/u', '', self::normalize($s)) ?? '';
+    }
+
+    /**
+     * The stored / compared form of a term: ASCII keeps its spaces (it is matched
+     * on word boundaries), anything else drops them so "卯乃花 露芭" and
+     * "卯乃花露芭" are one term.
+     */
+    public static function key(string $s): string
+    {
+        $n = self::normalize($s);
+
+        return self::isAscii($n) ? $n : (preg_replace('/\s+/u', '', $n) ?? $n);
+    }
+
     /** ASCII-only terms are matched on word boundaries ("repo" must not hit "repository"). */
     public static function isAscii(string $s): bool
     {
