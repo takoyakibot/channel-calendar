@@ -2,11 +2,14 @@
 
 namespace Tests\Feature;
 
+use App\Models\Channel;
 use App\Models\Group;
 use App\Models\Setting;
+use App\Models\Stream;
 use App\Models\User;
 use App\Support\XSearchKeywords;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
 class GroupPageTest extends TestCase
@@ -112,6 +115,34 @@ class GroupPageTest extends TestCase
         // @json escapes non-ASCII, so compare against the encoded form.
         $response->assertSee(json_encode('告知'), false);
         $response->assertDontSee(json_encode('予定'), false);
+    }
+
+    public function test_x_share_button_prefills_the_groups_digest(): void
+    {
+        $this->travelTo(Carbon::parse('2026-09-25 03:00:00', 'UTC')); // 12:00 JST, Friday
+        $group = Group::factory()->create(['name' => 'テストG', 'slug' => 'aaaa']);
+        $member = Channel::factory()->create(['short_name' => '奈煌']);
+        $outsider = Channel::factory()->create(['short_name' => '部外者']);
+        $group->channels()->attach($member);
+        Stream::factory()->create(['channel_id' => $member->id, 'status' => 'upcoming', 'title' => '夜の雑談', 'scheduled_at' => '2026-09-25 11:00:00']);
+        Stream::factory()->create(['channel_id' => $outsider->id, 'status' => 'upcoming', 'title' => '別の配信', 'scheduled_at' => '2026-09-25 12:00:00']);
+
+        $response = $this->get('/aaaa');
+
+        $response->assertOk();
+        $expected = implode("\n", ['📅 テストG 9/25(金) の配信予定', '20:00 奈煌 / 夜の雑談', url('/aaaa')]);
+        $response->assertSee('https://x.com/intent/tweet?text=' . rawurlencode($expected), false);
+        $response->assertDontSee(rawurlencode('部外者'), false);
+    }
+
+    public function test_x_share_button_falls_back_to_the_page_link_when_nothing_is_scheduled(): void
+    {
+        Group::factory()->create(['name' => 'テストG', 'slug' => 'aaaa']);
+
+        $response = $this->get('/aaaa');
+
+        $response->assertOk();
+        $response->assertSee('https://x.com/intent/tweet?url=' . urlencode(url('/aaaa')), false);
     }
 
     public function test_unknown_group_slug_returns_404(): void

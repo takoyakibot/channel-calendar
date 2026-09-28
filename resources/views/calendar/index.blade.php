@@ -334,7 +334,7 @@
                 <button type="button" class="video-btn" id="video-post-btn" title="切り抜き動画や、他チャンネルへの出演を URL から登録（ログイン不要）">📎 動画を登録</button>
                 <div class="share-buttons">
                     <a class="share-btn x"
-                       href="https://x.com/intent/tweet?url={{ urlencode($pageUrl) }}&text={{ urlencode($pageTitle) }}"
+                       href="{{ filled($shareText ?? null) ? 'https://x.com/intent/tweet?text=' . rawurlencode($shareText) : 'https://x.com/intent/tweet?url=' . urlencode($pageUrl) . '&text=' . urlencode($pageTitle) }}"
                        target="_blank" rel="noopener noreferrer" title="Xで共有">𝕏</a>
                     <a class="share-btn line"
                        href="https://social-plugins.line.me/lineit/share?url={{ urlencode($pageUrl) }}"
