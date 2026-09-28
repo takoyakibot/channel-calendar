@@ -114,6 +114,18 @@ class GroupPageTest extends TestCase
         $response->assertDontSee(json_encode('予定'), false);
     }
 
+    public function test_x_share_button_fetches_the_digest_on_click_with_the_page_link_as_fallback(): void
+    {
+        Group::factory()->create(['name' => 'テストG', 'slug' => 'aaaa']);
+
+        $response = $this->get('/aaaa');
+
+        $response->assertOk();
+        $response->assertSee('id="share-x-btn"', false);
+        $response->assertSee('https://x.com/intent/tweet?url=' . urlencode(url('/aaaa')), false);
+        $response->assertSee("apiUrl('/api/share-digest'", false);
+    }
+
     public function test_unknown_group_slug_returns_404(): void
     {
         $this->get('/nope')->assertNotFound();

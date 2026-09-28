@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Models\Stream;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
@@ -18,18 +19,36 @@ class StreamDigest
     private const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'];
 
     /**
+     * Digest of what public streams of active channels are live or reserved right now.
+     *
+     * @param  array<int, int>|null  $channelIds  null = every channel
+     */
+    public static function current(?array $channelIds = null, ?string $site = null, ?string $label = null): ?string
+    {
+        $public = fn () => Stream::with('channel')
+            ->whereHas('channel', fn (Builder $q) => $q->where('is_active', true))
+            ->where('is_members_only', false)
+            ->when($channelIds !== null, fn (Builder $q) => $q->whereIn('channel_id', $channelIds));
+
+        $live = $public()->where('status', 'live')->orderBy('scheduled_at')->get();
+        $upcoming = $public()->where('status', 'upcoming')->where('scheduled_at', '>', now())->orderBy('scheduled_at')->get();
+
+        return self::text($live, $upcoming, now(), $site, $label);
+    }
+
+    /**
      * @param  Collection<int, Stream>  $live
      * @param  Collection<int, Stream>  $upcoming  chronological
      */
-    public static function text(Collection $live, Collection $upcoming, Carbon $now): ?string
+    public static function text(Collection $live, Collection $upcoming, Carbon $now, ?string $site = null, ?string $label = null): ?string
     {
         if ($live->isEmpty() && $upcoming->isEmpty()) {
             return null;
         }
 
         $today = $now->copy()->setTimezone('Asia/Tokyo');
-        $header = '📅 ' . $today->format('n/j') . '(' . self::WEEKDAYS[$today->dayOfWeek] . ') の配信予定';
-        $site = url('/');
+        $header = '📅 ' . (filled($label) ? "{$label} " : '') . $today->format('n/j') . '(' . self::WEEKDAYS[$today->dayOfWeek] . ') の配信予定';
+        $site ??= url('/');
 
         $entries = [];
         foreach ($live as $stream) {
