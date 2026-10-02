@@ -19,19 +19,19 @@ class StreamDigest
     private const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'];
 
     /**
-     * Digest of what public streams of active channels are live or reserved right now.
+     * Digest of what streams of active channels are live or reserved right now.
+     * Members-only ones are listed too, marked 🔒 as on the calendar.
      *
      * @param  array<int, int>|null  $channelIds  null = every channel
      */
     public static function current(?array $channelIds = null, ?string $site = null, ?string $label = null): ?string
     {
-        $public = fn () => Stream::with('channel')
+        $streams = fn () => Stream::with('channel')
             ->whereHas('channel', fn (Builder $q) => $q->where('is_active', true))
-            ->where('is_members_only', false)
             ->when($channelIds !== null, fn (Builder $q) => $q->whereIn('channel_id', $channelIds));
 
-        $live = $public()->where('status', 'live')->orderBy('scheduled_at')->get();
-        $upcoming = $public()->where('status', 'upcoming')->where('scheduled_at', '>', now())->orderBy('scheduled_at')->get();
+        $live = $streams()->where('status', 'live')->orderBy('scheduled_at')->get();
+        $upcoming = $streams()->where('status', 'upcoming')->where('scheduled_at', '>', now())->orderBy('scheduled_at')->get();
 
         return self::text($live, $upcoming, now(), $site, $label);
     }
@@ -83,7 +83,7 @@ class StreamDigest
     private static function line(string $prefix, Stream $stream): string
     {
         $base = $prefix . $stream->channel->shortName() . ' / ';
-        $title = trim(preg_replace('/\s+/u', ' ', $stream->title) ?? $stream->title);
+        $title = ($stream->is_members_only ? '🔒 ' : '') . trim(preg_replace('/\s+/u', ' ', $stream->title) ?? $stream->title);
 
         $budget = max(6, self::LINE_MAX - StreamAnnouncement::weightedLength($base));
         if (StreamAnnouncement::weightedLength($title) > $budget) {

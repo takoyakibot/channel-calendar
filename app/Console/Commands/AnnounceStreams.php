@@ -14,7 +14,7 @@ class AnnounceStreams extends Command
     protected $signature = 'streams:announce
         {--dry-run : Print the posts that would be made without posting or marking anything}';
 
-    protected $description = 'Post new public reservations and streams already on air to X, oldest first, within the free-plan limits';
+    protected $description = 'Post new reservations and streams already on air to X, oldest first, within the free-plan limits';
 
     public function handle(XPoster $poster): int
     {
@@ -42,13 +42,13 @@ class AnnounceStreams extends Command
             return self::SUCCESS;
         }
 
-        // Fresh public streams, oldest first: reservations that have not started yet
-        // ("新しい配信予定"), and streams currently on air ("配信中" — started without a
-        // reservation, or a frame that went live before we announced it). A frame
-        // that started and already ended is left alone; announcing it late is noise.
+        // Fresh streams (members-only too, marked 🔒), oldest first: reservations
+        // that have not started yet ("新しい配信予定"), and streams currently on air
+        // ("配信中" — started without a reservation, or a frame that went live
+        // before we announced it). A frame that started and already ended is left
+        // alone; announcing it late is noise.
         $candidates = Stream::with('channel.groups')
             ->whereHas('channel', fn ($q) => $q->where('is_active', true))
-            ->where('is_members_only', false)
             ->whereNull('announced_at')
             ->where(function ($q) {
                 $q->where(fn ($u) => $u->where('status', 'upcoming')->where('scheduled_at', '>', now()))
