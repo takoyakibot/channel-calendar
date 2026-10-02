@@ -86,6 +86,23 @@ class StreamDigestTest extends TestCase
         $this->assertGreaterThanOrEqual(3, preg_match_all('/^\d{2}:\d{2} /mu', $text));
     }
 
+    public function test_digest_can_leave_out_channel_names(): void
+    {
+        $now = Carbon::parse('2026-09-25 03:00:00', 'UTC');
+        $channel = Channel::factory()->create(['short_name' => '奈煌']);
+        $live = Stream::factory()->create(['channel_id' => $channel->id, 'status' => 'live', 'title' => '朝活', 'scheduled_at' => '2026-09-25 02:30:00']);
+        $members = Stream::factory()->create(['channel_id' => $channel->id, 'status' => 'upcoming', 'title' => 'メン限', 'scheduled_at' => '2026-09-25 12:00:00', 'is_members_only' => true]);
+
+        $text = StreamDigest::text(collect([$live]), collect([$members]), $now, withChannel: false);
+
+        $this->assertSame(implode("\n", [
+            '📅 9/25(金) の配信予定',
+            '🔴 配信中 朝活',
+            '21:00 🔒 メン限',
+            url('/'),
+        ]), $text);
+    }
+
     public function test_digest_is_null_when_there_is_nothing_to_say(): void
     {
         $this->assertNull(StreamDigest::text(collect(), collect(), Carbon::parse('2026-09-25 03:00:00', 'UTC')));

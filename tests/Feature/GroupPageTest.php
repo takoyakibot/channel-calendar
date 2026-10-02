@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Channel;
 use App\Models\Group;
 use App\Models\Setting;
 use App\Models\User;
@@ -124,6 +125,20 @@ class GroupPageTest extends TestCase
         $response->assertSee('id="share-x-btn"', false);
         $response->assertSee('https://x.com/intent/tweet?url=' . urlencode(url('/aaaa')), false);
         $response->assertSee("apiUrl('/api/share-digest'", false);
+    }
+
+    public function test_share_channel_names_checkbox_defaults_off_for_a_one_channel_group(): void
+    {
+        $solo = Group::factory()->create(['slug' => 'solo']);
+        $solo->channels()->attach(Channel::factory()->create());
+        $duo = Group::factory()->create(['slug' => 'duo']);
+        $duo->channels()->attach(Channel::factory()->count(2)->create());
+
+        $this->get('/solo')->assertOk()
+            ->assertSee('id="share-x-channels"', false)
+            ->assertDontSee('id="share-x-channels" checked', false);
+        $this->get('/duo')->assertOk()
+            ->assertSee('id="share-x-channels" checked', false);
     }
 
     public function test_unknown_group_slug_returns_404(): void
