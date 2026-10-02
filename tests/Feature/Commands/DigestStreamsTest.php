@@ -46,7 +46,7 @@ class DigestStreamsTest extends TestCase
         Stream::factory()->create(['channel_id' => $inactive->id, 'status' => 'upcoming', 'title' => '停止中の枠', 'scheduled_at' => now()->addHours(3)]);
     }
 
-    public function test_posts_one_digest_of_live_and_future_public_streams_and_remembers_the_day(): void
+    public function test_posts_one_digest_of_live_and_future_streams_and_remembers_the_day(): void
     {
         $this->seedStreams();
 
@@ -55,8 +55,9 @@ class DigestStreamsTest extends TestCase
             return str_starts_with($t, '📅 9/25(金) の配信予定')
                 && str_contains($t, '🔴 配信中 奈煌 / いま配信中')
                 && str_contains($t, '20:00 奈煌 / こんばんの枠')
+                && str_contains($t, '15:00 メン限 / 🔒 メン限の枠')
                 && ! str_contains($t, 'すぎた枠') && ! str_contains($t, 'おわった枠')
-                && ! str_contains($t, 'メン限') && ! str_contains($t, '停止中');
+                && ! str_contains($t, '停止中');
         }))->andReturn('555');
 
         $this->artisan('streams:digest')->assertSuccessful();
