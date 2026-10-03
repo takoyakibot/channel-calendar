@@ -165,6 +165,10 @@
         .card-meta .time { font-weight: 700; font-size: 0.875rem; color: var(--cc-text); line-height: 1.2; white-space: nowrap; }
         .card-meta .ch { font-size: 0.6875rem; color: var(--cc-text-tertiary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .card-title { font-size: 0.78rem; line-height: 1.35; color: var(--cc-text-sub); overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; }
+        /* Optional thumbnails on the board (🖼 toggle): the picture takes the room, the title shrinks to two lines. */
+        .card-thumb { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 0.25rem; margin-top: 0.35rem; background: var(--cc-border); }
+        .board.with-thumbs .card-title { -webkit-line-clamp: 2; }
+        .video-btn.is-on { background: var(--cc-active-bg); color: var(--cc-active-text); border-color: var(--cc-active-bg); }
         .badge { display: inline-block; padding: 0.0625rem 0.4rem; border-radius: 9999px; font-size: 0.625rem; font-weight: 700; margin-left: auto; flex: none; }
         .badge.live { background: #dc2626; color: #fff; }
         .badge.done { background: var(--cc-border); color: var(--cc-text-tertiary); }
@@ -331,6 +335,7 @@
                 <button type="button" class="theme-toggle" id="theme-toggle" title="テーマ切り替え">
                     <span id="theme-icon">🌙</span>
                 </button>
+                <button type="button" class="video-btn" id="thumb-toggle" aria-pressed="false" title="週ボードのカードにサムネイルを表示（タイトルは短くなります）">🖼 サムネ</button>
                 <button type="button" class="video-btn" id="video-post-btn" title="切り抜き動画や、他チャンネルへの出演を URL から登録（ログイン不要）">📎 動画を登録</button>
                 <div class="share-buttons">
                     <a class="share-btn x" id="share-x-btn"
@@ -695,6 +700,31 @@
         var boardEvents = [];
         var calendar = null;
 
+        // Thumbnails on the board cards, off by default; remembered per browser.
+        var showThumbs = false;
+        try { showThumbs = localStorage.getItem('cc.thumbs') === '1'; } catch (e) {}
+        var thumbToggleBtn = document.getElementById('thumb-toggle');
+        function applyThumbs() {
+            boardEl.classList.toggle('with-thumbs', showThumbs);
+            if (thumbToggleBtn) {
+                thumbToggleBtn.classList.toggle('is-on', showThumbs);
+                thumbToggleBtn.setAttribute('aria-pressed', String(showThumbs));
+            }
+        }
+        applyThumbs();
+        if (thumbToggleBtn) {
+            thumbToggleBtn.addEventListener('click', function () {
+                showThumbs = !showThumbs;
+                try { localStorage.setItem('cc.thumbs', showThumbs ? '1' : '0'); } catch (e) {}
+                applyThumbs();
+                renderBoard();
+            });
+        }
+        // We store YouTube's 120×90 "default" thumbnail; the 320×180 "mqdefault" exists at the same path.
+        function thumbUrl(url) {
+            return /i\.ytimg\.com\//.test(url) ? url.replace(/\/default(_live)?\.jpg/, '/mqdefault$1.jpg') : url;
+        }
+
         // "New since your last visit": entries first seen after the previous visit
         // carry a NEW badge for this whole visit. Nothing is new on a first visit.
         var newSince = null;
@@ -858,6 +888,14 @@
             title.textContent = ev.title;
 
             a.appendChild(head);
+            if (showThumbs && props.thumbnail_url) {
+                var thumb = document.createElement('img');
+                thumb.className = 'card-thumb';
+                thumb.src = thumbUrl(props.thumbnail_url);
+                thumb.alt = '';
+                thumb.loading = 'lazy';
+                a.appendChild(thumb);
+            }
             a.appendChild(title);
 
             // Game / category chips, plus a "＋" that opens the tag dialog (streams only).
