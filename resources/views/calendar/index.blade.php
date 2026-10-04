@@ -151,7 +151,17 @@
 
         .card { display: block; min-width: 0; text-decoration: none; color: inherit; border: 1px solid var(--cc-border); border-left: 4px solid #9ca3af; border-radius: 0.375rem; padding: 0.5rem; background: var(--cc-surface); }
         .card:hover { background: var(--cc-surface-hover); border-color: var(--cc-border-light); }
-        .card.is-done { opacity: 0.55; }
+        /* State by background, not by dimming: reserved frames carry a pale tint of the
+           channel colour, live ones a red tint; ended ones look like the rest of the page. */
+        .card.is-upcoming { background: color-mix(in srgb, var(--ev, #9ca3af) 14%, var(--cc-surface)); }
+        .card.is-upcoming:hover { background: color-mix(in srgb, var(--ev, #9ca3af) 24%, var(--cc-surface)); }
+        .card.is-live { background: color-mix(in srgb, #dc2626 12%, var(--cc-surface)); border-color: #dc2626; }
+        .card.is-live:hover { background: color-mix(in srgb, #dc2626 20%, var(--cc-surface)); border-color: #dc2626; }
+        @supports not (background: color-mix(in srgb, red 50%, blue)) {
+            .card.is-upcoming { background: var(--cc-surface-alt); }
+            .card.is-live { background: #fee2e2; }
+            .dark .card.is-live { background: #450a0a; }
+        }
         /* Manually entered schedules: dashed, slightly muted, so they read as "unofficial". */
         .card.is-manual { border-style: dashed; border-width: 1px 1px 1px 4px; border-color: #9ca3af; background: var(--cc-manual-bg); }
         .card.is-manual:hover { background: var(--cc-manual-hover); }
@@ -262,7 +272,7 @@
         .fc-ev img, .fc-ev .fc-ev-dot { width: 1rem; height: 1rem; border-radius: 50%; flex: none; object-fit: cover; }
         .fc-ev .fc-ev-time { font-weight: 700; font-size: 0.7rem; color: var(--cc-text); flex: none; }
         .fc-ev .fc-ev-title { font-size: 0.7rem; color: var(--cc-text-sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .fc-ev.is-done { opacity: 0.55; }
+        /* Ended entries are not dimmed in the month view either; LIVE is already red. */
         /* Block events (all-day manual entries) sit on the pastel channel colour, not
            on the page surface, so their text must stay dark in both themes. */
         /* Month blocks: a pale tint of the channel colour on the page surface plus a
@@ -808,8 +818,11 @@
             var isPost = props.status === 'posted';  // clip / guest appearance on another channel
             a.className = 'card'
                 + (props.status === 'completed' ? ' is-done' : '')
+                + (props.status === 'upcoming' ? ' is-upcoming' : '')
+                + (props.status === 'live' ? ' is-live' : '')
                 + (props.status === 'manual' ? ' is-manual' : '')
                 + (isPost ? ' is-post' : '');
+            a.style.setProperty('--ev', ev.color || '#9ca3af');
             a.dataset.eventId = String(ev.id);
             a.href = ev.url;
             a.target = '_blank';
