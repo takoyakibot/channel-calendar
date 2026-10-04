@@ -37,7 +37,7 @@ class AnnounceStreamsTest extends TestCase
         ], $overrides));
     }
 
-    public function test_announces_new_public_reservations_oldest_first_and_marks_them(): void
+    public function test_announces_new_reservations_oldest_first_and_marks_them(): void
     {
         $channel = Channel::factory()->create(['name' => 'Test Ch']);
         $newer = $this->upcoming($channel, 'newer', ['created_at' => now()->subMinutes(5)]);
@@ -58,13 +58,26 @@ class AnnounceStreamsTest extends TestCase
         $this->assertNotNull($older->fresh()->announced_at);
     }
 
-    public function test_skips_everything_that_is_not_a_fresh_public_reservation(): void
+    public function test_announces_members_only_streams_with_a_lock(): void
+    {
+        $channel = Channel::factory()->create();
+        $members = $this->upcoming($channel, 'members', ['title' => 'メン限の枠', 'is_members_only' => true]);
+
+        $poster = $this->mockPoster();
+        $poster->shouldReceive('post')->once()
+            ->with(Mockery::on(fn ($t) => str_contains($t, '🎬 🔒 メン限の枠')))
+            ->andReturn('333');
+
+        $this->artisan('streams:announce')->assertSuccessful();
+
+        $this->assertDatabaseHas('streams', ['id' => $members->id, 'announced_tweet_id' => '333']);
+    }
+
+    public function test_skips_everything_that_is_not_a_fresh_reservation(): void
     {
         $channel = Channel::factory()->create();
         $inactive = Channel::factory()->create(['is_active' => false]);
-        $this->upcoming($channel, 'members', ['is_members_only' => true]);
         $this->upcoming($channel, 'done', ['status' => 'completed']);
-        $this->upcoming($channel, 'live_members', ['status' => 'live', 'is_members_only' => true, 'scheduled_at' => now()->subMinutes(5)]);
         $this->upcoming($channel, 'already', ['announced_at' => now()->subHour()]);
         $this->upcoming($channel, 'started', ['scheduled_at' => now()->subMinutes(10)]);
         $this->upcoming($channel, 'stale', ['created_at' => now()->subDays(4)]);
@@ -75,7 +88,7 @@ class AnnounceStreamsTest extends TestCase
 
         $this->artisan('streams:announce')->assertSuccessful();
 
-        $this->assertNull(Stream::where('video_id', 'members')->first()->announced_at);
+        $this->assertNull(Stream::where('video_id', 'done')->first()->announced_at);
     }
 
     public function test_announces_streams_that_are_already_live_with_the_live_wording(): void

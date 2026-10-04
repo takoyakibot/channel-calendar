@@ -31,6 +31,7 @@ class ShareDigestApiTest extends TestCase
                 '📅 テストG 9/25(金) の配信予定',
                 '🔴 配信中 奈煌 / 朝活',
                 '20:00 奈煌 / 夜の雑談',
+                '21:00 奈煌 / 🔒 メン限',
                 url('/aaaa'),
             ])]);
     }
