@@ -37,6 +37,10 @@ class CalendarController extends Controller
             'group' => $group,
             'children' => $children,
             'childChannelMap' => $this->buildChildChannelMap($children),
+            // A one-person group's share text doesn't need the name on every line.
+            'shareWithChannels' => Channel::active()
+                ->whereHas('groups', fn ($g) => $g->whereIn('groups.id', $group->subtreeIds()))
+                ->count() !== 1,
         ]);
     }
 

@@ -118,6 +118,7 @@
         .share-btn.x:hover { background: #333; }
         .share-btn.line { background: #06c755; color: #fff; border-color: #06c755; }
         .share-btn.line:hover { background: #05b34c; }
+        .share-opt { display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.75rem; color: var(--cc-text-secondary); cursor: pointer; white-space: nowrap; }
 
         .card .delete-btn { display: none; position: absolute; top: 0.25rem; right: 0.25rem; width: 1.25rem; height: 1.25rem; border-radius: 50%; border: none; background: #ef4444; color: #fff; font-size: 0.625rem; cursor: pointer; line-height: 1; padding: 0; }
         .card:hover .delete-btn { display: flex; align-items: center; justify-content: center; }
@@ -348,6 +349,9 @@
                 <button type="button" class="video-btn" id="thumb-toggle" aria-pressed="false" title="週ボードのカードにサムネイルを表示（タイトルは短くなります）">🖼 サムネ</button>
                 <button type="button" class="video-btn" id="video-post-btn" title="切り抜き動画や、他チャンネルへの出演を URL から登録（ログイン不要）">📎 動画を登録</button>
                 <div class="share-buttons">
+                    <label class="share-opt" title="Xの共有文に各配信のチャンネル名を入れる">
+                        <input type="checkbox" id="share-x-channels" @checked($shareWithChannels)>名前
+                    </label>
                     <a class="share-btn x" id="share-x-btn"
                        href="https://x.com/intent/tweet?url={{ urlencode($pageUrl) }}&text={{ urlencode($pageTitle) }}"
                        target="_blank" rel="noopener noreferrer" title="Xで共有">𝕏</a>
@@ -2183,7 +2187,9 @@
                 e.preventDefault();
                 var fallback = shareXBtn.href;
                 var win = window.open('', '_blank');
-                fetch(apiUrl('/api/share-digest', {}), { headers: { Accept: 'application/json' } })
+                var withChannels = document.getElementById('share-x-channels');
+                var params = withChannels && !withChannels.checked ? { channels: 0 } : {};
+                fetch(apiUrl('/api/share-digest', params), { headers: { Accept: 'application/json' } })
                     .then(function (r) { return r.ok ? r.json() : {}; })
                     .then(function (d) { return d.text ? 'https://x.com/intent/tweet?text=' + encodeURIComponent(d.text) : fallback; })
                     .catch(function () { return fallback; })

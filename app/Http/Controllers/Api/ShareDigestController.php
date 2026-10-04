@@ -14,10 +14,11 @@ class ShareDigestController extends Controller
 {
     public function show(Request $request): JsonResponse
     {
-        $request->validate(['group' => 'nullable|string|max:255']);
+        $request->validate(['group' => 'nullable|string|max:255', 'channels' => 'nullable|boolean']);
+        $withChannel = $request->boolean('channels', true);
 
         if (! $request->filled('group')) {
-            return response()->json(['text' => StreamDigest::current()]);
+            return response()->json(['text' => StreamDigest::current(withChannel: $withChannel)]);
         }
 
         $group = Group::resolvePath($request->input('group'));
@@ -29,7 +30,7 @@ class ShareDigestController extends Controller
             ->all();
 
         return response()->json([
-            'text' => StreamDigest::current($channelIds, url('/' . $group->path), $group->name),
+            'text' => StreamDigest::current($channelIds, url('/' . $group->path), $group->name, $withChannel),
         ]);
     }
 }
