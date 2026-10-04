@@ -41,7 +41,7 @@ class StreamAnnouncement
         ]);
 
         // Give the title whatever room the fixed parts leave, shortening it with "…".
-        $title = trim(preg_replace('/\s+/u', ' ', $stream->title) ?? '');
+        $title = ($stream->is_members_only ? '🔒 ' : '') . trim(preg_replace('/\s+/u', ' ', $stream->title) ?? '');
         $budget = self::MAX_WEIGHTED_LENGTH - self::weightedLength($build(''));
         if (self::weightedLength($title) > $budget) {
             $title = self::shorten($title, $budget);

@@ -31,6 +31,24 @@ class ShareDigestApiTest extends TestCase
                 '📅 テストG 9/25(金) の配信予定',
                 '🔴 配信中 奈煌 / 朝活',
                 '20:00 奈煌 / 夜の雑談',
+                '21:00 奈煌 / 🔒 メン限',
+                url('/aaaa'),
+            ])]);
+    }
+
+    public function test_channel_names_can_be_left_out(): void
+    {
+        $this->travelTo(Carbon::parse('2026-09-25 03:00:00', 'UTC'));
+        $group = Group::factory()->create(['name' => 'テストG', 'slug' => 'aaaa']);
+        $member = Channel::factory()->create(['short_name' => '奈煌']);
+        $group->channels()->attach($member);
+        Stream::factory()->create(['channel_id' => $member->id, 'status' => 'upcoming', 'title' => '夜の雑談', 'scheduled_at' => '2026-09-25 11:00:00']);
+
+        $this->getJson('/api/share-digest?group=aaaa&channels=0')
+            ->assertOk()
+            ->assertExactJson(['text' => implode("\n", [
+                '📅 テストG 9/25(金) の配信予定',
+                '20:00 夜の雑談',
                 url('/aaaa'),
             ])]);
     }

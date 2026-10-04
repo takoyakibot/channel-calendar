@@ -19,28 +19,29 @@ class StreamDigest
     private const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'];
 
     /**
-     * Digest of what public streams of active channels are live or reserved right now.
+     * Digest of what streams of active channels are live or reserved right now.
+     * Members-only ones are listed too, marked 🔒 as on the calendar.
      *
      * @param  array<int, int>|null  $channelIds  null = every channel
+     * @param  bool  $withChannel  false drops the channel name from each line (e.g. a one-person group)
      */
-    public static function current(?array $channelIds = null, ?string $site = null, ?string $label = null): ?string
+    public static function current(?array $channelIds = null, ?string $site = null, ?string $label = null, bool $withChannel = true): ?string
     {
-        $public = fn () => Stream::with('channel')
+        $streams = fn () => Stream::with('channel')
             ->whereHas('channel', fn (Builder $q) => $q->where('is_active', true))
-            ->where('is_members_only', false)
             ->when($channelIds !== null, fn (Builder $q) => $q->whereIn('channel_id', $channelIds));
 
-        $live = $public()->where('status', 'live')->orderBy('scheduled_at')->get();
-        $upcoming = $public()->where('status', 'upcoming')->where('scheduled_at', '>', now())->orderBy('scheduled_at')->get();
+        $live = $streams()->where('status', 'live')->orderBy('scheduled_at')->get();
+        $upcoming = $streams()->where('status', 'upcoming')->where('scheduled_at', '>', now())->orderBy('scheduled_at')->get();
 
-        return self::text($live, $upcoming, now(), $site, $label);
+        return self::text($live, $upcoming, now(), $site, $label, $withChannel);
     }
 
     /**
      * @param  Collection<int, Stream>  $live
      * @param  Collection<int, Stream>  $upcoming  chronological
      */
-    public static function text(Collection $live, Collection $upcoming, Carbon $now, ?string $site = null, ?string $label = null): ?string
+    public static function text(Collection $live, Collection $upcoming, Carbon $now, ?string $site = null, ?string $label = null, bool $withChannel = true): ?string
     {
         if ($live->isEmpty() && $upcoming->isEmpty()) {
             return null;
@@ -52,12 +53,12 @@ class StreamDigest
 
         $entries = [];
         foreach ($live as $stream) {
-            $entries[] = self::line('🔴 配信中 ', $stream);
+            $entries[] = self::line('🔴 配信中 ', $stream, $withChannel);
         }
         foreach ($upcoming as $stream) {
             $at = $stream->scheduled_at->copy()->setTimezone('Asia/Tokyo');
             $prefix = ($at->isSameDay($today) ? '' : $at->format('n/j') . ' ') . $at->format('H:i') . ' ';
-            $entries[] = self::line($prefix, $stream);
+            $entries[] = self::line($prefix, $stream, $withChannel);
         }
 
         // Add lines while the whole post (with the footer it would need) still fits.
@@ -80,10 +81,10 @@ class StreamDigest
         return $remaining > 0 ? "他 {$remaining} 件 → {$site}" : $site;
     }
 
-    private static function line(string $prefix, Stream $stream): string
+    private static function line(string $prefix, Stream $stream, bool $withChannel): string
     {
-        $base = $prefix . $stream->channel->shortName() . ' / ';
-        $title = trim(preg_replace('/\s+/u', ' ', $stream->title) ?? $stream->title);
+        $base = $prefix . ($withChannel ? $stream->channel->shortName() . ' / ' : '');
+        $title = ($stream->is_members_only ? '🔒 ' : '') . trim(preg_replace('/\s+/u', ' ', $stream->title) ?? $stream->title);
 
         $budget = max(6, self::LINE_MAX - StreamAnnouncement::weightedLength($base));
         if (StreamAnnouncement::weightedLength($title) > $budget) {
