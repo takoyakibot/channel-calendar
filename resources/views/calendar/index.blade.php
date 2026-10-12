@@ -1583,9 +1583,11 @@
             var vpReady = null;  // preview of the current URL once it resolved and may be registered
 
             function vpSetStatus(text) { vpStatus.textContent = text || ''; vpStatus.hidden = !text; }
-            function vpRenderMembers(checkedIds) {
+            // The host's own channel is left out: its stream is imported already.
+            function vpRenderMembers(checkedIds, sourceMemberId) {
                 vpMembers.textContent = '';
                 channelList.forEach(function (ch) {
+                    if (ch.id === sourceMemberId) return;
                     var label = document.createElement('label');
                     var cb = document.createElement('input');
                     cb.type = 'checkbox';
@@ -1643,9 +1645,8 @@
                         var thumb = document.getElementById('vp-thumb');
                         if (d.thumbnail_url) { thumb.src = d.thumbnail_url; thumb.hidden = false; } else { thumb.hidden = true; }
                         vpPreview.hidden = false;
-                        vpRenderMembers(d.detected_channel_ids || []);
+                        vpRenderMembers(d.detected_channel_ids || [], d.source_member_id);
                         if (d.already_registered) { vpSetStatus('この動画は登録済みです。'); return; }
-                        if (d.source_is_member) { vpSetStatus('メンバー自身のチャンネルの動画は自動で取り込まれるため、登録は不要です。'); return; }
                         vpSetStatus((d.detected_channel_ids || []).length ? '' : 'メンバーを自動で判定できませんでした。該当するメンバーにチェックを入れてください。');
                         vpReady = d;
                         vpSubmit.disabled = false;
