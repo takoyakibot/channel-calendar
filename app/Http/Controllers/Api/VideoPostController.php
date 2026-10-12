@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\Channel;
 use App\Models\Group;
+use App\Models\Stream;
 use App\Models\VideoPost;
 use App\Services\YouTubeService;
 use App\Support\MemberDetector;
@@ -21,6 +22,10 @@ use Illuminate\Validation\ValidationException;
  * Clips and guest appearances: videos on other channels that feature members.
  * Anyone may register one from a URL (rate limited, one row per video); only
  * admins remove them (Admin\VideoPostController).
+ *
+ * The host may itself be a registered member: its stream is imported, but only
+ * shows for the host's groups, so a guest from another group needs the post.
+ * Where the stream is already on the calendar, index() leaves the post out.
  */
 class VideoPostController extends Controller
 {
@@ -41,9 +46,13 @@ class VideoPostController extends Controller
 
         [$start, $end] = self::range($request->start, $request->end);
 
+        // The same channels the calendar shows streams for (StreamController::index).
+        $inScope = fn (Builder $q) => $q->where('is_active', true)
+            ->when($groupIds !== null, fn ($c) => $c->whereHas('groups', fn ($g) => $g->whereIn('groups.id', $groupIds)));
+
         $posts = VideoPost::with('channels')
-            ->whereHas('channels', fn (Builder $q) => $q->where('is_active', true)
-                ->when($groupIds !== null, fn ($c) => $c->whereHas('groups', fn ($g) => $g->whereIn('groups.id', $groupIds))))
+            ->whereHas('channels', $inScope)
+            ->whereNotExists(Stream::whereColumn('streams.video_id', 'video_posts.video_id')->whereHas('channel', $inScope)->toBase())
             ->whereBetween('published_at', [$start, $end])
             ->orderBy('published_at')
             ->get();
@@ -66,6 +75,8 @@ class VideoPostController extends Controller
             return response()->json(['message' => '動画が見つかりません（削除済み・非公開の可能性があります）。'], 404);
         }
 
+        $sourceMemberId = Channel::where('channel_id', $info['channel_id'])->value('id');
+
         return response()->json([
             'video_id' => $videoId,
             'title' => $info['title'],
@@ -73,9 +84,12 @@ class VideoPostController extends Controller
             'thumbnail_url' => $info['thumbnail_url'],
             'published_at' => $info['published_at'] ? Carbon::parse($info['published_at'])->toIso8601String() : null,
             'duration_seconds' => $info['duration_seconds'],
-            'detected_channel_ids' => MemberDetector::detect($info['title'] . "\n" . $info['description'], Channel::active()->with('aliases')->orderBy('id')->get()),
+            'detected_channel_ids' => array_values(array_diff(
+                MemberDetector::detect($info['title'] . "\n" . $info['description'], Channel::active()->with('aliases')->orderBy('id')->get()),
+                [$sourceMemberId],
+            )),
             'already_registered' => VideoPost::where('video_id', $videoId)->exists(),
-            'source_is_member' => Channel::where('channel_id', $info['channel_id'])->exists(),
+            'source_member_id' => $sourceMemberId,
         ]);
     }
 
@@ -105,8 +119,9 @@ class VideoPostController extends Controller
         if ($info === null || ! $info['published_at']) {
             throw ValidationException::withMessages(['url' => '動画が見つかりません（削除済み・非公開の可能性があります）。']);
         }
-        if (Channel::where('channel_id', $info['channel_id'])->exists()) {
-            throw ValidationException::withMessages(['url' => 'メンバー自身のチャンネルの動画は自動で取り込まれるため、ここでは登録できません。']);
+        $sourceMemberId = Channel::where('channel_id', $info['channel_id'])->value('id');
+        if ($sourceMemberId !== null && in_array($sourceMemberId, $validated['channel_ids'])) {
+            throw ValidationException::withMessages(['channel_ids' => '配信元のチャンネル自身は選べません（その配信は自動で取り込まれます）。']);
         }
 
         $post = VideoPost::create([

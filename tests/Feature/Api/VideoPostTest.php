@@ -5,6 +5,7 @@ namespace Tests\Feature\Api;
 use App\Models\ActivityLog;
 use App\Models\Channel;
 use App\Models\Group;
+use App\Models\Stream;
 use App\Models\User;
 use App\Models\VideoPost;
 use App\Services\YouTubeService;
@@ -113,14 +114,60 @@ class VideoPostTest extends TestCase
         $this->getJson('/api/video-posts/preview?url=' . self::VIDEO)->assertOk()->assertJsonPath('already_registered', true);
     }
 
-    public function test_videos_on_a_registered_member_channel_are_refused(): void
+    public function test_a_guest_appearance_on_another_member_channel_can_be_registered(): void
     {
-        $member = Channel::factory()->create(['channel_id' => 'UC_member']);
-        $this->mockYouTube($this->info(['channel_id' => 'UC_member']));
+        // The host is a registered member, but in a different group: its stream is
+        // imported for the host's group only, so the guest's group needs the post.
+        $host = Channel::factory()->create(['name' => '純白こゆき', 'channel_id' => 'UC_host']);
+        $guest = Channel::factory()->create(['name' => '天和うる']);
+        $this->mockYouTube($this->info(['channel_id' => 'UC_host', 'channel_title' => '純白こゆき', 'title' => '【雑談コラボ】天和うると純白こゆき']));
 
-        $this->postJson('/api/video-posts', ['url' => self::VIDEO, 'kind' => 'guest', 'channel_ids' => [$member->id]])
+        $this->getJson('/api/video-posts/preview?url=' . self::VIDEO)->assertOk()
+            ->assertJsonPath('source_member_id', $host->id)
+            ->assertJsonPath('detected_channel_ids', [$guest->id]);
+
+        $this->postJson('/api/video-posts', ['url' => self::VIDEO, 'kind' => 'guest', 'channel_ids' => [$guest->id]])
+            ->assertCreated()
+            ->assertJsonPath('extendedProps.channel_id', $guest->id);
+    }
+
+    public function test_the_host_member_cannot_be_tagged_on_their_own_video(): void
+    {
+        $host = Channel::factory()->create(['channel_id' => 'UC_host']);
+        $guest = Channel::factory()->create();
+        $this->mockYouTube($this->info(['channel_id' => 'UC_host']));
+
+        $this->postJson('/api/video-posts', ['url' => self::VIDEO, 'kind' => 'guest', 'channel_ids' => [$guest->id, $host->id]])
             ->assertStatus(422)
-            ->assertJsonValidationErrors('url');
+            ->assertJsonValidationErrors('channel_ids');
+        $this->assertSame(0, VideoPost::count());
+    }
+
+    public function test_index_skips_a_post_whose_video_is_already_shown_as_a_stream(): void
+    {
+        $hostGroup = Group::factory()->create(['slug' => 'host']);
+        $guestGroup = Group::factory()->create(['slug' => 'guest']);
+        $host = Channel::factory()->create();
+        $guest = Channel::factory()->create();
+        $host->groups()->attach($hostGroup);
+        $guest->groups()->attach($guestGroup);
+        Stream::factory()->create(['channel_id' => $host->id, 'video_id' => 'collab00001', 'scheduled_at' => '2026-09-24 10:00:00']);
+        $post = VideoPost::create(['video_id' => 'collab00001', 'kind' => 'guest', 'title' => 'コラボ', 'source_channel_id' => $host->channel_id, 'source_channel_name' => 'ホスト', 'published_at' => '2026-09-24 10:00:00']);
+        $post->channels()->attach($guest);
+
+        $range = 'start=2026-09-01&end=2026-09-30';
+        $this->getJson("/api/video-posts?{$range}&group=guest")->assertOk()->assertJsonCount(1);
+        $this->getJson("/api/video-posts?{$range}&group=host")->assertOk()->assertJsonCount(0);
+        // Both channels are on the top page, where the stream already shows the video.
+        $this->getJson("/api/video-posts?{$range}")->assertOk()->assertJsonCount(0);
+
+        // A group with both members shows the stream; the post would be a duplicate.
+        $guest->groups()->attach($hostGroup);
+        $this->getJson("/api/video-posts?{$range}&group=host")->assertOk()->assertJsonCount(0);
+
+        // An inactive host's stream is hidden, so the post shows again.
+        $host->update(['is_active' => false]);
+        $this->getJson("/api/video-posts?{$range}")->assertOk()->assertJsonCount(1);
     }
 
     public function test_validation_requires_kind_members_and_a_resolvable_video(): void
