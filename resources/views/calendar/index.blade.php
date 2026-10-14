@@ -273,6 +273,12 @@
         .fc-ev img, .fc-ev .fc-ev-dot { width: 1rem; height: 1rem; border-radius: 50%; flex: none; object-fit: cover; }
         .fc-ev .fc-ev-time { font-weight: 700; font-size: 0.7rem; color: var(--cc-text); flex: none; }
         .fc-ev .fc-ev-title { font-size: 0.7rem; color: var(--cc-text-sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        /* Month view with the 🖼 toggle on: the thumbnail wraps onto its own line under the title row,
+           capped near one day's width so an event spanning midnight doesn't get a double-size picture. */
+        .fc-ev.has-thumb { flex-wrap: wrap; padding-bottom: 0.125rem; }
+        .fc-ev.has-thumb .fc-ev-title { flex: 1 1 0; min-width: 0; }
+        .fc-ev .fc-ev-thumb-row { flex: 0 0 100%; }
+        .fc-ev img.fc-ev-thumb { display: block; width: 100%; height: auto; max-width: 11rem; aspect-ratio: 16 / 9; border-radius: 0.2rem; background: var(--cc-border); }
         /* Ended entries are not dimmed in the month view either; LIVE is already red. */
         /* Block events (all-day manual entries) sit on the pastel channel colour, not
            on the page surface, so their text must stay dark in both themes. */
@@ -346,7 +352,7 @@
                 <button type="button" class="theme-toggle" id="theme-toggle" title="テーマ切り替え">
                     <span id="theme-icon">🌙</span>
                 </button>
-                <button type="button" class="video-btn" id="thumb-toggle" aria-pressed="false" title="週ボードのカードにサムネイルを表示（タイトルは短くなります）">🖼 サムネ</button>
+                <button type="button" class="video-btn" id="thumb-toggle" aria-pressed="false" title="予定にサムネイルを表示（週ボードではタイトルが短くなります）">🖼 サムネ</button>
                 <button type="button" class="video-btn" id="video-post-btn" title="切り抜き動画や、他チャンネルへの出演を URL から登録（ログイン不要）">📎 動画を登録</button>
                 <div class="share-buttons">
                     <label class="share-opt" title="Xの共有文に各配信のチャンネル名を入れる">
@@ -714,7 +720,7 @@
         var boardEvents = [];
         var calendar = null;
 
-        // Thumbnails on the board cards, off by default; remembered per browser.
+        // Thumbnails on the board cards and month view, off by default; remembered per browser.
         var showThumbs = false;
         try { showThumbs = localStorage.getItem('cc.thumbs') === '1'; } catch (e) {}
         var thumbToggleBtn = document.getElementById('thumb-toggle');
@@ -732,6 +738,7 @@
                 try { localStorage.setItem('cc.thumbs', showThumbs ? '1' : '0'); } catch (e) {}
                 applyThumbs();
                 renderBoard();
+                if (calendar) { calendar.refetchEvents(); }
             });
         }
         // We store YouTube's 120×90 "default" thumbnail; the 320×180 "mqdefault" exists at the same path.
@@ -1209,6 +1216,18 @@
                         nb.className = 'badge new';
                         nb.textContent = 'NEW';
                         wrap.appendChild(nb);
+                    }
+                    if (showThumbs && props.thumbnail_url) {
+                        var th = document.createElement('img');
+                        th.className = 'fc-ev-thumb';
+                        th.src = thumbUrl(props.thumbnail_url);
+                        th.alt = '';
+                        th.loading = 'lazy';
+                        var thRow = document.createElement('div');
+                        thRow.className = 'fc-ev-thumb-row';
+                        thRow.appendChild(th);
+                        wrap.classList.add('has-thumb');
+                        wrap.appendChild(thRow);
                     }
                     return { domNodes: [wrap] };
                 },
