@@ -64,7 +64,7 @@ YouTube API キーは `/admin/settings` から登録するか、`.env` の `YOUT
 5. 管理者ユーザーを作成する（`deploy.env` の値に読み替える）:
 
    ```bash
-   ssh -i "$SSH_KEY" "$SERVER" "cd $REMOTE_PATH && php artisan db:seed --class=AdminUserSeeder --force"
+   ssh -i "$SSH_KEY" "$SERVER" "cd $REMOTE_PATH && /usr/local/php84/bin/php artisan db:seed --class=AdminUserSeeder --force"
    ```
 
    その後 `.env` の `ADMIN_PASSWORD` は空にしてよい。
@@ -72,7 +72,7 @@ YouTube API キーは `/admin/settings` から登録するか、`.env` の `YOUT
 6. サーバーの cron に以下を追加する（毎分。Laravel のスケジューラが30分ごとに `streams:fetch` を起動します）:
 
    ```
-   * * * * * cd /path/to/public_html && php artisan schedule:run >> storage/logs/cron.log 2>&1
+   * * * * * cd /path/to/public_html && /usr/local/php84/bin/php artisan schedule:run >> storage/logs/cron.log 2>&1
    ```
 
 7. `/login` でログインし、`/admin/settings` に YouTube API キーを登録して「接続テスト」。
