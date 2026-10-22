@@ -157,7 +157,7 @@ class YouTubeService
      */
     public function getVideoInfo(string $videoId): ?array
     {
-        $response = $this->youtube->videos->listVideos('snippet,contentDetails', ['id' => $videoId]);
+        $response = $this->youtube->videos->listVideos('snippet,contentDetails,liveStreamingDetails', ['id' => $videoId]);
         $items = $response->getItems() ?? [];
         if (empty($items)) {
             return null;
@@ -165,6 +165,8 @@ class YouTubeService
 
         $video = $items[0];
         $snippet = $video->getSnippet();
+        // A past broadcast is dated by when it aired: its archive can go public much later (often the next day).
+        $airedAt = $video->getLiveStreamingDetails()?->getActualStartTime();
 
         return [
             'video_id' => $video->getId(),
@@ -173,7 +175,7 @@ class YouTubeService
             'channel_id' => $snippet->getChannelId(),
             'channel_title' => $snippet->getChannelTitle(),
             'thumbnail_url' => $this->extractThumbnailUrl($snippet),
-            'published_at' => $snippet->getPublishedAt(),
+            'published_at' => $airedAt ?? $snippet->getPublishedAt(),
             'duration_seconds' => self::durationToSeconds($video->getContentDetails()?->getDuration()),
         ];
     }

@@ -375,7 +375,7 @@ class YouTubeServiceTest extends TestCase
         $response->setItems([$video]);
 
         $mockVideos = Mockery::mock(Videos::class);
-        $mockVideos->shouldReceive('listVideos')->with('snippet,contentDetails', ['id' => 'abc123DEF45'])->andReturn($response);
+        $mockVideos->shouldReceive('listVideos')->with('snippet,contentDetails,liveStreamingDetails', ['id' => 'abc123DEF45'])->andReturn($response);
         $this->mockYouTube->videos = $mockVideos;
 
         $this->assertSame([
@@ -388,6 +388,32 @@ class YouTubeServiceTest extends TestCase
             'published_at' => '2026-09-24T12:34:56Z',
             'duration_seconds' => 95,
         ], $this->service->getVideoInfo('abc123DEF45'));
+    }
+
+    public function test_get_video_info_dates_a_past_broadcast_by_when_it_aired_not_when_the_archive_was_published(): void
+    {
+        $snippet = new VideoSnippet();
+        $snippet->setTitle('【 ボードゲーム 】コラボ配信');
+        $snippet->setChannelId('UC_host');
+        $snippet->setChannelTitle('Host');
+        // The archive went public the next morning (JST).
+        $snippet->setPublishedAt('2026-10-18T01:57:11Z');
+        $live = new VideoLiveStreamingDetails();
+        $live->setScheduledStartTime('2026-10-17T12:00:00Z');
+        $live->setActualStartTime('2026-10-17T12:01:34Z');
+        $live->setActualEndTime('2026-10-17T13:47:17Z');
+        $video = new Video();
+        $video->setId('r9N79JmTW7g');
+        $video->setSnippet($snippet);
+        $video->setLiveStreamingDetails($live);
+        $response = new VideoListResponse();
+        $response->setItems([$video]);
+
+        $mockVideos = Mockery::mock(Videos::class);
+        $mockVideos->shouldReceive('listVideos')->andReturn($response);
+        $this->mockYouTube->videos = $mockVideos;
+
+        $this->assertSame('2026-10-17T12:01:34Z', $this->service->getVideoInfo('r9N79JmTW7g')['published_at']);
     }
 
     public function test_get_video_info_is_null_for_an_unknown_video(): void
