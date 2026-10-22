@@ -179,6 +179,10 @@
         /* Optional thumbnails on the board (🖼 toggle): the picture takes the room, the title shrinks to two lines. */
         .card-thumb { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 0.25rem; margin-top: 0.35rem; background: var(--cc-border); }
         .board.with-thumbs .card-title { -webkit-line-clamp: 2; }
+        /* A thumbnail that failed to load (expired Twitch VOD, deleted video): channel-tinted panel with the icon. */
+        .card-thumb.thumb-fallback, .fc-ev .fc-ev-thumb.thumb-fallback { --ev: #9ca3af; display: flex; align-items: center; justify-content: center; background: color-mix(in srgb, var(--ev) 30%, var(--cc-surface)); }
+        .thumb-fallback .avatar, .thumb-fallback .avatar-fallback { width: 2.25rem; height: 2.25rem; opacity: 0.85; }
+        .fc-ev .thumb-fallback .fc-ev-img, .fc-ev .thumb-fallback .fc-ev-dot { width: 1.5rem; height: 1.5rem; opacity: 0.85; }
         .video-btn.is-on { background: var(--cc-active-bg); color: var(--cc-active-text); border-color: var(--cc-active-bg); }
         .badge { display: inline-block; padding: 0.0625rem 0.4rem; border-radius: 9999px; font-size: 0.625rem; font-weight: 700; margin-left: auto; flex: none; }
         .badge.live { background: #dc2626; color: #fff; }
@@ -278,7 +282,7 @@
         .fc-ev.has-thumb { flex-wrap: wrap; padding-bottom: 0.125rem; }
         .fc-ev.has-thumb .fc-ev-title { flex: 1 1 0; min-width: 0; }
         .fc-ev .fc-ev-thumb-row { flex: 0 0 100%; }
-        .fc-ev img.fc-ev-thumb { display: block; width: 100%; height: auto; max-width: 11rem; aspect-ratio: 16 / 9; border-radius: 0.2rem; background: var(--cc-border); }
+        .fc-ev .fc-ev-thumb { display: block; width: 100%; height: auto; max-width: 11rem; aspect-ratio: 16 / 9; border-radius: 0.2rem; background: var(--cc-border); }
         /* Ended entries are not dimmed in the month view either; LIVE is already red. */
         /* Block events (all-day manual entries) sit on the pastel channel colour, not
            on the page surface, so their text must stay dark in both themes. */
@@ -745,6 +749,23 @@
         function thumbUrl(url) {
             return /i\.ytimg\.com\//.test(url) ? url.replace(/\/default(_live)?\.jpg/, '/mqdefault$1.jpg') : url;
         }
+        // Stored thumbnails can die later (Twitch drops VODs after a week or so, videos get deleted);
+        // swap a broken one for a panel in the channel colour so the layout and the card stay intact.
+        function thumbNode(props, color, cls, avatarSize) {
+            var img = document.createElement('img');
+            img.className = cls;
+            img.src = thumbUrl(props.thumbnail_url);
+            img.alt = '';
+            img.loading = 'lazy';
+            img.addEventListener('error', function () {
+                var box = document.createElement('div');
+                box.className = cls + ' thumb-fallback';
+                box.style.setProperty('--ev', color || '#9ca3af');
+                box.appendChild(avatarNode(props, color, avatarSize));
+                img.replaceWith(box);
+            });
+            return img;
+        }
 
         // "New since your last visit": entries first seen after the previous visit
         // carry a NEW badge for this whole visit. Nothing is new on a first visit.
@@ -913,12 +934,7 @@
 
             a.appendChild(head);
             if (showThumbs && props.thumbnail_url) {
-                var thumb = document.createElement('img');
-                thumb.className = 'card-thumb';
-                thumb.src = thumbUrl(props.thumbnail_url);
-                thumb.alt = '';
-                thumb.loading = 'lazy';
-                a.appendChild(thumb);
+                a.appendChild(thumbNode(props, ev.color, 'card-thumb', 'avatar'));
             }
             a.appendChild(title);
 
@@ -1218,11 +1234,7 @@
                         wrap.appendChild(nb);
                     }
                     if (showThumbs && props.thumbnail_url) {
-                        var th = document.createElement('img');
-                        th.className = 'fc-ev-thumb';
-                        th.src = thumbUrl(props.thumbnail_url);
-                        th.alt = '';
-                        th.loading = 'lazy';
+                        var th = thumbNode(props, arg.event.backgroundColor || arg.event.borderColor, 'fc-ev-thumb', 'fc-ev-img');
                         var thRow = document.createElement('div');
                         thRow.className = 'fc-ev-thumb-row';
                         thRow.appendChild(th);
