@@ -12,8 +12,7 @@
 # 前提:
 #   - サーバーに composer / node は無いので、ビルド済みの vendor と public/build を丸ごと送る
 #   - サーバーの .env は手動で管理する（初回は .env.example を元に作成、rsync では触らない）
-#   - 本番CLIのPHPには psr 拡張が入っており composer の psr/log と衝突して artisan が
-#     起動できないため、psr の行だけ除いた ini を PHP_INI_SCAN_DIR で読ませる（ycs と同じ対処）
+#   - サーバーの素の `php` は 8.1（サポート終了）なので、Web 側と同じ 8.4 の CLI をフルパスで使う
 #
 
 set -e
@@ -78,12 +77,7 @@ ssh -i "$SSH_KEY" -p 22 "$SERVER" "bash -s" <<REMOTE_SCRIPT
 set -e
 cd "$REMOTE_PATH"
 
-ini_src=\$(php --ini 2>/dev/null | grep -oE '/[^ ,]*alt_php\.ini' | head -1)
-if [ -n "\$ini_src" ] && [ -f "\$ini_src" ]; then
-  mkdir -p "\$HOME/php-ini-nopsr"
-  grep -v '^extension=psr.so' "\$ini_src" > "\$HOME/php-ini-nopsr/alt_php.ini"
-  export PHP_INI_SCAN_DIR="\$HOME/php-ini-nopsr"
-fi
+PHP=/usr/local/php84/bin/php
 
 if [ ! -f .env ]; then
   echo "❌ サーバーに .env がありません。README のデプロイ手順に従って作成してください。"
@@ -92,22 +86,22 @@ fi
 
 if ! grep -q '^APP_KEY=base64:' .env; then
   echo "--- APP_KEY が未設定のため生成します"
-  php artisan key:generate --force
+  "\$PHP" artisan key:generate --force
 fi
 
 # storage/framework は転送対象外なので、初回は自分で作る
 mkdir -p storage/framework/cache/data storage/framework/sessions storage/framework/views storage/logs
 chmod -R ug+rwX storage bootstrap/cache
 
-php artisan config:clear
-php artisan cache:clear
-php artisan route:clear
-php artisan view:clear
+"\$PHP" artisan config:clear
+"\$PHP" artisan cache:clear
+"\$PHP" artisan route:clear
+"\$PHP" artisan view:clear
 
 echo "--- 未適用のマイグレーション"
-php artisan migrate:status | grep -i pending || echo "（なし）"
+"\$PHP" artisan migrate:status | grep -i pending || echo "（なし）"
 
-php artisan migrate --force
+"\$PHP" artisan migrate --force
 REMOTE_SCRIPT
 
 echo "▶ 4. ローカルの開発用依存を復元"
