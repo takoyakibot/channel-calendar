@@ -112,6 +112,8 @@
         .admin-link { font-size: 0.875rem; color: #2563eb; text-decoration: none; }
         .admin-link:hover { text-decoration: underline; }
         .share-buttons { display: inline-flex; gap: 0.375rem; }
+        .shared-note { margin: 0 0 0.75rem; padding: 0.5rem 0.75rem; border-radius: 0.375rem; background: var(--cc-surface-alt); border: 1px solid var(--cc-border); font-size: 0.8125rem; color: var(--cc-text-secondary); }
+        .shared-note a { margin-left: 0.5rem; color: inherit; font-weight: 700; }
         .share-btn { display: inline-flex; align-items: center; justify-content: center; width: 2rem; height: 2rem; border-radius: 0.375rem; border: 1px solid var(--cc-border-light); background: var(--cc-surface); color: var(--cc-text-secondary); text-decoration: none; font-size: 0.875rem; cursor: pointer; }
         .share-btn:hover { background: var(--cc-surface-alt); }
         .share-btn.x { background: #000; color: #fff; border-color: #000; }
@@ -369,6 +371,7 @@
                        href="https://social-plugins.line.me/lineit/share?url={{ urlencode($pageUrl) }}"
                        target="_blank" rel="noopener noreferrer" title="LINEで共有">L</a>
                     <button type="button" class="share-btn" id="copy-url-btn" title="URLをコピー">🔗</button>
+                    <button type="button" class="share-btn" id="copy-state-url-btn" title="今の表示（ビュー・日付・サムネ・絞り込み）のままのURLをコピー">📌</button>
                 </div>
                 @guest
                     <a href="{{ route('auth.google') }}" class="admin-link" data-cc-login>ログイン</a>
@@ -699,9 +702,40 @@
         var filterArrow = document.getElementById('filter-arrow');
 
         var hiddenChannels = {};
+        // A shared link (?view=board|month&date=YYYY-MM-DD&thumbs=1|0&ch=1,2) sets the opening state.
+        // It is for this page view only: while it is in effect nothing is written to
+        // localStorage or the server prefs, so the viewer's own settings stay as they were.
+        var urlState = (function () {
+            var q = new URLSearchParams(window.location.search);
+            var s = {};
+            var view = q.get('view');
+            if (view === 'board' || view === 'month') { s.view = view; }
+            var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(q.get('date') || '');
+            if (m) {
+                var d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+                if (d.getMonth() === Number(m[2]) - 1 && d.getDate() === Number(m[3])) { s.date = d; }
+            }
+            var thumbs = q.get('thumbs');
+            if (thumbs === '1' || thumbs === '0') { s.thumbs = thumbs === '1'; }
+            var ch = (q.get('ch') || '').split(',').map(Number).filter(function (n) { return Number.isInteger(n) && n > 0; });
+            if (ch.length) { s.ch = ch; }
+            return Object.keys(s).length ? s : null;
+        })();
+        var persistState = !urlState;
+        var sharedNote = null;
+        if (urlState) {
+            sharedNote = document.createElement('p');
+            sharedNote.className = 'shared-note';
+            sharedNote.textContent = '共有リンクの表示です（ここでの切り替えは保存されません）';
+            var backLink = document.createElement('a');
+            backLink.href = window.location.pathname;
+            backLink.textContent = 'いつもの表示に戻す';
+            sharedNote.appendChild(backLink);
+            boardView.parentNode.insertBefore(sharedNote, boardView);
+        }
         // The board opens on the Monday of the current week; the nav buttons may then
         // shift it, and "今日" puts today in the leftmost column.
-        var boardStart = mondayOf(new Date());
+        var boardStart = urlState && urlState.date ? startOfDay(urlState.date) : mondayOf(new Date());
         var highlightEventId = null;  // event id to flash after the next render (newly added schedule)
         var channelList = [];         // active channels from /api/channels, used by the filter and the schedule modal
         // Collapsed by default; an explicit choice (this browser, or server prefs for
@@ -718,7 +752,7 @@
             filterEl.hidden = filterCollapsed;
             filterArrow.classList.toggle('collapsed', filterCollapsed);
             filterToggleBtn.setAttribute('aria-expanded', String(!filterCollapsed));
-            try { localStorage.setItem('cc.filterCollapsed', filterCollapsed ? '1' : '0'); } catch (e) {}
+            if (persistState) { try { localStorage.setItem('cc.filterCollapsed', filterCollapsed ? '1' : '0'); } catch (e) {} }
             syncPrefsToServer();
         });
         var boardEvents = [];
@@ -727,6 +761,7 @@
         // Thumbnails on the board cards and month view, off by default; remembered per browser.
         var showThumbs = false;
         try { showThumbs = localStorage.getItem('cc.thumbs') === '1'; } catch (e) {}
+        if (urlState && urlState.thumbs !== undefined) { showThumbs = urlState.thumbs; }
         var thumbToggleBtn = document.getElementById('thumb-toggle');
         function applyThumbs() {
             boardEl.classList.toggle('with-thumbs', showThumbs);
@@ -739,7 +774,7 @@
         if (thumbToggleBtn) {
             thumbToggleBtn.addEventListener('click', function () {
                 showThumbs = !showThumbs;
-                try { localStorage.setItem('cc.thumbs', showThumbs ? '1' : '0'); } catch (e) {}
+                if (persistState) { try { localStorage.setItem('cc.thumbs', showThumbs ? '1' : '0'); } catch (e) {} }
                 applyThumbs();
                 renderBoard();
                 if (calendar) { calendar.refetchEvents(); }
@@ -1167,6 +1202,7 @@
             if (calendar) { return; }
             calendar = new FullCalendar.Calendar(calendarEl, {
                 initialView: 'dayGridMonth',
+                initialDate: (urlState && urlState.date) || new Date(),
                 locale: 'ja',
                 // Ended streams and videos carry their real end, so anything that truly
                 // runs past midnight shows on both days. Events whose end is unknown
@@ -1284,7 +1320,7 @@
                 ensureCalendar();
                 calendar.updateSize();
             }
-            try { localStorage.setItem('cc.view', isBoard ? 'board' : 'month'); } catch (e) {}
+            if (persistState) { try { localStorage.setItem('cc.view', isBoard ? 'board' : 'month'); } catch (e) {} }
             loadTrends();  // week of the board, or month of the calendar
         }
         toggleButtons.forEach(function (b) {
@@ -1339,6 +1375,7 @@
         }
 
         function saveHiddenChannels() {
+            if (!persistState) return;
             try { localStorage.setItem('cc.hiddenChannels', JSON.stringify(Object.keys(hiddenChannels))); } catch (e) {}
         }
         function loadHiddenChannels() {
@@ -1352,6 +1389,23 @@
         fetch(apiUrl('/api/channels', {}), { headers: { Accept: 'application/json' } })
             .then(function (res) { return res.json(); })
             .then(function (channels) {
+                // A shared link's ?ch= shows just those channels; ids not in this group are ignored.
+                if (urlState && urlState.ch) {
+                    var wanted = {};
+                    urlState.ch.forEach(function (id) { wanted[id] = true; });
+                    if (channels.some(function (c) { return wanted[c.id]; })) {
+                        hiddenChannels = {};
+                        channels.forEach(function (c) { if (!wanted[c.id]) { hiddenChannels[c.id] = true; } });
+                    } else {
+                        // Nothing usable in ?ch=; if that was all the link carried, it is a normal visit.
+                        delete urlState.ch;
+                        if (!Object.keys(urlState).length) {
+                            urlState = null;
+                            persistState = true;
+                            sharedNote.remove();
+                        }
+                    }
+                }
                 // One click to show or hide every channel, then fine-tune below.
                 var bulk = document.createElement('div');
                 bulk.className = 'filter-bulk';
@@ -2246,8 +2300,32 @@
             });
         }
 
+        // The URL of what is on screen now: view, the week/month shown, thumbnails and the channel filter.
+        function stateUrl() {
+            var isMonth = !monthView.hidden;
+            var parts = [
+                'view=' + (isMonth ? 'month' : 'board'),
+                'date=' + dateKey(isMonth && calendar ? calendar.getDate() : boardStart),
+                'thumbs=' + (showThumbs ? '1' : '0'),
+            ];
+            var shown = channelList.filter(function (c) { return !hiddenChannels[c.id]; });
+            if (shown.length && shown.length < channelList.length) {
+                parts.push('ch=' + shown.map(function (c) { return c.id; }).join(','));
+            }
+            return window.location.origin + window.location.pathname + '?' + parts.join('&');
+        }
+        var copyStateUrlBtn = document.getElementById('copy-state-url-btn');
+        if (copyStateUrlBtn) {
+            copyStateUrlBtn.addEventListener('click', function () {
+                navigator.clipboard.writeText(stateUrl()).then(function () {
+                    copyStateUrlBtn.textContent = '✓';
+                    setTimeout(function () { copyStateUrlBtn.textContent = '📌'; }, 1500);
+                });
+            });
+        }
+
         function syncPrefsToServer() {
-            if (!IS_LOGGED_IN) return;
+            if (!IS_LOGGED_IN || !persistState) return;
             var data = {
                 hidden_channels: Object.keys(hiddenChannels).map(Number),
                 view: document.querySelector('.view-toggle button.is-active')?.dataset.view || 'board',
@@ -2261,10 +2339,11 @@
         }
 
         function initFromPrefs() {
-            if (!IS_LOGGED_IN) {
+            // A shared link wins over the server prefs (and isn't saved back to them).
+            if (!IS_LOGGED_IN || urlState) {
                 var savedView = 'board';
                 try { savedView = localStorage.getItem('cc.view') || 'board'; } catch (e) {}
-                setView(savedView);
+                setView((urlState && urlState.view) || savedView);
                 loadBoard();
                 return;
             }
