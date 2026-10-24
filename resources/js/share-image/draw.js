@@ -126,7 +126,7 @@ export function drawLegend(ctx, entries, box, title) {
     for (let i = 0; i < entries.length; i++) {
         const e = entries[i];
         const rest = entries.length - i - 1;
-        const moreLabel = rest ? `ほか ${rest + 1} ジャンル` : '';
+        const moreLabel = `ほか ${rest + 1} ジャンル`;
         const w = widthOf(e);
         if (x + w > lineEnds[line] && line === 0) { line = 1; x = left; }
         // On the last line, keep room for 「ほか n ジャンル」 unless this is the final entry.

@@ -1400,6 +1400,8 @@
                     defaultTimedEventDuration: '00:00:01',
                     eventDisplay: 'block',
                     headerToolbar: false,
+                    // The picture is this month only (its numbers in B are too); the grid's edge days stay blank.
+                    showNonCurrentDates: false,
                     dayMaxEvents: false,
                     displayEventTime: false,
                     height: 'auto',

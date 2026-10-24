@@ -64,6 +64,7 @@ const state = {
     heading: '',
     filename: '',
     canvas: null,
+    blob: null, // the PNG of canvas, encoded as soon as it is shown
     busy: false,
     snapshot: null, // the month grid as a canvas, made once per open for A and B
     snapshotJob: null,
@@ -117,6 +118,24 @@ function $(id) { return document.getElementById(id); }
 
 function setNote(text) { $('si-note').textContent = text; }
 
+/**
+ * Show a finished picture and encode its PNG right away: Safari only lets share() run straight
+ * from the tap, so the file must already exist when the button is pressed.
+ */
+function showCanvas(canvas) {
+    const submit = $('si-submit');
+    $('si-preview').replaceChildren(canvas);
+    state.canvas = canvas;
+    state.blob = null;
+    submit.disabled = true;
+    canvas.toBlob((blob) => {
+        if (state.canvas !== canvas) return; // replaced meanwhile
+        state.blob = blob;
+        submit.disabled = !blob;
+        if (!blob) setNote('画像を作れませんでした。時間をおいてもう一度お試しください。');
+    }, 'image/png');
+}
+
 function renderPreview() {
     const preview = $('si-preview');
     const submit = $('si-submit');
@@ -126,6 +145,7 @@ function renderPreview() {
     });
     $('si-steps').hidden = state.pattern !== 'd';
     state.canvas = null;
+    state.blob = null;
 
     if (!state.items.length) {
         preview.textContent = 'この月の配信はありません';
@@ -155,10 +175,7 @@ function renderPreview() {
             }
             return;
         }
-        const canvas = composeMonth(state.snapshot, state.pattern === 'b');
-        preview.replaceChildren(canvas);
-        state.canvas = canvas;
-        submit.disabled = false;
+        showCanvas(composeMonth(state.snapshot, state.pattern === 'b'));
         return;
     }
     if (!state.images) {
@@ -171,9 +188,7 @@ function renderPreview() {
     const res = drawMosaic(canvas, state.items, {
         title: state.heading, gameMax: state.limits.game, categoryMax: state.limits.cat, images: state.images,
     });
-    preview.replaceChildren(canvas);
-    state.canvas = canvas;
-    submit.disabled = false;
+    showCanvas(canvas);
     const parts = [];
     if (res.foldedGames.length) parts.push(`ゲームにまとめた：${res.foldedGames.join('、')}`);
     if (res.foldedCategories.length) parts.push(`その他にまとめた：${res.foldedCategories.join('、')}`);
@@ -183,22 +198,19 @@ function renderPreview() {
 function close() { $('share-image-modal').hidden = true; }
 
 async function submit() {
-    if (!state.canvas || state.busy) return;
+    if (!state.blob || state.busy) return;
     const btn = $('si-submit');
     state.busy = true;
     btn.disabled = true;
-    btn.textContent = '作成中…';
     try {
-        const blob = await new Promise((resolve) => state.canvas.toBlob(resolve, 'image/png'));
-        if (!blob) throw new Error('toBlob returned null');
-        const result = await shareOrDownload(blob, state.filename, state.heading, window.ccShare.stateUrl());
+        // No await before this call: share() has to start inside the tap (see showCanvas).
+        const result = await shareOrDownload(state.blob, state.filename, state.heading, window.ccShare.stateUrl());
         if (result !== 'cancelled') close();
     } catch (e) {
         setNote('画像を作れませんでした。時間をおいてもう一度お試しください。');
     } finally {
         state.busy = false;
-        btn.disabled = false;
-        btn.textContent = '画像を作って共有';
+        btn.disabled = !state.blob;
     }
 }
 
