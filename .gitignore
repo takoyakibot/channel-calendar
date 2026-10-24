@@ -21,3 +21,6 @@ yarn-error.log
 
 # deploy connection details (see deploy.env.example)
 /deploy.env
+
+# brainstorming mockups (superpowers visual companion)
+/.superpowers/
