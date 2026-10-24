@@ -219,3 +219,48 @@ export function drawMosaic(canvas, items, { title, gameMax, categoryMax, images 
         { x: 0, y: H - LEGEND_H, w: W, h: LEGEND_H }, title);
     return { foldedGames, foldedCategories };
 }
+
+/**
+ * The band above the month snapshot (patterns A and B): the heading, and for B the numbers
+ * from STAT_TILES on the right. Drawn at the snapshot's 2x scale.
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {{key: string, label: string, value: string}[]|null} tiles null for A (heading only)
+ * @param {{x: number, y: number, w: number, h: number}} box
+ * @param {string} title
+ */
+export function drawStatsBand(ctx, tiles, box, title) {
+    ctx.save();
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(box.x, box.y, box.w, box.h);
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#111827';
+    ctx.font = `bold 44px ${FONT}`;
+    ctx.fillText(title, box.x + 48, box.y + (tiles ? box.h / 2 - 20 : box.h / 2));
+    ctx.font = `24px ${FONT}`;
+    ctx.fillStyle = '#9ca3af';
+    if (tiles) ctx.fillText(SITE_LABEL, box.x + 48, box.y + box.h / 2 + 40);
+
+    if (tiles) {
+        const tileW = 300;
+        const tileH = box.h - 80;
+        let x = box.x + box.w - 48 - tiles.length * tileW - (tiles.length - 1) * 24;
+        for (const t of tiles) {
+            roundRect(ctx, x, box.y + 40, tileW, tileH, 16);
+            ctx.fillStyle = '#fff4ec';
+            ctx.fill();
+            ctx.textAlign = 'center';
+            ctx.fillStyle = '#e07a3c';
+            ctx.font = `bold 52px ${FONT}`;
+            ctx.fillText(t.value, x + tileW / 2, box.y + 40 + tileH / 2 - 16);
+            ctx.fillStyle = '#6b7280';
+            ctx.font = `24px ${FONT}`;
+            ctx.fillText(t.label, x + tileW / 2, box.y + 40 + tileH / 2 + 40);
+            x += tileW + 24;
+        }
+    } else {
+        ctx.textAlign = 'right';
+        ctx.fillText(SITE_LABEL, box.x + box.w - 48, box.y + box.h / 2);
+    }
+    ctx.restore();
+}

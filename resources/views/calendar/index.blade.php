@@ -232,16 +232,30 @@
         .modal.wide { max-width: 40rem; }
         /* Month share image (#83): pattern tabs, a preview of the real PNG, and the fold steppers for D. */
         .modal.share-image { max-width: 44rem; }
+        @media (max-width: 767px) { .si-btn-label { display: none; } }
         .si-tabs { display: flex; gap: 0.375rem; margin-bottom: 0.75rem; }
         .si-tabs button { flex: 1; padding: 0.4rem 0.5rem; font-size: 0.8125rem; border: 1px solid var(--cc-border-light); border-radius: 0.375rem; background: var(--cc-surface); color: var(--cc-text-secondary); cursor: pointer; }
         .si-tabs button.is-active { border-color: var(--cc-active-bg); background: var(--cc-active-bg); color: var(--cc-active-text); font-weight: 700; }
         .si-preview { display: flex; align-items: center; justify-content: center; min-height: 10rem; border: 1px solid var(--cc-border); border-radius: 0.375rem; background: var(--cc-surface-alt); color: var(--cc-text-tertiary); font-size: 0.875rem; overflow: hidden; }
-        .si-preview canvas { display: block; width: 100%; height: auto; }
+        /* Tall pictures (A/B) shrink to fit so the buttons stay on screen. */
+        .si-preview canvas { display: block; width: auto; height: auto; max-width: 100%; max-height: 55vh; }
         .si-steps { display: flex; flex-wrap: wrap; gap: 0.5rem 1.25rem; margin-top: 0.75rem; font-size: 0.8125rem; color: var(--cc-text-secondary); }
         .si-steps > span { display: inline-flex; align-items: center; gap: 0.375rem; }
         .si-steps button { width: 1.75rem; height: 1.75rem; border-radius: 9999px; border: 1px solid var(--cc-border-light); background: var(--cc-surface); color: var(--cc-text); cursor: pointer; }
         .si-steps b { min-width: 1.25rem; text-align: center; color: var(--cc-text); }
         .si-note { margin: 0.5rem 0 0; font-size: 0.75rem; color: var(--cc-text-tertiary); min-height: 1em; }
+        /* The off-screen month copy for the share image is always drawn in the light theme. */
+        .cc-light, .dark .cc-light {
+            --cc-bg: #f9fafb; --cc-surface: #fff; --cc-surface-hover: #f9fafb; --cc-surface-alt: #f3f4f6;
+            --cc-text: #111827; --cc-text-sub: #1f2937; --cc-text-secondary: #374151;
+            --cc-text-tertiary: #6b7280; --cc-text-muted: #9ca3af;
+            --cc-border: #e5e7eb; --cc-border-light: #d1d5db;
+            --cc-active-bg: #111827; --cc-active-text: #fff;
+            --cc-manual-bg: #eef0f3; --cc-manual-hover: #e3e6ea; --cc-manual-text: #4b5563;
+            color: var(--cc-text); background: #fff;
+        }
+        .si-snapshot { position: fixed; left: -10000px; top: 0; width: 1200px; padding: 24px; box-sizing: border-box; }
+        .si-snapshot-head { font-size: 22px; font-weight: 700; margin: 0 0 12px; }
         .search-classify { display: flex; flex-wrap: wrap; align-items: center; gap: 0.375rem; margin: -0.25rem 0 0.75rem; font-size: 0.8125rem; color: var(--cc-text-secondary); }
         .search-results { list-style: none; margin: 0; padding: 0; max-height: 60vh; overflow-y: auto; }
         .search-results li { display: flex; gap: 0.5rem; align-items: flex-start; padding: 0.4rem 0.25rem; border-top: 1px solid var(--cc-border); font-size: 0.8125rem; }
@@ -371,7 +385,7 @@
                     <span id="theme-icon">🌙</span>
                 </button>
                 <button type="button" class="video-btn" id="thumb-toggle" aria-pressed="false" title="予定にサムネイルを表示（週ボードではタイトルが短くなります）">🖼 サムネ</button>
-                <button type="button" class="video-btn" id="share-image-btn" title="この月の配信をサムネイル入りの画像にして共有" hidden>📷 配信結果を共有</button>
+                <button type="button" class="video-btn" id="share-image-btn" title="この月の配信をサムネイル入りの画像にして共有" hidden aria-label="配信結果を共有">📷<span class="si-btn-label"> 配信結果を共有</span></button>
                 <button type="button" class="video-btn" id="video-post-btn" title="切り抜き動画や、他チャンネルへの出演を URL から登録（ログイン不要）">📎 動画を登録</button>
                 <div class="share-buttons">
                     <label class="share-opt" title="Xの共有文に各配信のチャンネル名を入れる">
@@ -1244,6 +1258,51 @@
             loadBoard();
         });
 
+        // One month-grid entry. Shared by the calendar and the off-screen copy the share image is
+        // made from (thumbnails always on there, and no per-visitor NEW badge).
+        function monthEventContent(arg, withThumbs, forImage) {
+            var props = arg.event.extendedProps;
+            var wrap = document.createElement('div');
+            wrap.className = 'fc-ev'
+                + (props.status === 'completed' ? ' is-done' : '')
+                + (props.status === 'manual' ? ' is-manual' : '');
+            wrap.appendChild(avatarNode(props, arg.event.backgroundColor || arg.event.borderColor, 'fc-ev-img'));
+            var t = document.createElement('span');
+            t.className = 'fc-ev-time';
+            t.textContent = props.status === 'posted' ? (props.type === 'clip' ? '切り抜き' : '出演')
+                : props.type === 'short' ? 'Short'
+                : props.type === 'upload' ? '動画'
+                : props.status === 'live' ? 'LIVE'
+                : (props.status === 'manual' ? (props.is_all_day ? '手動' : '手動 ' + fmtTime(arg.event.start)) : fmtTime(arg.event.start));
+            if (props.status === 'live') { t.style.color = '#dc2626'; }
+            var ti = document.createElement('span');
+            ti.className = 'fc-ev-title';
+            ti.textContent = (props.is_members_only ? '🔒 ' : '') + arg.event.title;
+            wrap.appendChild(t);
+            wrap.appendChild(ti);
+            if (props.platform === 'twitch') {
+                var twb = document.createElement('span');
+                twb.className = 'badge twitch';
+                twb.textContent = 'Twitch';
+                wrap.appendChild(twb);
+            }
+            if (!forImage && isNewEvent(arg.event)) {
+                var nb = document.createElement('span');
+                nb.className = 'badge new';
+                nb.textContent = 'NEW';
+                wrap.appendChild(nb);
+            }
+            if (withThumbs && props.thumbnail_url) {
+                var th = thumbNode(props, arg.event.backgroundColor || arg.event.borderColor, 'fc-ev-thumb', 'fc-ev-img');
+                var thRow = document.createElement('div');
+                thRow.className = 'fc-ev-thumb-row';
+                thRow.appendChild(th);
+                wrap.classList.add('has-thumb');
+                wrap.appendChild(thRow);
+            }
+            return { domNodes: [wrap] };
+        }
+
         function ensureCalendar() {
             if (calendar) { return; }
             calendar = new FullCalendar.Calendar(calendarEl, {
@@ -1283,48 +1342,7 @@
                         setTimeout(function () { info.el.classList.remove('is-new'); }, 4000);
                     }
                 },
-                eventContent: function (arg) {
-                    var props = arg.event.extendedProps;
-                    var wrap = document.createElement('div');
-                    wrap.className = 'fc-ev'
-                        + (props.status === 'completed' ? ' is-done' : '')
-                        + (props.status === 'manual' ? ' is-manual' : '');
-                    wrap.appendChild(avatarNode(props, arg.event.backgroundColor || arg.event.borderColor, 'fc-ev-img'));
-                    var t = document.createElement('span');
-                    t.className = 'fc-ev-time';
-                    t.textContent = props.status === 'posted' ? (props.type === 'clip' ? '切り抜き' : '出演')
-                        : props.type === 'short' ? 'Short'
-                        : props.type === 'upload' ? '動画'
-                        : props.status === 'live' ? 'LIVE'
-                        : (props.status === 'manual' ? (props.is_all_day ? '手動' : '手動 ' + fmtTime(arg.event.start)) : fmtTime(arg.event.start));
-                    if (props.status === 'live') { t.style.color = '#dc2626'; }
-                    var ti = document.createElement('span');
-                    ti.className = 'fc-ev-title';
-                    ti.textContent = (props.is_members_only ? '🔒 ' : '') + arg.event.title;
-                    wrap.appendChild(t);
-                    wrap.appendChild(ti);
-                    if (props.platform === 'twitch') {
-                        var twb = document.createElement('span');
-                        twb.className = 'badge twitch';
-                        twb.textContent = 'Twitch';
-                        wrap.appendChild(twb);
-                    }
-                    if (isNewEvent(arg.event)) {
-                        var nb = document.createElement('span');
-                        nb.className = 'badge new';
-                        nb.textContent = 'NEW';
-                        wrap.appendChild(nb);
-                    }
-                    if (showThumbs && props.thumbnail_url) {
-                        var th = thumbNode(props, arg.event.backgroundColor || arg.event.borderColor, 'fc-ev-thumb', 'fc-ev-img');
-                        var thRow = document.createElement('div');
-                        thRow.className = 'fc-ev-thumb-row';
-                        thRow.appendChild(th);
-                        wrap.classList.add('has-thumb');
-                        wrap.appendChild(thRow);
-                    }
-                    return { domNodes: [wrap] };
-                },
+                eventContent: function (arg) { return monthEventContent(arg, showThumbs, false); },
                 eventClick: function (info) {
                     info.jsEvent.preventDefault();
                     if (info.event.url) {
@@ -1372,7 +1390,37 @@
                 return GROUP_NAME || '';
             },
             stateUrl: function () { return stateUrl(); },
-            renderMonth: function () { return Promise.resolve(); },
+            // A copy of the month grid at a fixed desktop width with thumbnails on (patterns A/B);
+            // resolves once every picture in it has loaded or failed. Returns the copy to destroy().
+            renderMonth: function (el) {
+                var copy = new FullCalendar.Calendar(el, {
+                    initialView: 'dayGridMonth',
+                    initialDate: calendar.getDate(),
+                    locale: 'ja',
+                    defaultTimedEventDuration: '00:00:01',
+                    eventDisplay: 'block',
+                    headerToolbar: false,
+                    dayMaxEvents: false,
+                    displayEventTime: false,
+                    height: 'auto',
+                    events: calendar.getEvents().map(function (e) { return e.toPlainObject(); }),
+                    eventDidMount: function (info) {
+                        info.el.style.setProperty('--ev', info.event.backgroundColor || info.event.borderColor || '#9ca3af');
+                        info.el.classList.add('cc-tint');
+                    },
+                    eventContent: function (arg) { return monthEventContent(arg, true, true); },
+                });
+                copy.render();
+                // Off-screen pictures never load lazily; ask for them now and wait.
+                return Promise.all(Array.prototype.map.call(el.querySelectorAll('img'), function (img) {
+                    img.loading = 'eager';
+                    if (img.complete) return null;
+                    return new Promise(function (resolve) {
+                        img.addEventListener('load', resolve);
+                        img.addEventListener('error', resolve);
+                    });
+                })).then(function () { return copy; });
+            },
         };
 
         function setView(view) {

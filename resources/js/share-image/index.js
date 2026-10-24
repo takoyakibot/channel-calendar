@@ -4,7 +4,11 @@
  * nothing here touches the DOM until open() is called.
  */
 import { toShareItems } from './items.js';
-import { drawMosaic, loadImages } from './draw.js';
+import { drawMosaic, drawStatsBand, loadImages } from './draw.js';
+import { monthStats, STAT_TILES } from './stats.js';
+
+// html2canvas-pro: the maintained fork that understands color-mix(), which the month grid's tint uses.
+const HTML2CANVAS_URL = 'https://cdn.jsdelivr.net/npm/html2canvas-pro@1.5.11/dist/html2canvas-pro.min.js';
 
 export function monthLabel(date) {
     return `${date.getFullYear()}年${date.getMonth() + 1}月`;
@@ -61,7 +65,53 @@ const state = {
     filename: '',
     canvas: null,
     busy: false,
+    snapshot: null, // the month grid as a canvas, made once per open for A and B
+    snapshotJob: null,
 };
+
+let html2canvasJob = null;
+/** Loaded only when someone first asks for A or B; D needs none of it. */
+function loadHtml2canvas() {
+    if (window.html2canvas) return Promise.resolve(window.html2canvas);
+    html2canvasJob ||= new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = HTML2CANVAS_URL;
+        s.onload = () => resolve(window.html2canvas);
+        s.onerror = () => { html2canvasJob = null; reject(new Error('html2canvas failed to load')); };
+        document.head.appendChild(s);
+    });
+    return html2canvasJob;
+}
+
+/** The month grid drawn off-screen at desktop width (readable even when shared from a phone). */
+async function snapshotMonth() {
+    const html2canvas = await loadHtml2canvas();
+    const wrap = document.createElement('div');
+    wrap.className = 'cc-light si-snapshot';
+    document.body.appendChild(wrap);
+    try {
+        const copy = await window.ccShare.renderMonth(wrap);
+        const canvas = await html2canvas(wrap, { useCORS: true, scale: 2, backgroundColor: '#ffffff', logging: false });
+        copy.destroy();
+        return canvas;
+    } finally {
+        wrap.remove();
+    }
+}
+
+/** A: heading band + month grid. B: heading and the numbers + month grid. */
+function composeMonth(snapshot, withStats) {
+    const bandH = withStats ? 300 : 120;
+    const canvas = document.createElement('canvas');
+    canvas.width = snapshot.width;
+    canvas.height = snapshot.height + bandH;
+    const ctx = canvas.getContext('2d');
+    const stats = withStats ? monthStats(state.items) : null;
+    const tiles = stats && STAT_TILES.map((t) => ({ key: t.key, label: t.label, value: t.format(stats[t.key]) }));
+    drawStatsBand(ctx, tiles, { x: 0, y: 0, w: canvas.width, h: bandH }, state.heading);
+    ctx.drawImage(snapshot, 0, bandH);
+    return canvas;
+}
 
 function $(id) { return document.getElementById(id); }
 
@@ -87,9 +137,28 @@ function renderPreview() {
     preview.classList.remove('is-empty');
 
     if (state.pattern !== 'd') {
-        preview.textContent = '準備中';
-        submit.disabled = true;
         setNote('');
+        if (!state.snapshot) {
+            preview.textContent = '作成中…';
+            submit.disabled = true;
+            if (!state.snapshotJob) {
+                const items = state.items;
+                state.snapshotJob = snapshotMonth().then((canvas) => {
+                    if (state.items !== items) return; // reopened for another month meanwhile
+                    state.snapshot = canvas;
+                    renderPreview();
+                }).catch(() => {
+                    if (state.items !== items) return;
+                    state.snapshotJob = null;
+                    if (state.pattern !== 'd') preview.textContent = '画像を作れませんでした。時間をおいてもう一度お試しください。';
+                });
+            }
+            return;
+        }
+        const canvas = composeMonth(state.snapshot, state.pattern === 'b');
+        preview.replaceChildren(canvas);
+        state.canvas = canvas;
+        submit.disabled = false;
         return;
     }
     if (!state.images) {
@@ -160,6 +229,8 @@ export function open() {
     state.heading = shareText(window.ccShare.title(), label);
     state.filename = `channel-calendar-${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}.png`;
     state.images = null;
+    state.snapshot = null;
+    state.snapshotJob = null;
     $('si-heading').textContent = `📷 ${label}の配信結果を共有`;
     $('si-game-max').textContent = String(state.limits.game);
     $('si-cat-max').textContent = String(state.limits.cat);
