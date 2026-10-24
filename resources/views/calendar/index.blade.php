@@ -19,7 +19,7 @@
     <meta name="twitter:card" content="summary">
     <meta name="twitter:title" content="{{ $pageTitle }}">
     <meta name="twitter:description" content="{{ $pageDescription }}">
-    @vite(['resources/css/app.css'])
+    @vite(['resources/css/app.css', 'resources/js/share-image/index.js'])
     <x-ga4 />
     <script>
     (function(){var c=document.documentElement.classList,t;try{t=localStorage.getItem('cc.theme')}catch(e){}
@@ -230,6 +230,18 @@
         .trend-status { font-size: 0.75rem; color: #dc2626; margin-top: 0.25rem; }
         .stream-search { padding: 0.3rem 0.6rem; font-size: 0.8125rem; border: 1px solid var(--cc-border-light); border-radius: 9999px; background: var(--cc-input-bg); color: var(--cc-text); width: 14rem; max-width: 100%; }
         .modal.wide { max-width: 40rem; }
+        /* Month share image (#83): pattern tabs, a preview of the real PNG, and the fold steppers for D. */
+        .modal.share-image { max-width: 44rem; }
+        .si-tabs { display: flex; gap: 0.375rem; margin-bottom: 0.75rem; }
+        .si-tabs button { flex: 1; padding: 0.4rem 0.5rem; font-size: 0.8125rem; border: 1px solid var(--cc-border-light); border-radius: 0.375rem; background: var(--cc-surface); color: var(--cc-text-secondary); cursor: pointer; }
+        .si-tabs button.is-active { border-color: var(--cc-active-bg); background: var(--cc-active-bg); color: var(--cc-active-text); font-weight: 700; }
+        .si-preview { display: flex; align-items: center; justify-content: center; min-height: 10rem; border: 1px solid var(--cc-border); border-radius: 0.375rem; background: var(--cc-surface-alt); color: var(--cc-text-tertiary); font-size: 0.875rem; overflow: hidden; }
+        .si-preview canvas { display: block; width: 100%; height: auto; }
+        .si-steps { display: flex; flex-wrap: wrap; gap: 0.5rem 1.25rem; margin-top: 0.75rem; font-size: 0.8125rem; color: var(--cc-text-secondary); }
+        .si-steps > span { display: inline-flex; align-items: center; gap: 0.375rem; }
+        .si-steps button { width: 1.75rem; height: 1.75rem; border-radius: 9999px; border: 1px solid var(--cc-border-light); background: var(--cc-surface); color: var(--cc-text); cursor: pointer; }
+        .si-steps b { min-width: 1.25rem; text-align: center; color: var(--cc-text); }
+        .si-note { margin: 0.5rem 0 0; font-size: 0.75rem; color: var(--cc-text-tertiary); min-height: 1em; }
         .search-classify { display: flex; flex-wrap: wrap; align-items: center; gap: 0.375rem; margin: -0.25rem 0 0.75rem; font-size: 0.8125rem; color: var(--cc-text-secondary); }
         .search-results { list-style: none; margin: 0; padding: 0; max-height: 60vh; overflow-y: auto; }
         .search-results li { display: flex; gap: 0.5rem; align-items: flex-start; padding: 0.4rem 0.25rem; border-top: 1px solid var(--cc-border); font-size: 0.8125rem; }
@@ -359,6 +371,7 @@
                     <span id="theme-icon">🌙</span>
                 </button>
                 <button type="button" class="video-btn" id="thumb-toggle" aria-pressed="false" title="予定にサムネイルを表示（週ボードではタイトルが短くなります）">🖼 サムネ</button>
+                <button type="button" class="video-btn" id="share-image-btn" title="この月の配信をサムネイル入りの画像にして共有" hidden>📷 配信結果を共有</button>
                 <button type="button" class="video-btn" id="video-post-btn" title="切り抜き動画や、他チャンネルへの出演を URL から登録（ログイン不要）">📎 動画を登録</button>
                 <div class="share-buttons">
                     <label class="share-opt" title="Xの共有文に各配信のチャンネル名を入れる">
@@ -585,6 +598,28 @@
         </div>
     </div>
 
+    {{-- Month share image (#83): the dialog is driven by resources/js/share-image/index.js. --}}
+    <div id="share-image-modal" class="modal-overlay" hidden>
+        <div class="modal share-image">
+            <h3 id="si-heading">📷 配信結果を共有</h3>
+            <div id="si-tabs" class="si-tabs" role="tablist">
+                <button type="button" role="tab" data-pattern="a">A. 見たまま</button>
+                <button type="button" role="tab" data-pattern="b">B. まとめ＋カレンダー</button>
+                <button type="button" role="tab" data-pattern="d">D. ジャンル別</button>
+            </div>
+            <div id="si-preview" class="si-preview"></div>
+            <div id="si-steps" class="si-steps">
+                <span>ゲーム：<button type="button" data-step="game" data-delta="-1" aria-label="減らす">‹</button><b id="si-game-max">2</b><button type="button" data-step="game" data-delta="1" aria-label="増やす">›</button>本以下は「その他ゲーム」へ</span>
+                <span>それ以外：<button type="button" data-step="cat" data-delta="-1" aria-label="減らす">‹</button><b id="si-cat-max">1</b><button type="button" data-step="cat" data-delta="1" aria-label="増やす">›</button>本以下は「その他」へ</span>
+            </div>
+            <p id="si-note" class="si-note"></p>
+            <div class="modal-actions">
+                <button type="button" class="btn-cancel" id="si-cancel">キャンセル</button>
+                <button type="button" class="btn-submit" id="si-submit">画像を作って共有</button>
+            </div>
+        </div>
+    </div>
+
     {{-- Title search results; opened from the search box or from an unclassified term's 🔍. --}}
     <div id="search-modal" class="modal-overlay" hidden>
         <div class="modal wide">
@@ -639,6 +674,7 @@
         });
     })();
     var GROUP_SLUG = @json($group?->path, JSON_UNESCAPED_SLASHES);
+    var GROUP_NAME = @json($group?->name);
     var CHILD_GROUPS = @json($children->map(fn ($c) => ['id' => $c->id, 'name' => $c->name])->values());
     var CHILD_CHANNEL_MAP = @json($childChannelMap);
     var X_SEARCH_KEYWORDS = @json(\App\Support\XSearchKeywords::global());
@@ -1321,10 +1357,29 @@
             calendar.render();
         }
 
+        // Month share image (#83): what the share dialog (resources/js/share-image) needs from this page.
+        var shareImageBtn = document.getElementById('share-image-btn');
+        shareImageBtn.addEventListener('click', function () { if (window.ccShareImage) window.ccShareImage.open(); });
+        window.ccShare = {
+            // Everything loaded for the month grid; the dialog keeps only the month itself.
+            monthEvents: function () {
+                return { events: calendar.getEvents(), start: calendar.view.currentStart, end: calendar.view.currentEnd };
+            },
+            // The heading: the group, or the one channel left by the filter (empty on the top page).
+            title: function () {
+                var shown = channelList.filter(function (c) { return !hiddenChannels[c.id] && isVisibleBySubgroup(c.id); });
+                if (shown.length === 1 && channelList.length > 1) return shown[0].name;
+                return GROUP_NAME || '';
+            },
+            stateUrl: function () { return stateUrl(); },
+            renderMonth: function () { return Promise.resolve(); },
+        };
+
         function setView(view) {
             var isBoard = view !== 'month';
             boardView.hidden = !isBoard;
             monthView.hidden = isBoard;
+            shareImageBtn.hidden = isBoard;
             toggleButtons.forEach(function (b) { b.classList.toggle('is-active', b.dataset.view === (isBoard ? 'board' : 'month')); });
             if (!isBoard) {
                 ensureCalendar();
