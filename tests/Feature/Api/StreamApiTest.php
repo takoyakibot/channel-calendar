@@ -206,4 +206,22 @@ class StreamApiTest extends TestCase
         $response->assertOk();
         $response->assertJsonCount(1);
     }
+
+    public function test_streams_endpoint_includes_the_actual_start(): void
+    {
+        $channel = Channel::factory()->create();
+        Stream::factory()->create([
+            'channel_id' => $channel->id,
+            'scheduled_at' => '2026-10-17 12:00:00',
+            'actual_start_at' => '2026-10-17 12:01:34',
+            'actual_end_at' => '2026-10-17 13:47:17',
+            'status' => 'completed',
+        ]);
+        Stream::factory()->create(['channel_id' => $channel->id, 'scheduled_at' => '2026-10-18 12:00:00', 'actual_start_at' => null, 'status' => 'upcoming']);
+
+        $events = $this->getJson('/api/streams?start=2026-10-01&end=2026-10-31')->assertOk()->json();
+
+        $this->assertSame('2026-10-17T12:01:34+00:00', $events[0]['extendedProps']['actual_start_at']);
+        $this->assertNull($events[1]['extendedProps']['actual_start_at']);
+    }
 }
