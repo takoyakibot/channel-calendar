@@ -75,6 +75,8 @@ class StreamController extends Controller
                 'is_members_only' => $stream->is_members_only,
                 'tags' => $stream->tags->map(fn ($t) => $t->toArrayForApi())->values(),
                 'created_at' => $stream->created_at?->toIso8601String(),
+                // When it really went live (start above is the schedule) — the share image measures length from this.
+                'actual_start_at' => $stream->actual_start_at?->toIso8601String(),
             ],
         ]);
 
