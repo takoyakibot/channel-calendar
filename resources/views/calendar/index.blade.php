@@ -702,7 +702,9 @@
         var filterArrow = document.getElementById('filter-arrow');
 
         var hiddenChannels = {};
-        // A shared link (?view=board|month&date=YYYY-MM-DD&thumbs=1|0&ch=1,2) sets the opening state.
+        // A shared link sets the opening state: ?view=board|month&date=YYYY-MM-DD&thumbs=1|0&ch=1,2
+        // (channels shown), &sub=3,4 (subgroups selected), and which panels are open:
+        // &trends=1|0 (集計結果), &members=1|0 (メンバー別の内訳), &channels=1|0 (チャンネル).
         // It is for this page view only: while it is in effect nothing is written to
         // localStorage or the server prefs, so the viewer's own settings stay as they were.
         var urlState = (function () {
@@ -719,6 +721,13 @@
             if (thumbs === '1' || thumbs === '0') { s.thumbs = thumbs === '1'; }
             var ch = (q.get('ch') || '').split(',').map(Number).filter(function (n) { return Number.isInteger(n) && n > 0; });
             if (ch.length) { s.ch = ch; }
+            var childIds = CHILD_GROUPS.map(function (g) { return g.id; });
+            var sub = (q.get('sub') || '').split(',').map(Number).filter(function (n) { return childIds.indexOf(n) !== -1; });
+            if (sub.length) { s.sub = sub; }
+            ['trends', 'members', 'channels'].forEach(function (k) {
+                var v = q.get(k);
+                if (v === '1' || v === '0') { s[k] = v === '1'; }
+            });
             return Object.keys(s).length ? s : null;
         })();
         var persistState = !urlState;
@@ -745,6 +754,7 @@
             var savedFilterState = localStorage.getItem('cc.filterCollapsed');
             if (savedFilterState !== null) { filterCollapsed = savedFilterState === '1'; }
         } catch (e) {}
+        if (urlState && urlState.channels !== undefined) { filterCollapsed = !urlState.channels; }
         filterEl.hidden = filterCollapsed;
         filterArrow.classList.toggle('collapsed', filterCollapsed);
         filterToggleBtn.addEventListener('click', function () {
@@ -840,7 +850,7 @@
             return (d.getMonth() + 1) + '/' + d.getDate() + '(' + WEEKDAYS[d.getDay()] + ')';
         }
         var activeSubgroups = {};
-        CHILD_GROUPS.forEach(function (g) { activeSubgroups[g.id] = true; });
+        CHILD_GROUPS.forEach(function (g) { activeSubgroups[g.id] = !(urlState && urlState.sub) || urlState.sub.indexOf(g.id) !== -1; });
         var hasSubgroups = CHILD_GROUPS.length > 0;
 
         function isVisibleBySubgroup(channelId) {
@@ -1790,6 +1800,7 @@
         var trendStatus = document.getElementById('trend-status');
         var trendsCollapsed = false;
         try { trendsCollapsed = localStorage.getItem('cc.trendsCollapsed') === '1'; } catch (e) {}
+        if (urlState && urlState.trends !== undefined) { trendsCollapsed = !urlState.trends; }
         function applyTrendsCollapsed() {
             trendsPanel.hidden = trendsCollapsed;
             trendsArrow.classList.toggle('collapsed', trendsCollapsed);
@@ -1800,7 +1811,7 @@
             trendsToggle.addEventListener('click', function () {
                 trendsCollapsed = !trendsCollapsed;
                 applyTrendsCollapsed();
-                try { localStorage.setItem('cc.trendsCollapsed', trendsCollapsed ? '1' : '0'); } catch (e) {}
+                if (persistState) { try { localStorage.setItem('cc.trendsCollapsed', trendsCollapsed ? '1' : '0'); } catch (e) {} }
             });
         }
         function setTrendStatus(text) {
@@ -1926,6 +1937,7 @@
             var membersArrow = document.getElementById('trend-members-arrow');
             var membersOpen = false;
             try { membersOpen = localStorage.getItem('cc.trendMembersOpen') === '1'; } catch (e) {}
+            if (urlState && urlState.members !== undefined) { membersOpen = urlState.members; }
             function applyMembersOpen() {
                 membersDetail.hidden = !membersOpen;
                 membersArrow.classList.toggle('collapsed', !membersOpen);
@@ -1935,7 +1947,7 @@
             membersToggle.addEventListener('click', function () {
                 membersOpen = !membersOpen;
                 applyMembersOpen();
-                try { localStorage.setItem('cc.trendMembersOpen', membersOpen ? '1' : '0'); } catch (e) {}
+                if (persistState) { try { localStorage.setItem('cc.trendMembersOpen', membersOpen ? '1' : '0'); } catch (e) {} }
             });
         }
 
@@ -2300,7 +2312,7 @@
             });
         }
 
-        // The URL of what is on screen now: view, the week/month shown, thumbnails and the channel filter.
+        // The URL of what is on screen now: view, the week/month shown, thumbnails, filters and open panels.
         function stateUrl() {
             var isMonth = !monthView.hidden;
             var parts = [
@@ -2312,6 +2324,13 @@
             if (shown.length && shown.length < channelList.length) {
                 parts.push('ch=' + shown.map(function (c) { return c.id; }).join(','));
             }
+            var selectedSubs = CHILD_GROUPS.filter(function (g) { return activeSubgroups[g.id]; });
+            if (selectedSubs.length < CHILD_GROUPS.length) {
+                parts.push('sub=' + selectedSubs.map(function (g) { return g.id; }).join(','));
+            }
+            if (trendsPanel) { parts.push('trends=' + (trendsCollapsed ? '0' : '1')); }
+            if (membersToggle) { parts.push('members=' + (membersOpen ? '1' : '0')); }
+            parts.push('channels=' + (filterCollapsed ? '0' : '1'));
             return window.location.origin + window.location.pathname + '?' + parts.join('&');
         }
         var copyStateUrlBtn = document.getElementById('copy-state-url-btn');
