@@ -62,6 +62,10 @@
                                     <a href="https://www.twitch.tv/{{ $channel->twitch_login }}" target="_blank" rel="noopener noreferrer"
                                        class="text-xs text-purple-600 hover:underline ml-2">Twitch {{ $channel->twitch_login }}</a>
                                 @endif
+                                @if ($channel->tiktok_handle)
+                                    <a href="{{ 'https://www.tiktok.com/@' . $channel->tiktok_handle }}" target="_blank" rel="noopener noreferrer"
+                                       class="text-xs text-gray-700 hover:underline ml-2">TikTok {{ '@' . $channel->tiktok_handle }}</a>
+                                @endif
                                 @if ($channel->x_handle)
                                     <a href="https://x.com/{{ $channel->x_handle }}" target="_blank" rel="noopener noreferrer"
                                        class="text-xs text-gray-500 hover:underline ml-2">𝕏 {{ '@' . $channel->x_handle }}</a>

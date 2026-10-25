@@ -297,6 +297,8 @@
         .badge.new { background: #fde047; color: #713f12; }
         .badge.twitch { background: #9146ff; color: #fff; }
         .fc-ev .badge.twitch { font-size: 0.55rem; padding: 0 0.3rem; margin-left: 0; }
+        .badge.tiktok { background: #010101; color: #fff; box-shadow: inset 0 0 0 1px #fe2c55; }
+        .fc-ev .badge.tiktok { font-size: 0.55rem; padding: 0 0.3rem; margin-left: 0; }
         .fc-ev .badge.new { font-size: 0.55rem; padding: 0 0.3rem; margin-left: 0; }
         .card-head .badge + .badge { margin-left: 0.25rem; }
 
@@ -542,11 +544,18 @@
                 <input type="text" id="modal-title" placeholder="配信タイトル" maxlength="255">
             </div>
             <div class="modal-field">
+                <label for="modal-platform">配信先</label>
+                <select id="modal-platform">
+                    <option value="">YouTube / Twitch</option>
+                    <option value="tiktok">TikTok LIVE</option>
+                </select>
+            </div>
+            <div class="modal-field">
                 <label class="modal-check">
                     <input type="checkbox" id="modal-all-day" checked>
                     時間未定（その日のどこかで配信）
                 </label>
-                <span class="modal-hint-text">時間が分かっている場合だけチェックを外して入力してください。公式の配信枠が立てば、この予定は自動的に消えます。</span>
+                <span class="modal-hint-text" id="modal-all-day-hint">時間が分かっている場合だけチェックを外して入力してください。公式の配信枠が立てば、この予定は自動的に消えます。</span>
             </div>
             <div class="modal-field" id="modal-time-field" hidden>
                 <label for="modal-time">時間</label>
@@ -938,6 +947,21 @@
             return span;
         }
 
+        // YouTube is the default and goes unmarked; other platforms get a small badge.
+        var PLATFORM_BADGES = {
+            twitch: { label: 'Twitch', title: 'Twitch の配信' },
+            tiktok: { label: 'TikTok', title: 'TikTok LIVE の配信（手動登録）' },
+        };
+        function platformBadge(platform) {
+            var info = PLATFORM_BADGES[platform];
+            if (!info) return null;
+            var b = document.createElement('span');
+            b.className = 'badge ' + platform;
+            b.textContent = info.label;
+            b.title = info.title;
+            return b;
+        }
+
         function buildCard(ev) {
             var props = ev.extendedProps;
             var start = new Date(ev.start);
@@ -990,13 +1014,8 @@
                 typeBadge.textContent = props.type === 'short' ? 'Short' : '動画';
                 head.appendChild(typeBadge);
             }
-            if (props.platform === 'twitch') {
-                var tw = document.createElement('span');
-                tw.className = 'badge twitch';
-                tw.textContent = 'Twitch';
-                tw.title = 'Twitch の配信';
-                head.appendChild(tw);
-            }
+            var platBadge = platformBadge(props.platform);
+            if (platBadge) { head.appendChild(platBadge); }
             if (isNewEvent(ev)) {
                 var fresh = document.createElement('span');
                 fresh.className = 'badge new';
@@ -1280,12 +1299,8 @@
             ti.textContent = (props.is_members_only ? '🔒 ' : '') + arg.event.title;
             wrap.appendChild(t);
             wrap.appendChild(ti);
-            if (props.platform === 'twitch') {
-                var twb = document.createElement('span');
-                twb.className = 'badge twitch';
-                twb.textContent = 'Twitch';
-                wrap.appendChild(twb);
-            }
+            var platB = platformBadge(props.platform);
+            if (platB) { wrap.appendChild(platB); }
             if (!forImage && isNewEvent(arg.event)) {
                 var nb = document.createElement('span');
                 nb.className = 'badge new';
@@ -1354,7 +1369,7 @@
                     tooltipEl.textContent = '';
                     var name = document.createElement('div');
                     name.className = 'channel-name';
-                    name.textContent = props.channel_name;
+                    name.textContent = props.channel_name + (PLATFORM_BADGES[props.platform] ? '（' + PLATFORM_BADGES[props.platform].label + '）' : '');
                     var title = document.createElement('div');
                     title.className = 'stream-title';
                     title.textContent = info.event.title;
@@ -1632,6 +1647,13 @@
             document.getElementById('modal-all-day').addEventListener('change', function () {
                 document.getElementById('modal-time-field').hidden = this.checked;
             });
+            // TikTok LIVE can't be fetched, so its entry is never replaced by a real stream.
+            var ALL_DAY_HINT = document.getElementById('modal-all-day-hint').textContent;
+            document.getElementById('modal-platform').addEventListener('change', function () {
+                document.getElementById('modal-all-day-hint').textContent = this.value === 'tiktok'
+                    ? '時間が分かっている場合だけチェックを外して入力してください。TikTok LIVE は自動で取り込めないため、この予定はその日（時間指定なら3時間後）まで残ります。'
+                    : ALL_DAY_HINT;
+            });
 
             // Paste a post URL → pick the channel whose X account posted it, then pull
             // the text via oEmbed and offer it as the title.
@@ -1686,6 +1708,9 @@
             document.getElementById('modal-error').hidden = true;
             document.getElementById('modal-title').value = '';
             document.getElementById('modal-source-url').value = '';
+            var platformSelect = document.getElementById('modal-platform');
+            platformSelect.value = '';
+            platformSelect.dispatchEvent(new Event('change'));
             document.getElementById('modal-preview-status').hidden = true;
             document.getElementById('modal-tweet-preview').hidden = true;
 
@@ -1737,6 +1762,7 @@
                 var allDay = document.getElementById('modal-all-day').checked;
                 var time = allDay ? '00:00' : document.getElementById('modal-time').value;
                 var sourceUrl = document.getElementById('modal-source-url').value.trim();
+                var platform = document.getElementById('modal-platform').value;
                 if (!channelId || !title || !time) {
                     errEl.textContent = 'すべての項目を入力してください。';
                     errEl.hidden = false;
@@ -1750,7 +1776,7 @@
                 fetch('/api/manual-schedules', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN, Accept: 'application/json' },
-                    body: JSON.stringify({ channel_id: Number(channelId), title: title, source_url: sourceUrl || null, scheduled_at: datetime, is_all_day: allDay }),
+                    body: JSON.stringify({ channel_id: Number(channelId), title: title, source_url: sourceUrl || null, scheduled_at: datetime, is_all_day: allDay, platform: platform || null }),
                 }).then(function (res) {
                     if (res.ok) {
                         closeModal();

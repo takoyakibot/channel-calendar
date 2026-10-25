@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Support\TikTokHandle;
 use App\Support\TwitchLogin;
 use App\Support\XHandle;
 use Illuminate\Foundation\Http\FormRequest;
@@ -32,6 +33,18 @@ class UpdateChannelRequest extends FormRequest
                     }
                 },
             ],
+            'tiktok_handle' => [
+                'nullable',
+                'string',
+                'max:255',
+                function (string $attribute, mixed $value, \Closure $fail) {
+                    try {
+                        TikTokHandle::normalize($value);
+                    } catch (\InvalidArgumentException $e) {
+                        $fail($e->getMessage());
+                    }
+                },
+            ],
             'x_handle' => [
                 'nullable',
                 'string',
@@ -51,6 +64,12 @@ class UpdateChannelRequest extends FormRequest
     public function normalizedXHandle(): ?string
     {
         return $this->filled('x_handle') ? XHandle::normalize($this->input('x_handle')) : null;
+    }
+
+    /** The bare TikTok handle, or null when the field was left empty. */
+    public function normalizedTikTokHandle(): ?string
+    {
+        return $this->filled('tiktok_handle') ? TikTokHandle::normalize($this->input('tiktok_handle')) : null;
     }
 
     /** The bare Twitch login, or null when the field was left empty. */

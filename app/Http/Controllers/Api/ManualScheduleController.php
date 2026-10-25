@@ -10,6 +10,7 @@ use App\Models\ManualSchedule;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Validation\Rule;
 
 class ManualScheduleController extends Controller
 {
@@ -47,6 +48,8 @@ class ManualScheduleController extends Controller
             'title' => $s->title,
             'start' => $s->scheduled_at->toIso8601String(),
             'allDay' => (bool) $s->is_all_day,
+            // Only TikTok entries get a link of their own; the usual ones keep the source as a 🔗 on the card.
+            'url' => $s->platform ? $s->linkUrl() : null,
             'color' => $s->channel->color,
             'extendedProps' => [
                 'is_all_day' => (bool) $s->is_all_day,
@@ -54,6 +57,7 @@ class ManualScheduleController extends Controller
                 'channel_name' => $s->channel->name,
                 'channel_thumbnail_url' => $s->channel->thumbnail_url,
                 'status' => 'manual',
+                'platform' => $s->platform,
                 'registered_by' => $s->user->name,
                 'manual_schedule_id' => $s->id,
                 'source_url' => $s->source_url,
@@ -75,6 +79,7 @@ class ManualScheduleController extends Controller
             'title' => 'required|string|max:255',
             'source_url' => 'nullable|url:http,https|max:2048',
             'is_all_day' => 'nullable|boolean',
+            'platform' => ['nullable', Rule::in(ManualSchedule::PLATFORMS)],
             'scheduled_at' => [
                 'required',
                 'date',
@@ -97,12 +102,14 @@ class ManualScheduleController extends Controller
             'source_url' => $validated['source_url'] ?? null,
             'scheduled_at' => Carbon::parse($validated['scheduled_at'])->utc(),
             'is_all_day' => $request->boolean('is_all_day'),
+            'platform' => $validated['platform'] ?? null,
         ]);
 
         ActivityLog::record($request->user()->id, 'create_schedule', ManualSchedule::class, $schedule->id, [
             'title' => $schedule->title,
             'channel_id' => $schedule->channel_id,
             'source_url' => $schedule->source_url,
+            'platform' => $schedule->platform,
             'scheduled_at' => $schedule->scheduled_at->toIso8601String(),
         ]);
 

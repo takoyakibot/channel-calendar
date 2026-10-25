@@ -51,6 +51,15 @@
                         <p class="text-xs text-gray-500 mt-1">ログイン名か <code>https://www.twitch.tv/login</code> の形で入力。登録すると Twitch の配信予定・配信中・アーカイブもこのチャンネルとしてカレンダーに載ります（10 分ごとに取得）。</p>
                     </div>
                     <div class="mb-4">
+                        <label for="tiktok_handle" class="block text-sm font-medium text-gray-700 mb-1">TikTok アカウント（任意）</label>
+                        <div class="flex items-center gap-1">
+                            <span class="text-gray-500 text-sm">@</span>
+                            <input type="text" name="tiktok_handle" id="tiktok_handle" value="{{ old('tiktok_handle', $channel->tiktok_handle) }}"
+                                   class="border-gray-300 rounded-md shadow-sm" placeholder="username" maxlength="255">
+                        </div>
+                        <p class="text-xs text-gray-500 mt-1">ユーザー名か <code>https://www.tiktok.com/@username</code> の形で入力。手動登録した TikTok LIVE の予定が、情報元URLがないときにこのアカウントのライブページへリンクします。</p>
+                    </div>
+                    <div class="mb-4">
                         <label for="x_handle" class="block text-sm font-medium text-gray-700 mb-1">X（Twitter）アカウント（任意）</label>
                         <div class="flex items-center gap-1">
                             <span class="text-gray-500 text-sm">@</span>
