@@ -1496,6 +1496,8 @@
                     headerToolbar: false,
                     // The picture is this month only (its numbers in B are too); the grid's edge days stay blank.
                     showNonCurrentDates: false,
+                    // Only the weeks the month spans — no blank sixth row under a five-week month.
+                    fixedWeekCount: false,
                     dayMaxEvents: false,
                     displayEventTime: false,
                     height: 'auto',
