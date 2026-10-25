@@ -698,4 +698,31 @@ class FetchStreamsTest extends TestCase
 
         $this->assertNotNull(Setting::get('streams_last_fetched_at'));
     }
+
+    public function test_tiktok_live_schedule_is_neither_replaced_by_a_youtube_stream_nor_polled_for(): void
+    {
+        $channel = Channel::factory()->create(['channel_id' => 'UC_test']);
+        $user = \App\Models\User::factory()->create();
+        $soon = now()->addMinutes(10)->startOfSecond();
+        $tiktok = \App\Models\ManualSchedule::create([
+            'user_id' => $user->id, 'channel_id' => $channel->id, 'title' => 'TikTok LIVE',
+            'platform' => 'tiktok', 'scheduled_at' => $soon, 'is_all_day' => false,
+        ]);
+        // TikTok can't be fetched, so a TikTok entry is no reason to spend YouTube quota.
+        $polled = $this->mockYouTube();
+        $polled->shouldNotReceive('listRecentUploadIds');
+        $this->app->instance(YouTubeService::class, $polled);
+        $this->artisan('streams:fetch', ['--watched' => true])->assertSuccessful();
+
+        // A YouTube stream at the same time is a different broadcast, not this one.
+        $mockService = $this->mockYouTube();
+        $mockService->shouldReceive('listRecentUploadIds')->with('UC_test')->andReturn(['real1']);
+        $mockService->shouldReceive('getVideoDetails')->with(['real1'])->andReturn([
+            $this->detail('real1', ['scheduled_at' => $soon->toIso8601String()]),
+        ]);
+        $this->app->instance(YouTubeService::class, $mockService);
+        $this->artisan('streams:fetch')->assertSuccessful();
+
+        $this->assertDatabaseHas('manual_schedules', ['id' => $tiktok->id]);
+    }
 }

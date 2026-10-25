@@ -54,7 +54,7 @@ class FetchStreams extends Command
             // A manual schedule says "this channel should go live about now": poll
             // just those channels so the real stream replaces the entry quickly.
             $channels = Channel::active()
-                ->whereIn('id', ManualSchedule::inWatchWindow()->select('channel_id'))
+                ->whereIn('id', ManualSchedule::replaceable()->inWatchWindow()->select('channel_id'))
                 ->get();
 
             // Reserved frames whose time has come, and streams currently live, are
@@ -320,7 +320,7 @@ class FetchStreams extends Command
     {
         // Manual schedules are few, so one existence query per row keeps this
         // portable across MySQL and SQLite instead of relying on DATE_SUB/INTERVAL.
-        $overlapping = ManualSchedule::query()
+        $overlapping = ManualSchedule::replaceable()
             ->get(['id', 'channel_id', 'scheduled_at', 'is_all_day'])
             ->filter(function (ManualSchedule $manual) {
                 $at = Carbon::parse($manual->scheduled_at);

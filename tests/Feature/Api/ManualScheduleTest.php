@@ -180,4 +180,49 @@ class ManualScheduleTest extends TestCase
         $this->actingAs($this->user)->deleteJson("/api/manual-schedules/{$schedule->id}")->assertOk();
         $this->assertDatabaseMissing('manual_schedules', ['id' => $schedule->id]);
     }
+
+    public function test_tiktok_live_schedule_links_to_the_channels_live_page_unless_a_source_is_given(): void
+    {
+        $this->channel->update(['tiktok_handle' => 'petit.petit']);
+
+        $this->actingAs($this->user)->postJson('/api/manual-schedules', [
+            'channel_id' => $this->channel->id,
+            'title' => 'TikTok で雑談',
+            'platform' => 'tiktok',
+            'scheduled_at' => '2030-01-01T20:00:00+09:00',
+        ])->assertCreated();
+        $this->actingAs($this->user)->postJson('/api/manual-schedules', [
+            'channel_id' => $this->channel->id,
+            'title' => '告知つき',
+            'platform' => 'tiktok',
+            'source_url' => 'https://x.com/example/status/123',
+            'scheduled_at' => '2030-01-02T20:00:00+09:00',
+        ])->assertCreated();
+        $this->assertDatabaseHas('manual_schedules', ['title' => 'TikTok で雑談', 'platform' => 'tiktok']);
+
+        $response = $this->getJson('/api/manual-schedules?start=2030-01-01&end=2030-01-05')->assertOk();
+        $this->assertSame('tiktok', $response->json('0.extendedProps.platform'));
+        $this->assertSame('https://www.tiktok.com/@petit.petit/live', $response->json('0.url'));
+        $this->assertSame('https://x.com/example/status/123', $response->json('1.url'));
+    }
+
+    public function test_ordinary_schedule_has_no_platform_or_link_and_unknown_platforms_are_rejected(): void
+    {
+        $this->channel->update(['tiktok_handle' => 'petit.petit']);
+        ManualSchedule::create([
+            'user_id' => $this->user->id, 'channel_id' => $this->channel->id,
+            'title' => 'いつもの', 'scheduled_at' => '2030-01-01 11:00:00',
+        ]);
+
+        $response = $this->getJson('/api/manual-schedules?start=2030-01-01&end=2030-01-05')->assertOk();
+        $this->assertNull($response->json('0.extendedProps.platform'));
+        $this->assertNull($response->json('0.url'));
+
+        $this->actingAs($this->user)->postJson('/api/manual-schedules', [
+            'channel_id' => $this->channel->id,
+            'title' => 'x',
+            'platform' => 'niconico',
+            'scheduled_at' => '2030-01-01T20:00:00+09:00',
+        ])->assertUnprocessable()->assertJsonValidationErrors('platform');
+    }
 }

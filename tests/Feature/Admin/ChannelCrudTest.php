@@ -208,6 +208,24 @@ class ChannelCrudTest extends TestCase
         $this->assertDatabaseHas('channels', ['id' => $channel->id, 'twitch_login' => null, 'twitch_user_id' => null]);
     }
 
+    public function test_admin_can_set_tiktok_handle_from_a_profile_url(): void
+    {
+        $channel = Channel::factory()->create();
+
+        $this->actingAs($this->admin)->put("/admin/channels/{$channel->id}", [
+            'color' => '#00FF00', 'is_active' => true, 'tiktok_handle' => 'https://www.tiktok.com/@Petit.Petit/live?lang=ja',
+        ])->assertRedirect('/admin/channels');
+        $this->assertDatabaseHas('channels', ['id' => $channel->id, 'tiktok_handle' => 'petit.petit']);
+
+        $this->actingAs($this->admin)->put("/admin/channels/{$channel->id}", [
+            'color' => '#00FF00', 'is_active' => true, 'tiktok_handle' => 'https://x.com/someone',
+        ])->assertSessionHasErrors('tiktok_handle');
+        $this->actingAs($this->admin)->put("/admin/channels/{$channel->id}", [
+            'color' => '#00FF00', 'is_active' => true, 'tiktok_handle' => '',
+        ])->assertRedirect('/admin/channels');
+        $this->assertDatabaseHas('channels', ['id' => $channel->id, 'tiktok_handle' => null]);
+    }
+
     public function test_admin_can_clear_x_handle(): void
     {
         $channel = Channel::factory()->create(['x_handle' => 'old_user']);

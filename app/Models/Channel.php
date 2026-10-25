@@ -19,6 +19,7 @@ class Channel extends Model
         'x_handle',
         'x_search_keywords',
         'twitch_login',
+        'tiktok_handle',
         'twitch_user_id',
         'name',
         'short_name',
