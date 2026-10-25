@@ -19,9 +19,16 @@ export function shareText(title, label) {
     return `${title ? `${title} ` : ''}${label}の配信`;
 }
 
+/** Phones and tablets get the share sheet; a mouse-driven computer gets copy + X. */
+export function isMobile() {
+    return Boolean(globalThis.matchMedia && globalThis.matchMedia('(pointer: coarse)').matches);
+}
+
 function defaultDeps() {
     return {
         navigator: globalThis.navigator,
+        mobile: isMobile(),
+        ClipboardItem: globalThis.ClipboardItem,
         open: (url) => window.open(url, '_blank', 'noopener,noreferrer'),
         download: (blob, filename) => {
             const a = document.createElement('a');
@@ -36,23 +43,37 @@ function defaultDeps() {
 }
 
 /**
- * Phones: the share sheet with the picture attached. Elsewhere (or if sharing fails): save the
- * PNG and open X's compose page — its intent URL cannot carry an image, so it is attached by hand.
- * @returns {Promise<'shared'|'cancelled'|'downloaded'>}
+ * Phones: the share sheet with the picture attached (the X app is in it).
+ * Computers: the OS share sheet has no X and its "Copy" pastes the picture twice into x.com,
+ * so the PNG goes to the clipboard once and X's compose page opens, ready for ⌘V.
+ * If neither works: save the PNG and open X's compose page to attach it by hand.
+ * @returns {Promise<'shared'|'cancelled'|'copied'|'downloaded'>}
  */
 export async function shareOrDownload(blob, filename, text, url, deps = defaultDeps()) {
-    const file = new File([blob], filename, { type: 'image/png' });
     const nav = deps.navigator || {};
-    if (nav.canShare && nav.share && nav.canShare({ files: [file] })) {
+    const intent = `https://x.com/intent/tweet?${new URLSearchParams({ text, url })}`;
+    if (deps.mobile) {
+        const file = new File([blob], filename, { type: 'image/png' });
+        if (nav.canShare && nav.share && nav.canShare({ files: [file] })) {
+            try {
+                await nav.share({ files: [file], text: `${text} ${url}` });
+                return 'shared';
+            } catch (e) {
+                if (e && e.name === 'AbortError') return 'cancelled';
+            }
+        }
+    } else if (nav.clipboard && nav.clipboard.write && deps.ClipboardItem) {
         try {
-            await nav.share({ files: [file], text: `${text} ${url}` });
-            return 'shared';
+            // Before opening X: Chrome only writes the clipboard while this tab has focus.
+            await nav.clipboard.write([new deps.ClipboardItem({ 'image/png': blob })]);
+            deps.open(intent);
+            return 'copied';
         } catch (e) {
-            if (e && e.name === 'AbortError') return 'cancelled';
+            // fall through to saving the file
         }
     }
     deps.download(blob, filename);
-    deps.open(`https://x.com/intent/tweet?${new URLSearchParams({ text, url })}`);
+    deps.open(intent);
     return 'downloaded';
 }
 
@@ -244,6 +265,7 @@ export function open() {
     state.snapshot = null;
     state.snapshotJob = null;
     $('si-heading').textContent = `📷 ${label}の配信結果を共有`;
+    $('si-submit').textContent = isMobile() ? '画像を作って共有' : '画像をコピーして X を開く';
     $('si-game-max').textContent = String(state.limits.game);
     $('si-cat-max').textContent = String(state.limits.cat);
     $('share-image-modal').hidden = false;
