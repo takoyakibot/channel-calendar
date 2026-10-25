@@ -97,30 +97,36 @@
         .view-toggle button + button { border-left: 1px solid var(--cc-border-light); }
         .view-toggle button.is-active { background: var(--cc-active-bg); color: var(--cc-active-text); }
 
-        .page-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.25rem; }
+        .page-head { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; margin-bottom: 1.25rem; }
         .page-head-main { min-width: 0; }
-        .page-head-actions { display: flex; align-items: center; gap: 1rem; }
-        .title-row { display: flex; align-items: center; gap: 0.625rem; flex-wrap: wrap; }
-        .back-link { font-size: 1.25rem; color: var(--cc-text-tertiary); text-decoration: none; line-height: 1; }
+        .page-head-main h1 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .page-head-actions { display: flex; align-items: center; gap: 0.5rem; flex: none; }
+        @media (max-width: 480px) { .page-head-actions .btn-label { display: none; } }
+        .view-bar { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.75rem; }
+        /* Header drop-down menus (共有 / ☰). */
+        .menu { position: relative; }
+        .menu-panel { position: absolute; right: 0; top: calc(100% + 0.375rem); z-index: 60; min-width: 14rem; padding: 0.375rem; display: flex; flex-direction: column; background: var(--cc-surface); border: 1px solid var(--cc-border); border-radius: 0.5rem; box-shadow: 0 10px 25px -5px rgb(0 0 0 / 0.15); }
+        .menu-panel[hidden] { display: none; }
+        .menu-item { display: flex; align-items: center; gap: 0.5rem; width: 100%; padding: 0.5rem 0.625rem; border: 0; border-radius: 0.375rem; background: none; color: var(--cc-text); font: inherit; font-size: 0.875rem; text-align: left; text-decoration: none; white-space: nowrap; cursor: pointer; }
+        .menu-item:hover, .menu-item:focus-visible { background: var(--cc-surface-alt); outline: none; }
+        .menu-item[hidden] { display: none; }
+        .menu-item.menu-sub { padding: 0.125rem 0.625rem 0.375rem 2.375rem; font-size: 0.75rem; color: var(--cc-text-secondary); }
+        .menu-icon { width: 1.25rem; flex: none; text-align: center; }
+        .menu-icon.line { color: #06c755; font-weight: 700; }
+        .menu-sep { height: 1px; margin: 0.25rem 0; background: var(--cc-border); }
+        /* No separator with nothing visible after it (the login link stays hidden until cookies are allowed). */
+        .menu-sep:not(:has(~ :not([hidden]))) { display: none; }
+        .title-row { display: flex; align-items: center; gap: 0.625rem; min-width: 0; }
+        .back-link { font-size: 1.25rem; color: var(--cc-text-tertiary); text-decoration: none; line-height: 1; flex: none; }
         .back-link:hover { color: var(--cc-text); }
-        .title-row h1 { font-size: 1.5rem; font-weight: 700; color: var(--cc-text); line-height: 1.2; margin: 0; }
+        .title-row h1 { font-size: 1.5rem; font-weight: 700; color: var(--cc-text); line-height: 1.2; margin: 0; min-width: 0; }
         .subgroup-toggles { display: flex; flex-wrap: wrap; gap: 0.375rem; margin-bottom: 0.75rem; }
         .subgroup-toggles button { padding: 0.3rem 0.75rem; font-size: 0.8125rem; border: 1px solid var(--cc-border-light); border-radius: 9999px; background: var(--cc-surface); color: var(--cc-text-secondary); cursor: pointer; transition: background 0.1s, color 0.1s; }
         .subgroup-toggles button:hover { background: var(--cc-surface-alt); }
         .subgroup-toggles button.is-active { background: var(--cc-active-bg); color: var(--cc-active-text); border-color: var(--cc-active-bg); }
         .subgroup-hint { align-self: center; font-size: 0.75rem; color: var(--cc-text-tertiary); margin-left: 0.25rem; }
-        .admin-link { font-size: 0.875rem; color: #2563eb; text-decoration: none; }
-        .admin-link:hover { text-decoration: underline; }
-        .share-buttons { display: inline-flex; gap: 0.375rem; }
         .shared-note { margin: 0 0 0.75rem; padding: 0.5rem 0.75rem; border-radius: 0.375rem; background: var(--cc-surface-alt); border: 1px solid var(--cc-border); font-size: 0.8125rem; color: var(--cc-text-secondary); }
         .shared-note a { margin-left: 0.5rem; color: inherit; font-weight: 700; }
-        .share-btn { display: inline-flex; align-items: center; justify-content: center; width: 2rem; height: 2rem; border-radius: 0.375rem; border: 1px solid var(--cc-border-light); background: var(--cc-surface); color: var(--cc-text-secondary); text-decoration: none; font-size: 0.875rem; cursor: pointer; }
-        .share-btn:hover { background: var(--cc-surface-alt); }
-        .share-btn.x { background: #000; color: #fff; border-color: #000; }
-        .share-btn.x:hover { background: #333; }
-        .share-btn.line { background: #06c755; color: #fff; border-color: #06c755; }
-        .share-btn.line:hover { background: #05b34c; }
-        .share-opt { display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.75rem; color: var(--cc-text-secondary); cursor: pointer; white-space: nowrap; }
 
         .card .delete-btn { display: none; position: absolute; top: 0.25rem; right: 0.25rem; width: 1.25rem; height: 1.25rem; border-radius: 50%; border: none; background: #ef4444; color: #fff; font-size: 0.625rem; cursor: pointer; line-height: 1; padding: 0; }
         .card:hover .delete-btn { display: flex; align-items: center; justify-content: center; }
@@ -128,7 +134,7 @@
 
 
         .site-footer { margin-top: 2.5rem; padding-top: 1rem; border-top: 1px solid var(--cc-border); display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; font-size: 0.75rem; color: var(--cc-text-tertiary); }
-        .site-footer nav { display: flex; gap: 1rem; flex: none; }
+        .site-footer nav { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; }
         .site-footer a { color: var(--cc-text-tertiary); text-decoration: none; }
         .site-footer a:hover { color: var(--cc-text); text-decoration: underline; }
 
@@ -232,7 +238,6 @@
         .modal.wide { max-width: 40rem; }
         /* Month share image (#83): pattern tabs, a preview of the real PNG, and the fold steppers for D. */
         .modal.share-image { max-width: 44rem; }
-        @media (max-width: 767px) { .si-btn-label { display: none; } }
         .si-tabs { display: flex; gap: 0.375rem; margin-bottom: 0.75rem; }
         .si-tabs button { flex: 1; padding: 0.4rem 0.5rem; font-size: 0.8125rem; border: 1px solid var(--cc-border-light); border-radius: 0.375rem; background: var(--cc-surface); color: var(--cc-text-secondary); cursor: pointer; }
         .si-tabs button.is-active { border-color: var(--cc-active-bg); background: var(--cc-active-bg); color: var(--cc-active-text); font-weight: 700; }
@@ -352,8 +357,6 @@
         .modal .btn-submit:hover { background: var(--cc-text-secondary); }
         .modal .modal-error { color: #dc2626; font-size: 0.75rem; margin-top: 0.5rem; }
 
-        .theme-toggle { display: inline-flex; align-items: center; justify-content: center; width: 2rem; height: 2rem; border-radius: 0.375rem; border: 1px solid var(--cc-border-light); background: var(--cc-surface); color: var(--cc-text-secondary); cursor: pointer; font-size: 1rem; line-height: 1; padding: 0; }
-        .theme-toggle:hover { background: var(--cc-surface-alt); }
 
         .dark .fc { --fc-border-color: var(--cc-border); --fc-page-bg-color: var(--cc-surface); --fc-neutral-bg-color: var(--cc-surface-alt); --fc-today-bg-color: rgba(255,255,255,0.04); }
         .dark .fc .fc-button { background: var(--cc-surface); border-color: var(--cc-border-light); color: var(--cc-text-secondary); }
@@ -362,7 +365,6 @@
         .dark .fc .fc-col-header-cell-cushion, .dark .fc .fc-daygrid-day-number { color: var(--cc-text); text-decoration: none; }
         .dark .fc .fc-toolbar-title { color: var(--cc-text); }
         .dark .fc .fc-day-today { background: rgba(255,255,255,0.04) !important; }
-        .dark .admin-link { color: #60a5fa; }
     </style>
 </head>
 <body style="background:var(--cc-bg);color:var(--cc-text)">
@@ -379,40 +381,43 @@
                 </div>
             </div>
             <div class="page-head-actions">
-                <div class="view-toggle" role="tablist">
-                    <button type="button" data-view="board" class="is-active">週ボード</button>
-                    <button type="button" data-view="month">月</button>
+                <button type="button" class="video-btn" id="video-post-btn" title="切り抜き動画や、他チャンネルへの出演を URL から登録（ログイン不要）">📎<span class="btn-label"> 動画を登録</span></button>
+                <div class="menu">
+                    <button type="button" class="video-btn menu-trigger" id="share-menu-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="share-menu">共有 <span aria-hidden="true">▾</span></button>
+                    <div class="menu-panel" id="share-menu" role="menu" aria-labelledby="share-menu-btn" hidden>
+                        <a class="menu-item" role="menuitem" id="share-x-btn"
+                           href="https://x.com/intent/tweet?url={{ urlencode($pageUrl) }}&text={{ urlencode($pageTitle) }}"
+                           target="_blank" rel="noopener noreferrer"><span class="menu-icon">𝕏</span><span class="menu-label">X で共有</span></a>
+                        <label class="menu-item menu-sub" title="Xの共有文に各配信のチャンネル名を入れる">
+                            <input type="checkbox" id="share-x-channels" @checked($shareWithChannels)>チャンネル名を入れる
+                        </label>
+                        <a class="menu-item" role="menuitem"
+                           href="https://social-plugins.line.me/lineit/share?url={{ urlencode($pageUrl) }}"
+                           target="_blank" rel="noopener noreferrer"><span class="menu-icon line">L</span><span class="menu-label">LINE で共有</span></a>
+                        <div class="menu-sep" role="separator"></div>
+                        <button type="button" class="menu-item" role="menuitem" id="copy-url-btn"><span class="menu-icon">🔗</span><span class="menu-label">URL をコピー</span></button>
+                        <button type="button" class="menu-item" role="menuitem" id="copy-state-url-btn" title="今の表示（ビュー・日付・サムネ・絞り込み）のままのURLをコピー"><span class="menu-icon">📌</span><span class="menu-label">今の表示の URL をコピー</span></button>
+                        <button type="button" class="menu-item" role="menuitem" id="share-image-btn" title="この月の配信をサムネイル入りの画像にして共有" hidden><span class="menu-icon">📷</span><span class="menu-label">配信結果を画像で共有</span></button>
+                    </div>
                 </div>
-                <button type="button" class="theme-toggle" id="theme-toggle" title="テーマ切り替え">
-                    <span id="theme-icon">🌙</span>
-                </button>
-                <button type="button" class="video-btn" id="thumb-toggle" aria-pressed="false" title="予定にサムネイルを表示（週ボードではタイトルが短くなります）">🖼 サムネ</button>
-                <button type="button" class="video-btn" id="share-image-btn" title="この月の配信をサムネイル入りの画像にして共有" hidden aria-label="配信結果を共有">📷<span class="si-btn-label"> 配信結果を共有</span></button>
-                <button type="button" class="video-btn" id="video-post-btn" title="切り抜き動画や、他チャンネルへの出演を URL から登録（ログイン不要）">📎 動画を登録</button>
-                <div class="share-buttons">
-                    <label class="share-opt" title="Xの共有文に各配信のチャンネル名を入れる">
-                        <input type="checkbox" id="share-x-channels" @checked($shareWithChannels)>名前
-                    </label>
-                    <a class="share-btn x" id="share-x-btn"
-                       href="https://x.com/intent/tweet?url={{ urlencode($pageUrl) }}&text={{ urlencode($pageTitle) }}"
-                       target="_blank" rel="noopener noreferrer" title="Xで共有">𝕏</a>
-                    <a class="share-btn line"
-                       href="https://social-plugins.line.me/lineit/share?url={{ urlencode($pageUrl) }}"
-                       target="_blank" rel="noopener noreferrer" title="LINEで共有">L</a>
-                    <button type="button" class="share-btn" id="copy-url-btn" title="URLをコピー">🔗</button>
-                    <button type="button" class="share-btn" id="copy-state-url-btn" title="今の表示（ビュー・日付・サムネ・絞り込み）のままのURLをコピー">📌</button>
+                <div class="menu">
+                    <button type="button" class="video-btn menu-trigger" id="account-menu-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="account-menu" aria-label="メニュー" title="メニュー">☰</button>
+                    <div class="menu-panel" id="account-menu" role="menu" aria-labelledby="account-menu-btn" hidden>
+                        <button type="button" class="menu-item" role="menuitem" id="theme-toggle"><span class="menu-icon" id="theme-icon">🌙</span><span class="menu-label" id="theme-label">ダークモード</span></button>
+                        <div class="menu-sep" role="separator"></div>
+                        @guest
+                            <a href="{{ route('auth.google') }}" class="menu-item" role="menuitem" data-cc-login><span class="menu-icon">👤</span><span class="menu-label">ログイン</span></a>
+                        @else
+                            @if (Auth::user()->is_admin)
+                                <a href="{{ url('/admin/channels') }}" class="menu-item" role="menuitem"><span class="menu-icon">⚙</span><span class="menu-label">管理画面</span></a>
+                            @endif
+                            <form method="POST" action="{{ route('logout') }}">
+                                @csrf
+                                <button type="submit" class="menu-item" role="menuitem"><span class="menu-icon">↩</span><span class="menu-label">ログアウト</span></button>
+                            </form>
+                        @endguest
+                    </div>
                 </div>
-                @guest
-                    <a href="{{ route('auth.google') }}" class="admin-link" data-cc-login>ログイン</a>
-                @else
-                    @if (Auth::user()->is_admin)
-                        <a href="{{ url('/admin/channels') }}" class="admin-link">管理画面</a>
-                    @endif
-                    <form method="POST" action="{{ route('logout') }}" class="inline">
-                        @csrf
-                        <button type="submit" class="admin-link" style="border:none;background:none;cursor:pointer;">ログアウト</button>
-                    </form>
-                @endguest
             </div>
         </header>
 
@@ -500,6 +505,14 @@
             <div id="channel-filter" class="channel-filter" hidden></div>
         </div>
 
+        {{-- How the calendar is shown, right above it: board / month and thumbnails. --}}
+        <div class="view-bar">
+            <div class="view-toggle" role="tablist">
+                <button type="button" data-view="board" class="is-active">週ボード</button>
+                <button type="button" data-view="month">月</button>
+            </div>
+            <button type="button" class="video-btn" id="thumb-toggle" aria-pressed="false" title="予定にサムネイルを表示（週ボードではタイトルが短くなります）">🖼 サムネ</button>
+        </div>
         <section id="board-view">
             <div class="board-toolbar">
                 <div class="nav">
@@ -688,7 +701,12 @@
     (function(){
         var btn = document.getElementById('theme-toggle');
         var icon = document.getElementById('theme-icon');
-        function syncIcon() { icon.textContent = document.documentElement.classList.contains('dark') ? '☀️' : '🌙'; }
+        var label = document.getElementById('theme-label');
+        function syncIcon() {
+            var dark = document.documentElement.classList.contains('dark');
+            icon.textContent = dark ? '☀️' : '🌙';
+            label.textContent = dark ? 'ライトモード' : 'ダークモード';
+        }
         syncIcon();
         btn.addEventListener('click', function() {
             var isDark = document.documentElement.classList.toggle('dark');
@@ -696,6 +714,67 @@
             syncIcon();
         });
     })();
+    // Header menus (共有 / ☰): toggle on the button, close on an outside click or Esc,
+    // arrow keys move between items. Picking an item closes the menu.
+    function closeHeaderMenus(except) {
+        document.querySelectorAll('.menu-trigger[aria-expanded="true"]').forEach(function (t) {
+            if (t === except) return;
+            t.setAttribute('aria-expanded', 'false');
+            document.getElementById(t.getAttribute('aria-controls')).hidden = true;
+        });
+    }
+    (function(){
+        function items(panel) {
+            return Array.from(panel.querySelectorAll('.menu-item[role="menuitem"]')).filter(function (el) { return !el.hidden; });
+        }
+        document.querySelectorAll('.menu-trigger').forEach(function (trigger) {
+            var panel = document.getElementById(trigger.getAttribute('aria-controls'));
+            function open(focusFirst) {
+                closeHeaderMenus(trigger);
+                trigger.setAttribute('aria-expanded', 'true');
+                panel.hidden = false;
+                if (focusFirst) { var first = items(panel)[0]; if (first) first.focus(); }
+            }
+            trigger.addEventListener('click', function () {
+                if (panel.hidden) { open(false); } else { closeHeaderMenus(); }
+            });
+            trigger.addEventListener('keydown', function (e) {
+                if (e.key === 'ArrowDown') { e.preventDefault(); open(true); }
+            });
+            panel.addEventListener('keydown', function (e) {
+                var list = items(panel);
+                var i = list.indexOf(document.activeElement);
+                if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    var next = e.key === 'ArrowDown' ? i + 1 : i - 1;
+                    list[(next + list.length) % list.length].focus();
+                } else if (e.key === 'Escape') {
+                    closeHeaderMenus();
+                    trigger.focus();
+                }
+            });
+            // Links and plain actions close the menu; copy buttons close it themselves after
+            // showing "コピーしました", and the theme switch stays open to show the new label.
+            panel.addEventListener('click', function (e) {
+                var item = e.target.closest('.menu-item[role="menuitem"]');
+                if (!item || item.id === 'theme-toggle' || item.id === 'copy-url-btn' || item.id === 'copy-state-url-btn') return;
+                closeHeaderMenus();
+            });
+        });
+        document.addEventListener('click', function (e) {
+            if (!e.target.closest('.menu')) closeHeaderMenus();
+        });
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') closeHeaderMenus();
+        });
+    })();
+    // "コピーしました" on the menu item, then the menu closes.
+    function flashCopied(btn) {
+        var label = btn.querySelector('.menu-label');
+        var original = label.textContent;
+        label.textContent = 'コピーしました ✓';
+        setTimeout(function () { label.textContent = original; closeHeaderMenus(); }, 1200);
+    }
     var GROUP_SLUG = @json($group?->path, JSON_UNESCAPED_SLASHES);
     var GROUP_NAME = @json($group?->name);
     var CHILD_GROUPS = @json($children->map(fn ($c) => ['id' => $c->id, 'name' => $c->name])->values());
@@ -2437,8 +2516,7 @@
         if (copyUrlBtn) {
             copyUrlBtn.addEventListener('click', function () {
                 navigator.clipboard.writeText(window.location.href).then(function () {
-                    copyUrlBtn.textContent = '✓';
-                    setTimeout(function () { copyUrlBtn.textContent = '🔗'; }, 1500);
+                    flashCopied(copyUrlBtn);
                 });
             });
         }
@@ -2468,8 +2546,7 @@
         if (copyStateUrlBtn) {
             copyStateUrlBtn.addEventListener('click', function () {
                 navigator.clipboard.writeText(stateUrl()).then(function () {
-                    copyStateUrlBtn.textContent = '✓';
-                    setTimeout(function () { copyStateUrlBtn.textContent = '📌'; }, 1500);
+                    flashCopied(copyStateUrlBtn);
                 });
             });
         }
