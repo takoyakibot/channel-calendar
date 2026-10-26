@@ -6,7 +6,7 @@
  *   id: string, title: string, start: Date,
  *   kind: 'stream'|'upload'|'short'|'guest',
  *   status: 'upcoming'|'live'|'completed'|'posted',
- *   thumb: string|null, color: string, channelName: string,
+ *   thumb: string|null, color: string, channelName: string, platform: string,
  *   tags: {name: string, kind: 'game'|'category'}[],
  *   actualStart: Date|null, actualEnd: Date|null,
  * }} ShareItem
@@ -45,10 +45,21 @@ export function toShareItems(events, monthStart, monthEnd) {
                 thumb: thumbUrl(p.thumbnail_url),
                 color: e.backgroundColor || e.borderColor || p.color || '#9ca3af',
                 channelName: p.channel_name || '',
+                platform: p.platform || '',
                 tags: (p.tags || []).map((t) => ({ name: t.name, kind: t.kind })),
                 actualStart: p.actual_start_at ? new Date(p.actual_start_at) : null,
                 actualEnd: finished && e.end ? new Date(e.end) : null,
             };
         })
         .sort((a, b) => a.start - b.start);
+}
+
+/**
+ * The genre mosaic (pattern D) is a wall of thumbnails, and Twitch's are screenshots of the
+ * stream rather than a picture someone made, so it shows only the rest. A/B keep everything.
+ * @param {ShareItem[]} items
+ * @returns {ShareItem[]}
+ */
+export function mosaicItems(items) {
+    return items.filter((i) => i.platform !== 'twitch');
 }

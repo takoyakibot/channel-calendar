@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { toShareItems } from '../../resources/js/share-image/items.js';
+import { toShareItems, mosaicItems } from '../../resources/js/share-image/items.js';
 
 const ev = (id, start, props) => ({
     id, title: id, start: new Date(start), backgroundColor: '#feb690',
@@ -57,4 +57,13 @@ test('a finished stream carries its real end; tags, colour and channel name come
     assert.deepEqual(i.tags, [{ name: '原神', kind: 'game' }]);
     assert.equal(i.color, '#feb690');
     assert.equal(i.channelName, 'うる');
+});
+
+test('the genre mosaic leaves Twitch out (its pictures are stream screenshots); the month keeps it', () => {
+    const items = toShareItems([
+        ev('yt', '2026-10-05T20:00:00+09:00', { type: 'stream', status: 'completed', platform: 'youtube' }),
+        ev('tw', '2026-10-06T20:00:00+09:00', { type: 'stream', status: 'completed', platform: 'twitch' }),
+    ], ...OCT);
+    assert.deepEqual(items.map(i => i.id), ['yt', 'tw']);
+    assert.deepEqual(mosaicItems(items).map(i => i.id), ['yt']);
 });
