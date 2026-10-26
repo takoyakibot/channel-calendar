@@ -3,7 +3,7 @@
  * The calendar page provides window.ccShare (month events, title, state URL, month renderer);
  * nothing here touches the DOM until open() is called.
  */
-import { toShareItems } from './items.js';
+import { toShareItems, mosaicItems } from './items.js';
 import { drawMosaic, drawStatsBand, loadImages } from './draw.js';
 import { monthStats, STAT_TILES } from './stats.js';
 
@@ -81,6 +81,7 @@ const state = {
     pattern: 'd',
     limits: { game: 2, cat: 1 },
     items: [],
+    mosaic: [], // items for D: without Twitch
     images: null,
     heading: '',
     filename: '',
@@ -168,7 +169,7 @@ function renderPreview() {
     state.canvas = null;
     state.blob = null;
 
-    if (!state.items.length) {
+    if (!(state.pattern === 'd' ? state.mosaic : state.items).length) {
         preview.textContent = 'この月の配信はありません';
         preview.classList.add('is-empty');
         submit.disabled = true;
@@ -206,7 +207,7 @@ function renderPreview() {
     }
 
     const canvas = document.createElement('canvas');
-    const res = drawMosaic(canvas, state.items, {
+    const res = drawMosaic(canvas, state.mosaic, {
         title: state.heading, gameMax: state.limits.game, categoryMax: state.limits.cat, images: state.images,
     });
     showCanvas(canvas);
@@ -259,6 +260,7 @@ export function open() {
     const { events, start, end } = window.ccShare.monthEvents();
     const label = monthLabel(start);
     state.items = toShareItems(events, start, end);
+    state.mosaic = mosaicItems(state.items);
     state.heading = shareText(window.ccShare.title(), label);
     state.filename = `channel-calendar-${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}.png`;
     state.images = null;
@@ -272,7 +274,7 @@ export function open() {
     renderPreview();
 
     const items = state.items;
-    loadImages(items.map((i) => i.thumb)).then((images) => {
+    loadImages(state.mosaic.map((i) => i.thumb)).then((images) => {
         if (state.items !== items) return; // reopened for another month meanwhile
         state.images = images;
         renderPreview();
