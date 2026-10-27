@@ -120,12 +120,13 @@ class FetchTwitchStreams extends Command
         }
 
         // 3. A live row that is no longer live and got no VOD (VODs off, or not yet
-        //    processed): close it at the time we noticed.
+        //    processed): close it at the time we noticed. Its live preview now serves
+        //    Twitch's grey offline picture, so drop it and let the channel colour show.
         Stream::where('channel_id', $channel->id)->where('platform', 'twitch')->where('status', 'live')
             ->when($liveKey, fn ($q) => $q->where('video_id', '!=', $liveKey))
             ->get()
             ->each(function (Stream $s) {
-                $s->forceFill(['status' => 'completed', 'actual_end_at' => now()])->save();
+                $s->forceFill(['status' => 'completed', 'actual_end_at' => now(), 'thumbnail_url' => null])->save();
                 $this->touched[] = $s->id;
             });
 
