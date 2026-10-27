@@ -91,7 +91,7 @@ class FetchTwitchStreamsTest extends TestCase
     public function test_a_live_row_that_ended_without_a_vod_is_closed_and_removed_segments_are_dropped(): void
     {
         $channel = $this->channel();
-        Stream::factory()->create(['channel_id' => $channel->id, 'video_id' => 'tw:9001', 'platform' => 'twitch', 'status' => 'live', 'scheduled_at' => now()->subHours(2), 'actual_start_at' => now()->subHours(2)]);
+        Stream::factory()->create(['channel_id' => $channel->id, 'video_id' => 'tw:9001', 'platform' => 'twitch', 'status' => 'live', 'scheduled_at' => now()->subHours(2), 'actual_start_at' => now()->subHours(2), 'thumbnail_url' => 'https://static-cdn.jtvnw.net/previews-ttv/live_user_uru-320x180.jpg']);
         Stream::factory()->create(['channel_id' => $channel->id, 'video_id' => 'tw:sched:gone', 'platform' => 'twitch', 'status' => 'upcoming', 'scheduled_at' => now()->addDays(3)]);
         $this->mockTwitch();
 
@@ -100,6 +100,9 @@ class FetchTwitchStreamsTest extends TestCase
         $row = Stream::where('video_id', 'tw:9001')->first();
         $this->assertSame('completed', $row->status);
         $this->assertNotNull($row->actual_end_at);
+        // The live preview turns into Twitch's grey offline picture once the stream ends,
+        // which the page cannot tell from a real one: drop it so the channel colour shows.
+        $this->assertNull($row->thumbnail_url);
         $this->assertDatabaseMissing('streams', ['video_id' => 'tw:sched:gone']);
     }
 
