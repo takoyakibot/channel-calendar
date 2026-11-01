@@ -639,9 +639,9 @@
         <div class="modal share-image">
             <h3 id="si-heading">📷 配信結果を共有</h3>
             <div id="si-tabs" class="si-tabs" role="tablist">
-                <button type="button" role="tab" data-pattern="a">A. 見たまま</button>
-                <button type="button" role="tab" data-pattern="b">B. まとめ＋カレンダー</button>
-                <button type="button" role="tab" data-pattern="d">D. ジャンル別</button>
+                <button type="button" role="tab" data-pattern="a">見たまま</button>
+                <button type="button" role="tab" data-pattern="b">まとめ＋カレンダー</button>
+                <button type="button" role="tab" data-pattern="d">ジャンル別</button>
             </div>
             <div id="si-preview" class="si-preview"></div>
             <div id="si-steps" class="si-steps">
