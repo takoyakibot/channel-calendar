@@ -30,13 +30,16 @@ export function isMissingThumbnail(url, width, height) {
  * @param {string[]} urls
  * @returns {Promise<Map<string, HTMLImageElement|null>>}
  */
-export function loadImages(urls) {
+export function loadImages(urls, timeoutMs = 8000) {
     const unique = [...new Set(urls.filter(Boolean))];
     return Promise.all(unique.map((url) => new Promise((resolve) => {
         const img = new Image();
+        // A picture that never answers is drawn like a missing one rather than holding up the rest.
+        const timer = setTimeout(() => resolve([url, null]), timeoutMs);
+        const done = (value) => { clearTimeout(timer); resolve([url, value]); };
         img.crossOrigin = 'anonymous';
-        img.onload = () => resolve([url, isMissingThumbnail(url, img.naturalWidth, img.naturalHeight) ? null : img]);
-        img.onerror = () => resolve([url, null]);
+        img.onload = () => done(isMissingThumbnail(url, img.naturalWidth, img.naturalHeight) ? null : img);
+        img.onerror = () => done(null);
         img.src = url;
     }))).then((pairs) => new Map(pairs));
 }

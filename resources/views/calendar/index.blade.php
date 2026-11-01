@@ -1509,13 +1509,15 @@
                     eventContent: function (arg) { return monthEventContent(arg, true, true); },
                 });
                 copy.render();
-                // Off-screen pictures never load lazily; ask for them now and wait.
+                // Off-screen pictures never load lazily; ask for them now and wait — but at most
+                // 8s each, so one picture that never answers cannot hold the image back.
                 return Promise.all(Array.prototype.map.call(el.querySelectorAll('img'), function (img) {
                     img.loading = 'eager';
                     if (img.complete) return null;
                     return new Promise(function (resolve) {
                         img.addEventListener('load', resolve);
                         img.addEventListener('error', resolve);
+                        setTimeout(resolve, 8000);
                     });
                 })).then(function () { return copy; });
             },

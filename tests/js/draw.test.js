@@ -38,3 +38,16 @@ test('every legend genre is either drawn or counted in 「ほか n ジャンル�
         assert.equal(drawn + (more ? Number(more[1]) : 0), count, `${count} entries`);
     }
 });
+
+import { loadImages } from '../../resources/js/share-image/draw.js';
+
+test('a thumbnail that never answers counts as missing after the limit', async () => {
+    const saved = globalThis.Image;
+    globalThis.Image = class { set src(v) {} }; // neither load nor error ever fires
+    try {
+        const images = await loadImages(['https://i.ytimg.com/vi/slow/mqdefault.jpg'], 20);
+        assert.equal(images.get('https://i.ytimg.com/vi/slow/mqdefault.jpg'), null);
+    } finally {
+        globalThis.Image = saved;
+    }
+});
