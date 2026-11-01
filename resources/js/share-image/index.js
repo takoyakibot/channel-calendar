@@ -92,6 +92,29 @@ const state = {
     snapshotJob: null,
 };
 
+const STAGES = { library: 'ライブラリの読み込み', thumbs: 'サムネイルの読み込み', convert: '画像への変換' };
+
+/**
+ * Settle with promise, or fail once ms have passed. Either failure carries the stage, so the
+ * dialog can say where it stopped (each step may stall differently on a phone).
+ */
+export function withTimeout(promise, ms, stage) {
+    let timer;
+    const limit = new Promise((_, reject) => {
+        timer = setTimeout(() => reject(Object.assign(new Error(`${stage} timed out`), { stage })), ms);
+    });
+    return Promise.race([
+        Promise.resolve(promise).catch((e) => { throw Object.assign(e instanceof Error ? e : new Error(String(e)), { stage }); }),
+        limit,
+    ]).finally(() => clearTimeout(timer));
+}
+
+/** "画像を作れませんでした（止まった所：…）" plus how to try again. */
+export function failureText(error) {
+    const where = error && STAGES[error.stage] ? `（止まった所：${STAGES[error.stage]}）` : '';
+    return `画像を作れませんでした${where}。タブをもう一度押すと作り直します。`;
+}
+
 let html2canvasJob = null;
 /** Loaded only when someone first asks for A or B; D needs none of it. */
 function loadHtml2canvas() {
@@ -108,13 +131,16 @@ function loadHtml2canvas() {
 
 /** The month grid drawn off-screen at desktop width (readable even when shared from a phone). */
 async function snapshotMonth() {
-    const html2canvas = await loadHtml2canvas();
+    const html2canvas = await withTimeout(loadHtml2canvas(), 20000, 'library');
     const wrap = document.createElement('div');
     wrap.className = 'cc-light si-snapshot';
     document.body.appendChild(wrap);
     try {
-        const copy = await window.ccShare.renderMonth(wrap);
-        const canvas = await html2canvas(wrap, { useCORS: true, scale: 2, backgroundColor: '#ffffff', logging: false });
+        // renderMonth gives up on each picture after 8s itself; this is the backstop.
+        const copy = await withTimeout(window.ccShare.renderMonth(wrap), 15000, 'thumbs');
+        const canvas = await withTimeout(
+            html2canvas(wrap, { useCORS: true, scale: 2, backgroundColor: '#ffffff', logging: false, imageTimeout: 8000 }),
+            30000, 'convert');
         copy.destroy();
         return canvas;
     } finally {
@@ -189,10 +215,10 @@ function renderPreview() {
                     if (state.items !== items) return; // reopened for another month meanwhile
                     state.snapshot = canvas;
                     renderPreview();
-                }).catch(() => {
+                }).catch((e) => {
                     if (state.items !== items) return;
                     state.snapshotJob = null;
-                    if (state.pattern !== 'd') preview.textContent = '画像を作れませんでした。時間をおいてもう一度お試しください。';
+                    if (state.pattern !== 'd') preview.textContent = failureText(e);
                 });
             }
             return;

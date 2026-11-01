@@ -76,3 +76,25 @@ test('shareText', () => {
 test('monthLabel', () => {
     assert.equal(monthLabel(new Date(2026, 9, 1)), '2026年10月');
 });
+
+import { withTimeout, failureText } from '../../resources/js/share-image/index.js';
+
+test('withTimeout passes a result through when it comes in time', async () => {
+    assert.equal(await withTimeout(Promise.resolve(7), 50, 'convert'), 7);
+});
+
+test('withTimeout gives up after the limit and names the stage that stalled', async () => {
+    await assert.rejects(withTimeout(new Promise(() => {}), 20, 'thumbs'), (e) => e.stage === 'thumbs');
+});
+
+test('withTimeout keeps the stage on a failure inside it', async () => {
+    await assert.rejects(withTimeout(Promise.reject(new Error('x')), 50, 'library'), (e) => e.stage === 'library');
+});
+
+test('the failure text says where it stopped and how to retry', () => {
+    assert.match(failureText({ stage: 'library' }), /ライブラリの読み込み/);
+    assert.match(failureText({ stage: 'thumbs' }), /サムネイルの読み込み/);
+    assert.match(failureText({ stage: 'convert' }), /画像への変換/);
+    assert.match(failureText({ stage: 'convert' }), /もう一度/);
+    assert.match(failureText(new Error('?')), /画像を作れませんでした/);
+});
