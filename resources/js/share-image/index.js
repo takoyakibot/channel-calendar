@@ -1,14 +1,12 @@
 /**
  * The month share dialog (#83): pick a pattern, preview it, make a PNG and share it.
- * The calendar page provides window.ccShare (month events, title, state URL, month renderer);
+ * The calendar page provides window.ccShare (month events, title, state URL);
  * nothing here touches the DOM until open() is called.
  */
 import { toShareItems, mosaicItems } from './items.js';
-import { drawMosaic, drawStatsBand, loadImages } from './draw.js';
+import { drawMosaic, loadImages } from './draw.js';
+import { drawMonthImage } from './month.js';
 import { monthStats, STAT_TILES } from './stats.js';
-
-// html2canvas-pro: the maintained fork that understands color-mix(), which the month grid's tint uses.
-const HTML2CANVAS_URL = 'https://cdn.jsdelivr.net/npm/html2canvas-pro@1.5.11/dist/html2canvas-pro.min.js';
 
 export function monthLabel(date) {
     return `${date.getFullYear()}年${date.getMonth() + 1}月`;
@@ -83,84 +81,13 @@ const state = {
     items: [],
     mosaic: [], // items for D: without Twitch
     images: null,
+    monthStart: null,
     heading: '',
     filename: '',
     canvas: null,
     blob: null, // the PNG of canvas, encoded as soon as it is shown
     busy: false,
-    snapshot: null, // the month grid as a canvas, made once per open for A and B
-    snapshotJob: null,
 };
-
-const STAGES = { library: 'ライブラリの読み込み', thumbs: 'サムネイルの読み込み', convert: '画像への変換' };
-
-/**
- * Settle with promise, or fail once ms have passed. Either failure carries the stage, so the
- * dialog can say where it stopped (each step may stall differently on a phone).
- */
-export function withTimeout(promise, ms, stage) {
-    let timer;
-    const limit = new Promise((_, reject) => {
-        timer = setTimeout(() => reject(Object.assign(new Error(`${stage} timed out`), { stage })), ms);
-    });
-    return Promise.race([
-        Promise.resolve(promise).catch((e) => { throw Object.assign(e instanceof Error ? e : new Error(String(e)), { stage }); }),
-        limit,
-    ]).finally(() => clearTimeout(timer));
-}
-
-/** "画像を作れませんでした（止まった所：…）" plus how to try again. */
-export function failureText(error) {
-    const where = error && STAGES[error.stage] ? `（止まった所：${STAGES[error.stage]}）` : '';
-    return `画像を作れませんでした${where}。タブをもう一度押すと作り直します。`;
-}
-
-let html2canvasJob = null;
-/** Loaded only when someone first asks for A or B; D needs none of it. */
-function loadHtml2canvas() {
-    if (window.html2canvas) return Promise.resolve(window.html2canvas);
-    html2canvasJob ||= new Promise((resolve, reject) => {
-        const s = document.createElement('script');
-        s.src = HTML2CANVAS_URL;
-        s.onload = () => resolve(window.html2canvas);
-        s.onerror = () => { html2canvasJob = null; reject(new Error('html2canvas failed to load')); };
-        document.head.appendChild(s);
-    });
-    return html2canvasJob;
-}
-
-/** The month grid drawn off-screen at desktop width (readable even when shared from a phone). */
-async function snapshotMonth() {
-    const html2canvas = await withTimeout(loadHtml2canvas(), 20000, 'library');
-    const wrap = document.createElement('div');
-    wrap.className = 'cc-light si-snapshot';
-    document.body.appendChild(wrap);
-    try {
-        // renderMonth gives up on each picture after 8s itself; this is the backstop.
-        const copy = await withTimeout(window.ccShare.renderMonth(wrap), 15000, 'thumbs');
-        const canvas = await withTimeout(
-            html2canvas(wrap, { useCORS: true, scale: 2, backgroundColor: '#ffffff', logging: false, imageTimeout: 8000 }),
-            30000, 'convert');
-        copy.destroy();
-        return canvas;
-    } finally {
-        wrap.remove();
-    }
-}
-
-/** A: heading band + month grid. B: heading and the numbers + month grid. */
-function composeMonth(snapshot, withStats) {
-    const bandH = withStats ? 300 : 120;
-    const canvas = document.createElement('canvas');
-    canvas.width = snapshot.width;
-    canvas.height = snapshot.height + bandH;
-    const ctx = canvas.getContext('2d');
-    const stats = withStats ? monthStats(state.items) : null;
-    const tiles = stats && STAT_TILES.map((t) => ({ key: t.key, label: t.label, value: t.format(stats[t.key]) }));
-    drawStatsBand(ctx, tiles, { x: 0, y: 0, w: canvas.width, h: bandH }, state.heading);
-    ctx.drawImage(snapshot, 0, bandH);
-    return canvas;
-}
 
 function $(id) { return document.getElementById(id); }
 
@@ -204,28 +131,6 @@ function renderPreview() {
     }
     preview.classList.remove('is-empty');
 
-    if (state.pattern !== 'd') {
-        setNote('');
-        if (!state.snapshot) {
-            preview.textContent = '作成中…';
-            submit.disabled = true;
-            if (!state.snapshotJob) {
-                const items = state.items;
-                state.snapshotJob = snapshotMonth().then((canvas) => {
-                    if (state.items !== items) return; // reopened for another month meanwhile
-                    state.snapshot = canvas;
-                    renderPreview();
-                }).catch((e) => {
-                    if (state.items !== items) return;
-                    state.snapshotJob = null;
-                    if (state.pattern !== 'd') preview.textContent = failureText(e);
-                });
-            }
-            return;
-        }
-        showCanvas(composeMonth(state.snapshot, state.pattern === 'b'));
-        return;
-    }
     if (!state.images) {
         preview.textContent = 'サムネイルを読み込み中…';
         submit.disabled = true;
@@ -233,6 +138,14 @@ function renderPreview() {
     }
 
     const canvas = document.createElement('canvas');
+    if (state.pattern !== 'd') {
+        const stats = state.pattern === 'b' ? monthStats(state.items) : null;
+        const tiles = stats && STAT_TILES.map((t) => ({ key: t.key, label: t.label, value: t.format(stats[t.key]) }));
+        drawMonthImage(canvas, state.items, { monthStart: state.monthStart, title: state.heading, tiles, images: state.images });
+        showCanvas(canvas);
+        setNote('');
+        return;
+    }
     const res = drawMosaic(canvas, state.mosaic, {
         title: state.heading, gameMax: state.limits.game, categoryMax: state.limits.cat, images: state.images,
     });
@@ -290,8 +203,7 @@ export function open() {
     state.heading = shareText(window.ccShare.title(), label);
     state.filename = `channel-calendar-${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}.png`;
     state.images = null;
-    state.snapshot = null;
-    state.snapshotJob = null;
+    state.monthStart = start;
     $('si-heading').textContent = `📷 ${label}の配信結果を共有`;
     $('si-submit').textContent = isMobile() ? '画像を作って共有' : '画像をコピーして X を開く';
     $('si-game-max').textContent = String(state.limits.game);
@@ -300,7 +212,8 @@ export function open() {
     renderPreview();
 
     const items = state.items;
-    loadImages(state.mosaic.map((i) => i.thumb)).then((images) => {
+    // Every picture any tab needs: the thumbnails (Twitch too, for the calendar) and the channel icons.
+    loadImages(items.flatMap((i) => [i.thumb, i.avatar])).then((images) => {
         if (state.items !== items) return; // reopened for another month meanwhile
         state.images = images;
         renderPreview();

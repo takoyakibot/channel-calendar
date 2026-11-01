@@ -1,6 +1,6 @@
 /**
- * Canvas drawing for the share image. Pattern D (the genre mosaic) is drawn here from scratch;
- * A and B are a snapshot of the month view with a band of numbers on top (drawStatsBand).
+ * Canvas drawing for the share image: the genre mosaic (D), the heading band with the numbers
+ * (drawStatsBand) and the pieces month.js reuses for the calendar.
  */
 import { groupByGenre } from './genres.js';
 import { packBlocks } from './layout.js';
@@ -13,7 +13,7 @@ export const OTHER_COLOR = '#c8c2b8';
 export const BG_COLOR = '#f4f1ec';
 export const SITE_LABEL = 'calendar.alpacasandbag.jp';
 
-const FONT = '"Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic", sans-serif';
+export const FONT = '"Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic", sans-serif';
 const W = 1600;
 const H = 900;
 const LEGEND_H = 80;
@@ -44,7 +44,7 @@ export function loadImages(urls, timeoutMs = 8000) {
     }))).then((pairs) => new Map(pairs));
 }
 
-function roundRect(ctx, x, y, w, h, r) {
+export function roundRect(ctx, x, y, w, h, r) {
     ctx.beginPath();
     ctx.moveTo(x + r, y);
     ctx.arcTo(x + w, y, x + w, y + h, r);
@@ -66,7 +66,7 @@ function drawFallback(ctx, item, x, y, w, h) {
     ctx.restore();
 }
 
-function drawTile(ctx, item, img, x, y, w, h) {
+export function drawTile(ctx, item, img, x, y, w, h) {
     if (!img) { drawFallback(ctx, item, x, y, w, h); return; }
     ctx.save();
     roundRect(ctx, x, y, w, h, 2);

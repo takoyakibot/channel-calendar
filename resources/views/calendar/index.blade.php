@@ -249,18 +249,6 @@
         .si-steps button { width: 1.75rem; height: 1.75rem; border-radius: 9999px; border: 1px solid var(--cc-border-light); background: var(--cc-surface); color: var(--cc-text); cursor: pointer; }
         .si-steps b { min-width: 1.25rem; text-align: center; color: var(--cc-text); }
         .si-note { margin: 0.5rem 0 0; font-size: 0.75rem; color: var(--cc-text-tertiary); min-height: 1em; }
-        /* The off-screen month copy for the share image is always drawn in the light theme. */
-        .cc-light, .dark .cc-light {
-            --cc-bg: #f9fafb; --cc-surface: #fff; --cc-surface-hover: #f9fafb; --cc-surface-alt: #f3f4f6;
-            --cc-text: #111827; --cc-text-sub: #1f2937; --cc-text-secondary: #374151;
-            --cc-text-tertiary: #6b7280; --cc-text-muted: #9ca3af;
-            --cc-border: #e5e7eb; --cc-border-light: #d1d5db;
-            --cc-active-bg: #111827; --cc-active-text: #fff;
-            --cc-manual-bg: #eef0f3; --cc-manual-hover: #e3e6ea; --cc-manual-text: #4b5563;
-            color: var(--cc-text); background: #fff;
-        }
-        .si-snapshot { position: fixed; left: -10000px; top: 0; width: 1200px; padding: 24px; box-sizing: border-box; }
-        .si-snapshot-head { font-size: 22px; font-weight: 700; margin: 0 0 12px; }
         .search-classify { display: flex; flex-wrap: wrap; align-items: center; gap: 0.375rem; margin: -0.25rem 0 0.75rem; font-size: 0.8125rem; color: var(--cc-text-secondary); }
         .search-results { list-style: none; margin: 0; padding: 0; max-height: 60vh; overflow-y: auto; }
         .search-results li { display: flex; gap: 0.5rem; align-items: flex-start; padding: 0.4rem 0.25rem; border-top: 1px solid var(--cc-border); font-size: 0.8125rem; }
@@ -639,7 +627,7 @@
         <div class="modal share-image">
             <h3 id="si-heading">📷 配信結果を共有</h3>
             <div id="si-tabs" class="si-tabs" role="tablist">
-                <button type="button" role="tab" data-pattern="a">見たまま</button>
+                <button type="button" role="tab" data-pattern="a">カレンダー</button>
                 <button type="button" role="tab" data-pattern="b">まとめ＋カレンダー</button>
                 <button type="button" role="tab" data-pattern="d">ジャンル別</button>
             </div>
@@ -1358,7 +1346,7 @@
 
         // One month-grid entry. Shared by the calendar and the off-screen copy the share image is
         // made from (thumbnails always on there, and no per-visitor NEW badge).
-        function monthEventContent(arg, withThumbs, forImage) {
+        function monthEventContent(arg, withThumbs) {
             var props = arg.event.extendedProps;
             var wrap = document.createElement('div');
             wrap.className = 'fc-ev'
@@ -1380,7 +1368,7 @@
             wrap.appendChild(ti);
             var platB = platformBadge(props.platform);
             if (platB) { wrap.appendChild(platB); }
-            if (!forImage && isNewEvent(arg.event)) {
+            if (isNewEvent(arg.event)) {
                 var nb = document.createElement('span');
                 nb.className = 'badge new';
                 nb.textContent = 'NEW';
@@ -1436,7 +1424,7 @@
                         setTimeout(function () { info.el.classList.remove('is-new'); }, 4000);
                     }
                 },
-                eventContent: function (arg) { return monthEventContent(arg, showThumbs, false); },
+                eventContent: function (arg) { return monthEventContent(arg, showThumbs); },
                 eventClick: function (info) {
                     info.jsEvent.preventDefault();
                     if (info.event.url) {
@@ -1484,43 +1472,6 @@
                 return GROUP_NAME || '';
             },
             stateUrl: function () { return stateUrl(); },
-            // A copy of the month grid at a fixed desktop width with thumbnails on (patterns A/B);
-            // resolves once every picture in it has loaded or failed. Returns the copy to destroy().
-            renderMonth: function (el) {
-                var copy = new FullCalendar.Calendar(el, {
-                    initialView: 'dayGridMonth',
-                    initialDate: calendar.getDate(),
-                    locale: 'ja',
-                    defaultTimedEventDuration: '00:00:01',
-                    eventDisplay: 'block',
-                    headerToolbar: false,
-                    // The picture is this month only (its numbers in B are too); the grid's edge days stay blank.
-                    showNonCurrentDates: false,
-                    // Only the weeks the month spans — no blank sixth row under a five-week month.
-                    fixedWeekCount: false,
-                    dayMaxEvents: false,
-                    displayEventTime: false,
-                    height: 'auto',
-                    events: calendar.getEvents().map(function (e) { return e.toPlainObject(); }),
-                    eventDidMount: function (info) {
-                        info.el.style.setProperty('--ev', info.event.backgroundColor || info.event.borderColor || '#9ca3af');
-                        info.el.classList.add('cc-tint');
-                    },
-                    eventContent: function (arg) { return monthEventContent(arg, true, true); },
-                });
-                copy.render();
-                // Off-screen pictures never load lazily; ask for them now and wait — but at most
-                // 8s each, so one picture that never answers cannot hold the image back.
-                return Promise.all(Array.prototype.map.call(el.querySelectorAll('img'), function (img) {
-                    img.loading = 'eager';
-                    if (img.complete) return null;
-                    return new Promise(function (resolve) {
-                        img.addEventListener('load', resolve);
-                        img.addEventListener('error', resolve);
-                        setTimeout(resolve, 8000);
-                    });
-                })).then(function () { return copy; });
-            },
         };
 
         function setView(view) {

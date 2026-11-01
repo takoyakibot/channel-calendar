@@ -6,7 +6,8 @@
  *   id: string, title: string, start: Date,
  *   kind: 'stream'|'upload'|'short'|'guest',
  *   status: 'upcoming'|'live'|'completed'|'posted',
- *   thumb: string|null, color: string, channelName: string, platform: string,
+ *   thumb: string|null, avatar: string|null, membersOnly: boolean,
+ *   color: string, channelName: string, platform: string,
  *   tags: {name: string, kind: 'game'|'category'}[],
  *   actualStart: Date|null, actualEnd: Date|null,
  * }} ShareItem
@@ -43,6 +44,8 @@ export function toShareItems(events, monthStart, monthEnd) {
                 kind: p.type,
                 status: p.status,
                 thumb: thumbUrl(p.thumbnail_url),
+                avatar: p.channel_thumbnail_url || null,
+                membersOnly: Boolean(p.is_members_only),
                 color: e.backgroundColor || e.borderColor || p.color || '#9ca3af',
                 channelName: p.channel_name || '',
                 platform: p.platform || '',
