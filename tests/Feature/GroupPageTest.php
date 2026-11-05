@@ -152,4 +152,17 @@ class GroupPageTest extends TestCase
         $this->get('/auth/google')->assertStatus(302);
         $this->get('/admin/channels')->assertRedirect(route('auth.google'));
     }
+
+    public function test_group_thumbnail_is_used_as_share_card_image(): void
+    {
+        Group::factory()->create(['slug' => 'pic', 'thumbnail_url' => 'https://example.com/pic.png']);
+        Group::factory()->create(['slug' => 'plain', 'thumbnail_url' => null]);
+
+        $this->get('/pic')
+            ->assertSee('<meta property="og:image" content="https://example.com/pic.png">', false)
+            ->assertSee('<meta name="twitter:card" content="summary_large_image">', false);
+        $this->get('/plain')
+            ->assertDontSee('og:image', false)
+            ->assertSee('<meta name="twitter:card" content="summary">', false);
+    }
 }
