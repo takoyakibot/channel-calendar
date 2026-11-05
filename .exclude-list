@@ -21,4 +21,5 @@ node_modules
 public/hot
 storage/logs
 storage/framework
+public/uploads
 database/database.sqlite
