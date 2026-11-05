@@ -9,6 +9,7 @@
         $pageDescription = $group
             ? $group->name . 'の配信スケジュール - ' . config('app.name', 'Channel Calendar')
             : config('app.name', 'Channel Calendar') . ' - 配信スケジュールをまとめてチェック';
+        $pageImage = $group?->thumbnail_url;
     @endphp
     <title>{{ $pageTitle }}</title>
     <meta property="og:title" content="{{ $pageTitle }}">
@@ -16,9 +17,13 @@
     <meta property="og:url" content="{{ $pageUrl }}">
     <meta property="og:type" content="website">
     <meta property="og:site_name" content="{{ config('app.name', 'Channel Calendar') }}">
-    <meta name="twitter:card" content="summary">
+    <meta name="twitter:card" content="{{ $pageImage ? 'summary_large_image' : 'summary' }}">
     <meta name="twitter:title" content="{{ $pageTitle }}">
     <meta name="twitter:description" content="{{ $pageDescription }}">
+    @if ($pageImage)
+        <meta property="og:image" content="{{ $pageImage }}">
+        <meta name="twitter:image" content="{{ $pageImage }}">
+    @endif
     @vite(['resources/css/app.css', 'resources/js/share-image/index.js'])
     <x-ga4 />
     <script>
