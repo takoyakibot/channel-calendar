@@ -24,7 +24,14 @@
 </div>
 
 <div class="mb-4">
-    <label for="thumbnail_url" class="block text-sm font-medium text-gray-700 mb-1">サムネイルURL</label>
+    <p class="block text-sm font-medium text-gray-700 mb-1">サムネイル</p>
+    @if ($group?->thumbnail_url)
+        <img src="{{ $group->thumbnail_url }}" alt="" class="mb-2 w-48 rounded border border-gray-200" style="aspect-ratio: 16 / 9; object-fit: cover;">
+    @endif
+    <label for="thumbnail_file" class="block text-xs text-gray-600 mb-1">画像をアップロード</label>
+    <input type="file" name="thumbnail_file" id="thumbnail_file" accept="image/jpeg,image/png,image/webp,image/gif" class="text-sm">
+    <p class="text-xs text-gray-500 mt-1">JPEG / PNG / WebP / GIF、2MB 以下、縦横 100〜4000px。16:9（例: 1280×720）推奨。選ぶと下の URL より優先されます。</p>
+    <label for="thumbnail_url" class="block text-xs text-gray-600 mt-3 mb-1">または画像URL</label>
     <input type="url" name="thumbnail_url" id="thumbnail_url" value="{{ old('thumbnail_url', $group?->thumbnail_url) }}"
            class="w-full border-gray-300 rounded-md shadow-sm" placeholder="https://...">
     <p class="text-xs text-gray-500 mt-1">トップページのカード表示に使用されます。空欄の場合はデフォルト表示になります。</p>

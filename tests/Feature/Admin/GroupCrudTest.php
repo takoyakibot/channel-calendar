@@ -6,6 +6,8 @@ use App\Models\Channel;
 use App\Models\Group;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class GroupCrudTest extends TestCase
@@ -162,5 +164,73 @@ class GroupCrudTest extends TestCase
         ]);
 
         $response->assertSessionHasErrors('slug');
+    }
+
+    public function test_uploaded_thumbnail_is_stored_and_used(): void
+    {
+        Storage::fake('uploads');
+
+        $this->actingAs($this->admin)->post('/admin/groups', [
+            'name' => 'Pic',
+            'slug' => 'pic',
+            'thumbnail_url' => 'https://example.com/ignored.png',
+            'thumbnail_file' => UploadedFile::fake()->image('thumb.png', 1280, 720),
+        ])->assertRedirect('/admin/groups');
+
+        $group = Group::where('slug', 'pic')->first();
+        $this->assertStringStartsWith(Storage::disk('uploads')->url('groups/'), $group->thumbnail_url);
+        Storage::disk('uploads')->assertExists('groups/' . basename($group->thumbnail_url));
+    }
+
+    public function test_thumbnail_upload_rejects_bad_files(): void
+    {
+        Storage::fake('uploads');
+
+        foreach ([
+            UploadedFile::fake()->create('x.svg', 10, 'image/svg+xml'),
+            UploadedFile::fake()->image('big.png', 1280, 720)->size(3000),
+            UploadedFile::fake()->image('tiny.png', 50, 50),
+            UploadedFile::fake()->create('doc.pdf', 10, 'application/pdf'),
+        ] as $file) {
+            $this->actingAs($this->admin)->post('/admin/groups', [
+                'name' => 'Bad', 'slug' => 'bad', 'thumbnail_file' => $file,
+            ])->assertSessionHasErrors('thumbnail_file');
+        }
+        $this->assertDatabaseMissing('groups', ['slug' => 'bad']);
+    }
+
+    public function test_replacing_or_deleting_removes_old_upload(): void
+    {
+        Storage::fake('uploads');
+        $parent = Group::factory()->create(['slug' => 'p']);
+        $child = Group::factory()->create(['slug' => 'c', 'parent_id' => $parent->id]);
+
+        $upload = fn (Group $g) => $this->actingAs($this->admin)->put("/admin/groups/{$g->id}", [
+            'name' => $g->name, 'slug' => $g->slug, 'parent_id' => $g->parent_id,
+            'thumbnail_file' => UploadedFile::fake()->image('t.jpg', 640, 360),
+        ]);
+        $upload($parent);
+        $first = basename($parent->fresh()->thumbnail_url);
+        $upload($parent);
+        Storage::disk('uploads')->assertMissing('groups/' . $first);
+        $upload($child);
+        $files = [basename($parent->fresh()->thumbnail_url), basename($child->fresh()->thumbnail_url)];
+
+        $this->actingAs($this->admin)->delete("/admin/groups/{$parent->id}");
+
+        foreach ($files as $f) {
+            Storage::disk('uploads')->assertMissing('groups/' . $f);
+        }
+    }
+
+    public function test_external_thumbnail_url_still_works(): void
+    {
+        $group = Group::factory()->create(['slug' => 'ext']);
+
+        $this->actingAs($this->admin)->put("/admin/groups/{$group->id}", [
+            'name' => $group->name, 'slug' => 'ext', 'thumbnail_url' => 'https://example.com/a.png',
+        ])->assertRedirect('/admin/groups');
+
+        $this->assertSame('https://example.com/a.png', $group->fresh()->thumbnail_url);
     }
 }

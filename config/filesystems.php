@@ -44,6 +44,16 @@ return [
             'throw' => false,
         ],
 
+        // Admin uploads (group thumbnails). Lives under public/ so no storage:link is needed on the host;
+        // deploy.sh's rsync leaves it alone (.exclude-list).
+        'uploads' => [
+            'driver' => 'local',
+            'root' => public_path('uploads'),
+            'url' => env('APP_URL').'/uploads',
+            'visibility' => 'public',
+            'throw' => false,
+        ],
+
         's3' => [
             'driver' => 's3',
             'key' => env('AWS_ACCESS_KEY_ID'),
