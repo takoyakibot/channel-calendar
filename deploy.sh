@@ -47,6 +47,22 @@ on_exit() {
 }
 trap on_exit EXIT
 
+# 本番に出すのは origin/main そのものだけ（古いブランチから出して本番が巻き戻った事故あり）
+# 緊急時は ALLOW_NON_MAIN_DEPLOY=1 で迂回できる
+echo "▶ 0. origin/main と一致しているか確認"
+if [ "${ALLOW_NON_MAIN_DEPLOY:-0}" != "1" ]; then
+  git fetch -q origin main
+  if [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ]; then
+    echo "❌ HEAD が origin/main と一致しません（HEAD: $(git rev-parse --short HEAD), origin/main: $(git rev-parse --short origin/main)）"
+    echo "   main にマージしてから git switch --detach origin/main などで合わせて再実行してください。"
+    exit 1
+  fi
+  if ! git diff --quiet HEAD; then
+    echo "❌ 追跡中のファイルに未コミットの変更があります。コミットするか stash してから再実行してください。"
+    exit 1
+  fi
+fi
+
 echo "▶ 0. テスト"
 php artisan test
 
