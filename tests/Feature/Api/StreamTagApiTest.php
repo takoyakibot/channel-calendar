@@ -6,6 +6,7 @@ use App\Models\Channel;
 use App\Models\Stream;
 use App\Models\Tag;
 use App\Models\User;
+use App\Support\StreamTagger;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -55,5 +56,27 @@ class StreamTagApiTest extends TestCase
         $this->actingAs($admin)->deleteJson("/api/streams/{$stream->id}/tags/{$tag->id}")->assertOk();
         $this->assertDatabaseMissing('stream_tag', ['stream_id' => $stream->id, 'tag_id' => $tag->id]);
         $this->assertDatabaseHas('activity_logs', ['user_id' => $admin->id, 'action' => 'remove_stream_tag']);
+    }
+
+    public function test_a_removed_dictionary_tag_stays_off_until_someone_adds_it_back(): void
+    {
+        $tag = Tag::createWithAlias('Minecraft', 'game');
+        $stream = Stream::factory()->create(['title' => '【Minecraft】建築']);
+        $tagger = app(StreamTagger::class);
+        $tagger->retagAll();
+        $this->assertSame(['Minecraft'], $stream->fresh()->tags->pluck('name')->all());
+
+        $this->actingAs(User::factory()->admin()->create())
+            ->deleteJson("/api/streams/{$stream->id}/tags/{$tag->id}")->assertOk()->assertJsonPath('tags', []);
+
+        // The title still matches, but the next fetch / retag must not put it back.
+        $tagger->retagAll();
+        $this->assertSame([], $stream->fresh()->tags->pluck('name')->all());
+
+        // Adding it by hand clears the removal.
+        $this->postJson("/api/streams/{$stream->id}/tags", ['tag_id' => $tag->id])->assertCreated();
+        $this->assertDatabaseMissing('stream_tag_removals', ['stream_id' => $stream->id, 'tag_id' => $tag->id]);
+        $tagger->retagAll();
+        $this->assertSame(['Minecraft'], $stream->fresh()->tags->pluck('name')->all());
     }
 }

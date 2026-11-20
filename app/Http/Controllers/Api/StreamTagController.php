@@ -10,6 +10,7 @@ use App\Support\StreamTagger;
 use App\Support\TermClassifier;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -45,6 +46,8 @@ class StreamTagController extends Controller
             return response()->json(['message' => 'このタグは付いています。'], 409);
         }
         $stream->tags()->attach($tag->id, ['source' => 'manual']);
+        // Adding it back by hand undoes an earlier removal.
+        DB::table('stream_tag_removals')->where(['stream_id' => $stream->id, 'tag_id' => $tag->id])->delete();
 
         ActivityLog::record($user?->id, 'add_stream_tag', Stream::class, $stream->id, [
             'tag' => $tag->name, 'kind' => $tag->kind, 'video_id' => $stream->video_id, 'title' => $stream->title,
@@ -63,11 +66,18 @@ class StreamTagController extends Controller
     public function destroy(Request $request, Stream $stream, Tag $tag): JsonResponse
     {
         $stream->tags()->detach($tag->id);
+        // Remember it, or the dictionary puts an automatic tag straight back on the next fetch.
+        DB::table('stream_tag_removals')->insertOrIgnore([
+            'stream_id' => $stream->id, 'tag_id' => $tag->id, 'removed_by_user_id' => $request->user()->id, 'created_at' => now(),
+        ]);
 
         ActivityLog::record($request->user()->id, 'remove_stream_tag', Stream::class, $stream->id, [
             'tag' => $tag->name, 'video_id' => $stream->video_id,
         ]);
 
-        return response()->json(['message' => '外しました。']);
+        return response()->json([
+            'message' => '外しました。',
+            'tags' => $stream->tags()->get()->map(fn (Tag $t) => $t->toArrayForApi())->values(),
+        ]);
     }
 }
