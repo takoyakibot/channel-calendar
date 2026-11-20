@@ -72,6 +72,9 @@ return [
         // How many days of already-ended streams to import so a freshly added
         // channel shows recent history on the board.
         'backfill_days' => (int) env('STREAMS_BACKFILL_DAYS', 14),
+        // streams:refresh re-checks a stream once it has not been verified for
+        // this many days (YouTube requires a refresh within 30).
+        'refresh_after_days' => (int) env('STREAMS_REFRESH_AFTER_DAYS', 20),
     ],
 
 ];

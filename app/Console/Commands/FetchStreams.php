@@ -8,6 +8,7 @@ use App\Models\Setting;
 use App\Models\Stream;
 use App\Services\YouTubeService;
 use App\Support\StreamTagger;
+use App\Support\StreamUpserter;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
@@ -230,48 +231,16 @@ class FetchStreams extends Command
 
     private function upsertDetail(Channel $channel, array $detail, Carbon $windowStart): bool
     {
-        if ($detail['is_broadcast']) {
-            // Broadcasts without a schedule (no scheduledStartTime, no actualStartTime) are unusable.
-            if ($detail['scheduled_at'] === null) {
-                return false;
-            }
-            $type = 'stream';
-            $scheduledAt = $detail['scheduled_at'];
-        } else {
-            $scheduledAt = $detail['published_at'] ?? null;
-            if ($scheduledAt === null) {
-                return false;
-            }
-            $type = (($detail['duration_seconds'] ?? null) !== null && $detail['duration_seconds'] <= 180)
-                ? 'short'
-                : 'upload';
-            $detail['status'] = 'completed';
+        $membersOnly = null;
+        if (in_array($detail['video_id'], $this->membersOnlyIds, true)) {
+            $membersOnly = true;
+        } elseif (in_array($detail['video_id'], $this->publicIds, true)) {
+            $membersOnly = false;
         }
 
-        if ($detail['status'] === 'completed' && Carbon::parse($scheduledAt)->lt($windowStart)) {
+        if (app(StreamUpserter::class)->upsert($channel, $detail, $windowStart, $membersOnly) === null) {
             return false;
         }
-
-        $attributes = [
-            'channel_id' => $channel->id,
-            'title' => $detail['title'],
-            'thumbnail_url' => $detail['thumbnail_url'],
-            'scheduled_at' => $scheduledAt,
-            'actual_start_at' => $detail['actual_start_at'],
-            'actual_end_at' => $detail['actual_end_at'],
-            'status' => $detail['status'],
-            'type' => $type,
-            // YouTube reports P0D while a broadcast is live; keep null until it is real.
-            'duration_seconds' => ($detail['duration_seconds'] ?? null) ?: null,
-        ];
-
-        if (in_array($detail['video_id'], $this->membersOnlyIds, true)) {
-            $attributes['is_members_only'] = true;
-        } elseif (in_array($detail['video_id'], $this->publicIds, true)) {
-            $attributes['is_members_only'] = false;
-        }
-
-        Stream::updateOrCreate(['video_id' => $detail['video_id']], $attributes);
 
         $this->fetchedVideoIds[] = $detail['video_id'];
 
