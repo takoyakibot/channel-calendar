@@ -275,6 +275,8 @@
         .dark .tag-chip.category { background: #14532d; color: #bbf7d0; }
         .tag-chip.add { border: 1px dashed var(--cc-border-light); color: var(--cc-text-muted); cursor: pointer; opacity: 0.6; }
         .tag-chip.add:hover { opacity: 1; color: var(--cc-text); border-color: var(--cc-text-muted); }
+        .tag-chip-remove { margin-left: 0.2rem; cursor: pointer; opacity: 0.55; }
+        .tag-chip-remove:hover { opacity: 1; color: #dc2626; }
         /* Clips / guest appearances registered from a URL (issue #46, #47). */
         .card.is-post .card-meta .time { font-size: 0.8125rem; }
         .video-btn { display: inline-flex; align-items: center; gap: 0.25rem; padding: 0.375rem 0.75rem; font-size: 0.875rem; border: 1px solid var(--cc-border-light); border-radius: 0.5rem; background: var(--cc-surface); color: var(--cc-text-secondary); cursor: pointer; white-space: nowrap; }
@@ -811,6 +813,7 @@
         return urls;
     }
     var IS_LOGGED_IN = @json(Auth::check());
+    var IS_ADMIN = @json((bool) Auth::user()?->is_admin);
     var CSRF_TOKEN = @json(csrf_token());
     var CURRENT_USER_ID = @json(Auth::id());
 
@@ -1139,6 +1142,28 @@
                     var chip = document.createElement('span');
                     chip.className = 'tag-chip ' + t.kind;
                     chip.textContent = t.name;
+                    // Admins can take a tag off; it stays off even if the title matches the dictionary.
+                    if (IS_ADMIN) {
+                        var rm = document.createElement('span');
+                        rm.className = 'tag-chip-remove';
+                        rm.setAttribute('role', 'button');
+                        rm.setAttribute('aria-label', '「' + t.name + '」を外す');
+                        rm.title = 'このタグを外す（管理者）';
+                        rm.textContent = '×';
+                        rm.addEventListener('click', function (e) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            if (!confirm('「' + t.name + '」をこの配信から外しますか？')) return;
+                            fetch('/api/streams/' + ev.id + '/tags/' + t.id, {
+                                method: 'DELETE',
+                                headers: { 'X-CSRF-TOKEN': CSRF_TOKEN, Accept: 'application/json' },
+                            }).then(function (res) {
+                                if (res.ok) { loadBoard(); return; }
+                                return res.json().then(function (d) { alert(d.message || '外せませんでした。'); });
+                            }).catch(function () { alert('外せませんでした。'); });
+                        });
+                        chip.appendChild(rm);
+                    }
                     tagsRow.appendChild(chip);
                 });
                 var addChip = document.createElement('span');

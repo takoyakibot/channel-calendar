@@ -9,6 +9,7 @@ use App\Models\Tag;
 use App\Models\TagAlias;
 use App\Models\UnmatchedTerm;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Applies the tag dictionary to stream titles and keeps the list of bracket
@@ -88,6 +89,9 @@ class StreamTagger
         if ($others !== [] && ! in_array($this->collabTagId(), $matched, true)) {
             $matched[] = $this->collabTagId();
         }
+        // Tags an admin took off this stream stay off, even when the title still matches.
+        $removed = DB::table('stream_tag_removals')->where('stream_id', $stream->id)->pluck('tag_id')->map(fn ($id) => (int) $id)->all();
+        $matched = array_values(array_diff($matched, $removed));
         $current = $stream->tags()->get();
         $manual = $current->filter(fn ($t) => $t->pivot->source === 'manual')->pluck('id')->all();
         $auto = $current->filter(fn ($t) => $t->pivot->source === 'auto')->pluck('id')->all();
