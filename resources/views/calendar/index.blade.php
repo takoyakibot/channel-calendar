@@ -355,6 +355,7 @@
         .tag-options li[aria-selected="true"] { background: var(--cc-active-bg); color: var(--cc-active-text); }
         .tag-options li[aria-disabled="true"] { cursor: default; opacity: 0.5; background: none; color: var(--cc-text); }
         .tag-options li .tag-option-note { margin-left: auto; font-size: 0.6875rem; opacity: 0.75; }
+        .tag-options li.tag-option-group { cursor: default; background: none; padding: 0.4rem 0.5rem 0.15rem; font-size: 0.6875rem; font-weight: 600; color: var(--cc-text-tertiary); }
         .tag-options li.tag-option-empty { cursor: default; color: var(--cc-text-muted); background: none; }
 
 
@@ -683,7 +684,7 @@
                     <label><input type="radio" name="tag-new-kind" value="game" checked> ゲーム</label>
                     <label><input type="radio" name="tag-new-kind" value="category"> カテゴリ</label>
                 </div>
-                <span class="modal-hint-text">↑↓で選んで Enter、またはクリックで選んで「付ける」。新しいタグ名はそのまま辞書に入り、同じ語を含む他の配信にも自動で付きます。付けたタグを外せるのは管理者だけです。</span>
+                <span class="modal-hint-text">↑↓で選んで Enter、またはクリックで選んで「付ける」。何も入力しなければ、最近使ったタグが上に出ます。新しいタグ名はそのまま辞書に入り、同じ語を含む他の配信にも自動で付きます。付けたタグを外せるのは管理者だけです。</span>
             </div>
             <p id="tag-error" class="modal-error" hidden></p>
             <div class="modal-actions">
@@ -2381,6 +2382,19 @@
         var tagOptions = [];         // what the list shows: { tag } or { create: name }
         var tagSelected = -1;
         var TAG_OPTION_LIMIT = 50;
+        // The last few tags this browser added, offered first while the box is empty.
+        var RECENT_TAGS_KEY = 'cc.recentTagIds';
+        var RECENT_TAGS_MAX = 5;
+        function recentTagIds() {
+            try {
+                var ids = JSON.parse(localStorage.getItem(RECENT_TAGS_KEY) || '[]');
+                return Array.isArray(ids) ? ids.filter(function (id) { return typeof id === 'number'; }) : [];
+            } catch (e) { return []; }
+        }
+        function rememberRecentTag(id) {
+            var ids = [id].concat(recentTagIds().filter(function (x) { return x !== id; })).slice(0, RECENT_TAGS_MAX);
+            try { localStorage.setItem(RECENT_TAGS_KEY, JSON.stringify(ids)); } catch (e) {}
+        }
         var tagQuery = document.getElementById('tag-query');
         var tagOptionsEl = document.getElementById('tag-options');
         var tagNewKind = document.getElementById('tag-new-kind');
@@ -2412,17 +2426,36 @@
             var exact = raw && tagList.some(function (t) {
                 return tagNorm(t.name) === tagNorm(raw) || (t.aliases || []).some(function (a) { return tagNorm(a) === tagNorm(raw).replace(/\s+/g, ''); });
             });
-            tagOptions = matches.slice(0, TAG_OPTION_LIMIT).map(function (m) { return { tag: m.tag }; });
+            var recent = [];
+            if (!words.length) {
+                var byId = {};
+                tagList.forEach(function (t) { byId[t.id] = t; });
+                recent = recentTagIds().map(function (id) { return byId[id]; }).filter(Boolean);
+                var isRecent = {};
+                recent.forEach(function (t) { isRecent[t.id] = true; });
+                matches = matches.filter(function (m) { return !isRecent[m.tag.id]; });
+            }
+            tagOptions = recent.map(function (t) { return { tag: t, recent: true }; })
+                .concat(matches.slice(0, TAG_OPTION_LIMIT).map(function (m) { return { tag: m.tag }; }));
             if (raw && !exact) tagOptions.push({ create: raw });
 
-            // Typing picks the best match so Enter adds it; an empty box selects nothing.
+            // Typing picks the best match, an empty box the most recent tag, so Enter adds it.
             tagSelected = -1;
-            if (words.length) {
+            if (words.length || recent.length) {
                 for (var i = 0; i < tagOptions.length; i++) { if (selectableTagOption(i)) { tagSelected = i; break; } }
             }
 
             tagOptionsEl.textContent = '';
+            function groupHeader(text) {
+                var h = document.createElement('li');
+                h.className = 'tag-option-group';
+                h.setAttribute('role', 'presentation');
+                h.textContent = text;
+                tagOptionsEl.appendChild(h);
+            }
             tagOptions.forEach(function (o, i) {
+                if (recent.length && i === 0) groupHeader('最近使ったタグ');
+                if (recent.length && i === recent.length) groupHeader('すべてのタグ');
                 var li = document.createElement('li');
                 li.id = 'tag-option-' + i;
                 li.setAttribute('role', 'option');
@@ -2457,8 +2490,8 @@
         }
         function setTagSelected(i) {
             tagSelected = i;
-            Array.prototype.forEach.call(tagOptionsEl.children, function (li, j) {
-                if (li.getAttribute('role') === 'option') li.setAttribute('aria-selected', j === i ? 'true' : 'false');
+            Array.prototype.forEach.call(tagOptionsEl.children, function (li) {
+                if (li.getAttribute('role') === 'option') li.setAttribute('aria-selected', li.id === 'tag-option-' + i ? 'true' : 'false');
             });
             var cur = document.getElementById('tag-option-' + i);
             if (cur) {
@@ -2542,6 +2575,12 @@
                     errEl.hidden = false;
                     return;
                 }
+                // A typed name may become a new tag or resolve to an existing one via an
+                // alias: the id is whichever tag the stream did not have before.
+                var addedId = opt.create
+                    ? ((r.data.tags || []).filter(function (t) { return !tagModalAttached[t.id]; })[0] || {}).id
+                    : opt.tag.id;
+                if (addedId) rememberRecentTag(addedId);
                 closeTagModal();
                 loadTags().then(function () { loadBoard(); });
             }).catch(function () {
