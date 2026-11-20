@@ -44,7 +44,14 @@
             </div>
 
             <div class="bg-white shadow-sm sm:rounded-lg p-6">
-                <h3 class="font-semibold mb-4">タグ（{{ $tags->count() }}）</h3>
+                <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+                    <h3 class="font-semibold">タグ（<span id="tag-search-count">{{ $tags->count() }}</span>）</h3>
+                    <div class="flex items-center gap-2">
+                        <input type="search" id="tag-search" placeholder="名前・エイリアス・種別で検索" autocomplete="off"
+                               aria-label="タグを検索" class="border-gray-300 rounded text-sm w-64">
+                        <button type="button" id="tag-search-clear" class="px-3 py-1 border border-gray-300 rounded text-xs text-gray-600 hover:bg-gray-50">クリア</button>
+                    </div>
+                </div>
                 <table class="min-w-full text-sm">
                     <thead>
                         <tr class="border-b">
@@ -56,7 +63,8 @@
                     </thead>
                     <tbody>
                         @forelse ($tags as $tag)
-                            <tr class="border-b align-top hover:bg-gray-50">
+                            <tr class="border-b align-top hover:bg-gray-50" data-tag-row
+                                data-search="{{ implode(' ', array_merge([$tag->name, \App\Models\Tag::KIND_LABELS[$tag->kind]], $tag->aliases->pluck('alias')->all())) }}">
                                 <td class="py-2 px-2">
                                     <form method="POST" action="{{ url('/admin/tags/' . $tag->id) }}" class="flex items-center gap-1">
                                         @csrf
@@ -109,6 +117,7 @@
                         @empty
                             <tr><td colspan="4" class="py-4 text-center text-gray-400">タグはまだありません。</td></tr>
                         @endforelse
+                        <tr id="tag-search-empty" hidden><td colspan="4" class="py-4 text-center text-gray-400">一致するタグはありません。</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -133,6 +142,44 @@
 
     <script>
     (function () {
+        // Tag search: filters the table as you type. The query is kept in
+        // sessionStorage so it survives reloads and the redirect after every form,
+        // and it is applied before the scroll restore below so the page height matches.
+        var SEARCH_KEY = 'admin.tags.search';
+        var input = document.getElementById('tag-search');
+        var clear = document.getElementById('tag-search-clear');
+        var count = document.getElementById('tag-search-count');
+        var empty = document.getElementById('tag-search-empty');
+        var rows = Array.prototype.slice.call(document.querySelectorAll('[data-tag-row]'));
+        var norm = function (s) { return String(s).normalize('NFKC').toLowerCase(); };
+        rows.forEach(function (row) { row._search = norm(row.dataset.search || ''); });
+
+        function applySearch() {
+            var words = norm(input.value).split(/\s+/).filter(Boolean);
+            var shown = 0;
+            rows.forEach(function (row) {
+                var hit = words.every(function (w) { return row._search.indexOf(w) !== -1; });
+                row.hidden = !hit;
+                if (hit) shown++;
+            });
+            count.textContent = words.length ? shown + ' / ' + rows.length : String(rows.length);
+            empty.hidden = !(rows.length && words.length && shown === 0);
+            clear.disabled = !input.value;
+            try {
+                if (input.value) sessionStorage.setItem(SEARCH_KEY, input.value);
+                else sessionStorage.removeItem(SEARCH_KEY);
+            } catch (e) {}
+        }
+
+        try { input.value = sessionStorage.getItem(SEARCH_KEY) || ''; } catch (e) {}
+        input.addEventListener('input', applySearch);
+        clear.addEventListener('click', function () {
+            input.value = '';
+            applySearch();
+            input.focus();
+        });
+        applySearch();
+
         // Remember where the page was scrolled when a form is sent, and come back
         // there after the redirect so the next term is right under the cursor.
         var KEY = 'admin.tags.scrollY';

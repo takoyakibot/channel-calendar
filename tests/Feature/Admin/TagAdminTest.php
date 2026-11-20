@@ -39,6 +39,19 @@ class TagAdminTest extends TestCase
             ->assertSee('Minecraft')->assertSee('マイクラ')->assertSee('新人Vtuber')->assertSee('Woodo');
     }
 
+    public function test_tag_table_has_a_search_box_that_matches_names_kinds_and_aliases(): void
+    {
+        $mc = Tag::createWithAlias('Minecraft', 'game');
+        TagAlias::create(['tag_id' => $mc->id, 'alias' => 'マイクラ']);
+
+        $html = $this->actingAs($this->admin)->get('/admin/tags')->assertOk()
+            ->assertSee('id="tag-search"', false)
+            ->assertSee('id="tag-search-clear"', false)
+            ->getContent();
+
+        $this->assertMatchesRegularExpression('/data-search="[^"]*Minecraft[^"]*'.Tag::KIND_LABELS['game'].'[^"]*マイクラ[^"]*"/u', $html);
+    }
+
     public function test_rename_and_alias_changes_retag_streams(): void
     {
         $mc = Tag::createWithAlias('Minecraft', 'game');
