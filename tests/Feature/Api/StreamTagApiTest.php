@@ -5,6 +5,7 @@ namespace Tests\Feature\Api;
 use App\Models\Channel;
 use App\Models\Stream;
 use App\Models\Tag;
+use App\Models\TagAlias;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -39,6 +40,16 @@ class StreamTagApiTest extends TestCase
         $this->postJson("/api/streams/{$stream->id}/tags", ['tag_id' => $tag->id])->assertCreated();
         $this->postJson("/api/streams/{$stream->id}/tags", ['tag_id' => $tag->id])->assertStatus(409);
         $this->postJson("/api/streams/{$stream->id}/tags", [])->assertStatus(422)->assertJsonValidationErrors('tag_id');
+    }
+
+    public function test_tag_list_includes_aliases_for_the_picker(): void
+    {
+        $tag = Tag::createWithAlias('Minecraft', 'game');
+        TagAlias::create(['tag_id' => $tag->id, 'alias' => 'マイクラ']);
+
+        $this->getJson('/api/tags')->assertOk()->assertExactJson([
+            ['id' => $tag->id, 'name' => 'Minecraft', 'kind' => 'game', 'aliases' => ['minecraft', 'マイクラ']],
+        ]);
     }
 
     public function test_only_admins_can_remove_a_tag(): void

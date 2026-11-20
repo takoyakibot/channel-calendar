@@ -349,6 +349,14 @@
         .modal .btn-submit { background: var(--cc-active-bg); border: none; color: var(--cc-active-text); }
         .modal .btn-submit:hover { background: var(--cc-text-secondary); }
         .modal .modal-error { color: #dc2626; font-size: 0.75rem; margin-top: 0.5rem; }
+        .tag-options { list-style: none; margin: 0.25rem 0 0; padding: 0.25rem; max-height: 14rem; overflow-y: auto; border: 1px solid var(--cc-border-light); border-radius: 0.375rem; background: var(--cc-input-bg); }
+        .tag-options li { display: flex; align-items: center; gap: 0.4rem; padding: 0.35rem 0.5rem; border-radius: 0.25rem; font-size: 0.875rem; color: var(--cc-text); cursor: pointer; }
+        .tag-options li:hover { background: var(--cc-surface-alt); }
+        .tag-options li[aria-selected="true"] { background: var(--cc-active-bg); color: var(--cc-active-text); }
+        .tag-options li[aria-disabled="true"] { cursor: default; opacity: 0.5; background: none; color: var(--cc-text); }
+        .tag-options li .tag-option-note { margin-left: auto; font-size: 0.6875rem; opacity: 0.75; }
+        .tag-options li.tag-option-group { cursor: default; background: none; padding: 0.4rem 0.5rem 0.15rem; font-size: 0.6875rem; font-weight: 600; color: var(--cc-text-tertiary); }
+        .tag-options li.tag-option-empty { cursor: default; color: var(--cc-text-muted); background: none; }
 
 
         .dark .fc { --fc-border-color: var(--cc-border); --fc-page-bg-color: var(--cc-surface); --fc-neutral-bg-color: var(--cc-surface-alt); --fc-today-bg-color: rgba(255,255,255,0.04); }
@@ -667,17 +675,16 @@
             <h3>タグを付ける</h3>
             <p class="modal-hint-text" id="tag-modal-title" style="margin: -0.5rem 0 0.75rem;"></p>
             <div class="modal-field">
-                <label for="tag-select">既存のタグから選ぶ</label>
-                <select id="tag-select"></select>
-            </div>
-            <div class="modal-field">
-                <label for="tag-new-name">または新しいタグを作る</label>
-                <input type="text" id="tag-new-name" maxlength="60" placeholder="例: Minecraft、歌枠">
-                <div class="kind-radios" style="margin-top: 0.25rem;">
+                <label for="tag-query">タグを検索（なければ新しく作れます）</label>
+                <input type="text" id="tag-query" maxlength="60" placeholder="例: マイクラ、歌枠" autocomplete="off"
+                       role="combobox" aria-autocomplete="list" aria-expanded="true" aria-controls="tag-options">
+                <ul id="tag-options" class="tag-options" role="listbox" aria-label="タグの候補"></ul>
+                <div id="tag-new-kind" class="kind-radios" style="margin-top: 0.25rem;" hidden>
+                    <span class="modal-hint-text">新しいタグの種別:</span>
                     <label><input type="radio" name="tag-new-kind" value="game" checked> ゲーム</label>
                     <label><input type="radio" name="tag-new-kind" value="category"> カテゴリ</label>
                 </div>
-                <span class="modal-hint-text">新しいタグ名はそのまま辞書に入り、同じ語を含む他の配信にも自動で付きます。付けたタグを外せるのは管理者だけです。</span>
+                <span class="modal-hint-text">↑↓で選んで Enter、またはクリックで選んで「付ける」。何も入力しなければ、最近使ったタグが上に出ます。新しいタグ名はそのまま辞書に入り、同じ語を含む他の配信にも自動で付きます。付けたタグを外せるのは管理者だけです。</span>
             </div>
             <p id="tag-error" class="modal-error" hidden></p>
             <div class="modal-actions">
@@ -2371,31 +2378,151 @@
         // Tag dialog for one stream card.
         var tagModal = document.getElementById('tag-modal');
         var tagModalStreamId = null;
+        var tagModalAttached = {};   // tag id → true for tags already on this stream
+        var tagOptions = [];         // what the list shows: { tag } or { create: name }
+        var tagSelected = -1;
+        var TAG_OPTION_LIMIT = 50;
+        // The last few tags this browser added, offered first while the box is empty.
+        var RECENT_TAGS_KEY = 'cc.recentTagIds';
+        var RECENT_TAGS_MAX = 5;
+        function recentTagIds() {
+            try {
+                var ids = JSON.parse(localStorage.getItem(RECENT_TAGS_KEY) || '[]');
+                return Array.isArray(ids) ? ids.filter(function (id) { return typeof id === 'number'; }) : [];
+            } catch (e) { return []; }
+        }
+        function rememberRecentTag(id) {
+            var ids = [id].concat(recentTagIds().filter(function (x) { return x !== id; })).slice(0, RECENT_TAGS_MAX);
+            try { localStorage.setItem(RECENT_TAGS_KEY, JSON.stringify(ids)); } catch (e) {}
+        }
+        var tagQuery = document.getElementById('tag-query');
+        var tagOptionsEl = document.getElementById('tag-options');
+        var tagNewKind = document.getElementById('tag-new-kind');
+
+        // Width, case and hiragana/katakana insensitive, so "まいくら" finds "マイクラ".
+        function tagNorm(s) {
+            return String(s || '').normalize('NFKC').toLowerCase()
+                .replace(/[ァ-ヶ]/g, function (c) { return String.fromCharCode(c.charCodeAt(0) - 0x60); });
+        }
+        // 0 = name starts with the query, 1 = name contains it, 2 = only an alias does, -1 = no match.
+        function tagRank(t, words) {
+            var name = tagNorm(t.name);
+            var hay = name + ' ' + (t.aliases || []).map(tagNorm).join(' ');
+            if (!words.every(function (w) { return hay.indexOf(w) !== -1; })) return -1;
+            if (name.indexOf(words[0]) === 0) return 0;
+            return words.every(function (w) { return name.indexOf(w) !== -1; }) ? 1 : 2;
+        }
+        function selectableTagOption(i) {
+            var o = tagOptions[i];
+            return o && (o.create || !tagModalAttached[o.tag.id]);
+        }
+        function renderTagOptions() {
+            var raw = tagQuery.value.trim();
+            var words = tagNorm(raw).split(/\s+/).filter(Boolean);
+            var matches = tagList
+                .map(function (t, i) { return { tag: t, rank: words.length ? tagRank(t, words) : 0, i: i }; })
+                .filter(function (m) { return m.rank !== -1; })
+                .sort(function (a, b) { return a.rank - b.rank || a.i - b.i; });
+            var exact = raw && tagList.some(function (t) {
+                return tagNorm(t.name) === tagNorm(raw) || (t.aliases || []).some(function (a) { return tagNorm(a) === tagNorm(raw).replace(/\s+/g, ''); });
+            });
+            var recent = [];
+            if (!words.length) {
+                var byId = {};
+                tagList.forEach(function (t) { byId[t.id] = t; });
+                recent = recentTagIds().map(function (id) { return byId[id]; }).filter(Boolean);
+                var isRecent = {};
+                recent.forEach(function (t) { isRecent[t.id] = true; });
+                matches = matches.filter(function (m) { return !isRecent[m.tag.id]; });
+            }
+            tagOptions = recent.map(function (t) { return { tag: t, recent: true }; })
+                .concat(matches.slice(0, TAG_OPTION_LIMIT).map(function (m) { return { tag: m.tag }; }));
+            if (raw && !exact) tagOptions.push({ create: raw });
+
+            // Typing picks the best match, an empty box the most recent tag, so Enter adds it.
+            tagSelected = -1;
+            if (words.length || recent.length) {
+                for (var i = 0; i < tagOptions.length; i++) { if (selectableTagOption(i)) { tagSelected = i; break; } }
+            }
+
+            tagOptionsEl.textContent = '';
+            function groupHeader(text) {
+                var h = document.createElement('li');
+                h.className = 'tag-option-group';
+                h.setAttribute('role', 'presentation');
+                h.textContent = text;
+                tagOptionsEl.appendChild(h);
+            }
+            tagOptions.forEach(function (o, i) {
+                if (recent.length && i === 0) groupHeader('最近使ったタグ');
+                if (recent.length && i === recent.length) groupHeader('すべてのタグ');
+                var li = document.createElement('li');
+                li.id = 'tag-option-' + i;
+                li.setAttribute('role', 'option');
+                if (o.create) {
+                    li.textContent = '＋「' + o.create + '」を新しいタグとして作る';
+                } else {
+                    var chip = document.createElement('span');
+                    chip.className = 'tag-chip ' + o.tag.kind;
+                    chip.textContent = kindLabel(o.tag.kind);
+                    li.appendChild(chip);
+                    li.appendChild(document.createTextNode(o.tag.name));
+                    if (tagModalAttached[o.tag.id]) {
+                        li.setAttribute('aria-disabled', 'true');
+                        var note = document.createElement('span');
+                        note.className = 'tag-option-note';
+                        note.textContent = '付いています';
+                        li.appendChild(note);
+                    }
+                }
+                li.addEventListener('mousedown', function (e) { e.preventDefault(); }); // keep focus in the box
+                li.addEventListener('click', function () { if (selectableTagOption(i)) setTagSelected(i); });
+                li.addEventListener('dblclick', function () { if (selectableTagOption(i)) { setTagSelected(i); submitTag(); } });
+                tagOptionsEl.appendChild(li);
+            });
+            if (!tagOptions.length) {
+                var empty = document.createElement('li');
+                empty.className = 'tag-option-empty';
+                empty.textContent = tagList.length ? '一致するタグはありません。' : 'タグはまだありません。名前を入力すると作れます。';
+                tagOptionsEl.appendChild(empty);
+            }
+            setTagSelected(tagSelected);
+        }
+        function setTagSelected(i) {
+            tagSelected = i;
+            Array.prototype.forEach.call(tagOptionsEl.children, function (li) {
+                if (li.getAttribute('role') === 'option') li.setAttribute('aria-selected', li.id === 'tag-option-' + i ? 'true' : 'false');
+            });
+            var cur = document.getElementById('tag-option-' + i);
+            if (cur) {
+                tagQuery.setAttribute('aria-activedescendant', cur.id);
+                cur.scrollIntoView({ block: 'nearest' });
+            } else {
+                tagQuery.removeAttribute('aria-activedescendant');
+            }
+            tagNewKind.hidden = !(tagOptions[i] && tagOptions[i].create);
+        }
+        function moveTagSelection(step) {
+            if (!tagOptions.length) return;
+            var i = tagSelected;
+            for (var n = 0; n < tagOptions.length; n++) {
+                i = i < 0 ? (step > 0 ? 0 : tagOptions.length - 1) : (i + step + tagOptions.length) % tagOptions.length;
+                if (selectableTagOption(i)) { setTagSelected(i); return; }
+            }
+        }
+
         function openTagModal(ev) {
             if (!tagModal) return;
             tagModalStreamId = ev.id;
+            tagModalAttached = {};
+            ((ev.extendedProps && ev.extendedProps.tags) || []).forEach(function (t) { tagModalAttached[t.id] = true; });
             document.getElementById('tag-modal-title').textContent = ev.title;
             document.getElementById('tag-error').hidden = true;
-            document.getElementById('tag-new-name').value = '';
-            var sel = document.getElementById('tag-select');
-            sel.textContent = '';
-            var none = document.createElement('option');
-            none.value = '';
-            none.textContent = '（選ばない）';
-            sel.appendChild(none);
-            ['game', 'category'].forEach(function (kind) {
-                var group = document.createElement('optgroup');
-                group.label = kindLabel(kind);
-                tagList.filter(function (t) { return t.kind === kind; }).forEach(function (t) {
-                    var o = document.createElement('option');
-                    o.value = String(t.id);
-                    o.textContent = t.name;
-                    group.appendChild(o);
-                });
-                if (group.children.length) sel.appendChild(group);
-            });
+            tagQuery.value = '';
+            renderTagOptions();
+            tagOptionsEl.scrollTop = 0;
             tagModal.hidden = false;
-            sel.focus();
+            tagQuery.focus();
         }
         function closeTagModal() { if (tagModal) tagModal.hidden = true; }
         if (tagModal) {
@@ -2409,40 +2536,57 @@
             document.addEventListener('keydown', function (e) {
                 if (e.key === 'Escape' && !tagModal.hidden) closeTagModal();
             });
-            document.getElementById('tag-submit').addEventListener('click', function () {
-                var btn = this;
-                var errEl = document.getElementById('tag-error');
-                errEl.hidden = true;
-                var tagId = document.getElementById('tag-select').value;
-                var name = document.getElementById('tag-new-name').value.trim();
-                var kindInput = document.querySelector('input[name="tag-new-kind"]:checked');
-                if (!tagId && !name) {
-                    errEl.textContent = 'タグを選ぶか、新しいタグ名を入力してください。';
+            tagQuery.addEventListener('input', function () {
+                document.getElementById('tag-error').hidden = true;
+                renderTagOptions();
+            });
+            tagQuery.addEventListener('keydown', function (e) {
+                if (e.isComposing || e.keyCode === 229) return; // IME conversion in progress
+                if (e.key === 'ArrowDown') { e.preventDefault(); moveTagSelection(1); }
+                else if (e.key === 'ArrowUp') { e.preventDefault(); moveTagSelection(-1); }
+                else if (e.key === 'Enter') { e.preventDefault(); submitTag(); }
+            });
+            document.getElementById('tag-submit').addEventListener('click', submitTag);
+        }
+        function submitTag() {
+            var btn = document.getElementById('tag-submit');
+            if (btn.disabled) return;
+            var errEl = document.getElementById('tag-error');
+            errEl.hidden = true;
+            var opt = selectableTagOption(tagSelected) ? tagOptions[tagSelected] : null;
+            var kindInput = document.querySelector('input[name="tag-new-kind"]:checked');
+            if (!opt) {
+                errEl.textContent = '候補からタグを選んでください（なければ名前を入力すると新しく作れます）。';
+                errEl.hidden = false;
+                return;
+            }
+            btn.disabled = true;
+            fetch('/api/streams/' + tagModalStreamId + '/tags', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN, Accept: 'application/json' },
+                body: JSON.stringify(opt.create ? { name: opt.create, kind: kindInput ? kindInput.value : 'game' } : { tag_id: opt.tag.id }),
+            }).then(function (res) {
+                return res.json().then(function (data) { return { ok: res.ok, data: data }; });
+            }).then(function (r) {
+                btn.disabled = false;
+                if (!r.ok) {
+                    var firstError = r.data.errors ? Object.keys(r.data.errors).map(function (k) { return r.data.errors[k][0]; })[0] : null;
+                    errEl.textContent = firstError || r.data.message || 'エラーが発生しました。';
                     errEl.hidden = false;
                     return;
                 }
-                btn.disabled = true;
-                fetch('/api/streams/' + tagModalStreamId + '/tags', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN, Accept: 'application/json' },
-                    body: JSON.stringify(tagId ? { tag_id: Number(tagId) } : { name: name, kind: kindInput ? kindInput.value : 'game' }),
-                }).then(function (res) {
-                    return res.json().then(function (data) { return { ok: res.ok, data: data }; });
-                }).then(function (r) {
-                    btn.disabled = false;
-                    if (!r.ok) {
-                        var firstError = r.data.errors ? Object.keys(r.data.errors).map(function (k) { return r.data.errors[k][0]; })[0] : null;
-                        errEl.textContent = firstError || r.data.message || 'エラーが発生しました。';
-                        errEl.hidden = false;
-                        return;
-                    }
-                    closeTagModal();
-                    loadTags().then(function () { loadBoard(); });
-                }).catch(function () {
-                    btn.disabled = false;
-                    errEl.textContent = 'エラーが発生しました。';
-                    errEl.hidden = false;
-                });
+                // A typed name may become a new tag or resolve to an existing one via an
+                // alias: the id is whichever tag the stream did not have before.
+                var addedId = opt.create
+                    ? ((r.data.tags || []).filter(function (t) { return !tagModalAttached[t.id]; })[0] || {}).id
+                    : opt.tag.id;
+                if (addedId) rememberRecentTag(addedId);
+                closeTagModal();
+                loadTags().then(function () { loadBoard(); });
+            }).catch(function () {
+                btn.disabled = false;
+                errEl.textContent = 'エラーが発生しました。';
+                errEl.hidden = false;
             });
         }
         loadTags();
