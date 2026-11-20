@@ -90,6 +90,41 @@ class YouTubeService
         }
     }
 
+    /**
+     * One page (up to 50, newest first) of the channel's uploads or members-only
+     * playlist, for walking the whole history. 1 quota unit per page. A channel
+     * without a members-only playlist (404) yields an empty last page.
+     *
+     * @return array{ids: array<int, string>, next: ?string}
+     */
+    public function listUploadIdsPage(string $channelId, bool $membersOnly, ?string $pageToken = null): array
+    {
+        $params = [
+            'playlistId' => ($membersOnly ? 'UUMO' : 'UU') . substr($channelId, 2),
+            'maxResults' => 50,
+        ];
+        if ($pageToken !== null) {
+            $params['pageToken'] = $pageToken;
+        }
+
+        try {
+            $response = $this->youtube->playlistItems->listPlaylistItems('snippet', $params);
+        } catch (\Google\Service\Exception $e) {
+            if ($membersOnly && $e->getCode() === 404) {
+                return ['ids' => [], 'next' => null];
+            }
+            throw $e;
+        }
+
+        return [
+            'ids' => array_values(array_filter(array_map(
+                fn ($item) => $item->getSnippet()?->getResourceId()?->getVideoId(),
+                $response->getItems() ?? []
+            ))),
+            'next' => $response->getNextPageToken() ?: null,
+        ];
+    }
+
     /** @return array<int, string> */
     private function listPlaylistVideoIds(string $playlistId, int $max): array
     {

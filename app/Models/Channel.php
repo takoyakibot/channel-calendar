@@ -30,6 +30,8 @@ class Channel extends Model
 
     protected $casts = [
         'is_active' => 'boolean',
+        'backfill_state' => 'array',
+        'backfill_completed_at' => 'datetime',
     ];
 
     public function streams(): HasMany
