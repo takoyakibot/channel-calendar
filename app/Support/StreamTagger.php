@@ -129,11 +129,14 @@ class StreamTagger
     {
         $found = $this->unmatchedIn(Stream::query());
 
-        UnmatchedTerm::query()->delete();
-        $now = now();
-        foreach ($found as $term => [$display, $count]) {
-            UnmatchedTerm::create(['term' => $term, 'display' => mb_substr($display, 0, 80), 'count' => $count, 'last_seen_at' => $now]);
-        }
+        // One transaction so a failed rebuild keeps the previous list instead of leaving it half empty.
+        DB::transaction(function () use ($found) {
+            UnmatchedTerm::query()->delete();
+            $now = now();
+            foreach ($found as $term => [$display, $count]) {
+                UnmatchedTerm::create(['term' => $term, 'display' => mb_substr($display, 0, 80), 'count' => $count, 'last_seen_at' => $now]);
+            }
+        });
     }
 
     /**
