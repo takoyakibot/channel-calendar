@@ -115,7 +115,11 @@ class FetchStreams extends Command
         if (! $watched) {
             $this->markOldStreamsCompleted();
             $this->removePastManualSchedules();
-            $this->tagFetchedStreams();
+            // A tag added from the calendar retagged only the streams naming it;
+            // the full pass (which also covers this run's streams) happens here.
+            if (! app(StreamTagger::class)->retagAllIfPending()) {
+                $this->tagFetchedStreams();
+            }
             Setting::set(self::LAST_FETCHED_AT_KEY, now()->toIso8601String());
         }
 

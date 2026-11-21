@@ -25,6 +25,24 @@ class FetchStreamsTest extends TestCase
         return $mock;
     }
 
+    public function test_a_full_fetch_runs_the_pending_full_retag_and_clears_it(): void
+    {
+        $channel = Channel::factory()->create(['channel_id' => 'UC_test']);
+        $old = Stream::factory()->create(['channel_id' => $channel->id, 'title' => '【Minecraft】昔の配信', 'scheduled_at' => now()->subDays(60), 'status' => 'completed']);
+        $tag = Tag::createWithAlias('Minecraft', 'game');
+        Setting::set(\App\Support\StreamTagger::FULL_RETAG_PENDING_KEY, '2026-11-22T00:00:00.000000+00:00');
+
+        $mockService = $this->mockYouTube();
+        $mockService->shouldReceive('listRecentUploadIds')->with('UC_test')->andReturn([]);
+        $mockService->shouldReceive('getVideoDetails')->andReturn([]);
+        $this->app->instance(YouTubeService::class, $mockService);
+
+        $this->artisan('streams:fetch')->assertSuccessful();
+
+        $this->assertDatabaseHas('stream_tag', ['stream_id' => $old->id, 'tag_id' => $tag->id, 'source' => 'auto']);
+        $this->assertNull(Setting::get(\App\Support\StreamTagger::FULL_RETAG_PENDING_KEY));
+    }
+
     public function test_all_day_manual_schedule_is_removed_once_a_real_stream_exists_that_day(): void
     {
         $channel = Channel::factory()->create(['channel_id' => 'UC_test']);

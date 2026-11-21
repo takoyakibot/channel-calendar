@@ -275,6 +275,8 @@
         .dark .tag-chip.category { background: #14532d; color: #bbf7d0; }
         .tag-chip.add { border: 1px dashed var(--cc-border-light); color: var(--cc-text-muted); cursor: pointer; opacity: 0.6; }
         .tag-chip.add:hover { opacity: 1; color: var(--cc-text); border-color: var(--cc-text-muted); }
+        .tag-chip.is-pending { opacity: 0.55; }
+        .cc-toast { position: fixed; left: 50%; bottom: 1.25rem; transform: translateX(-50%); z-index: 200; max-width: calc(100vw - 2rem); padding: 0.6rem 1rem; border-radius: 0.5rem; background: #b91c1c; color: #fff; font-size: 0.8125rem; box-shadow: 0 8px 24px rgb(0 0 0 / 0.2); }
         .tag-chip-remove { margin-left: 0.2rem; cursor: pointer; opacity: 0.55; }
         .tag-chip-remove:hover { opacity: 1; color: #dc2626; }
         /* Clips / guest appearances registered from a URL (issue #46, #47). */
@@ -695,6 +697,8 @@
             </div>
         </div>
     </div>
+
+    <div id="cc-toast" class="cc-toast" role="alert" hidden></div>
 
     <x-cookie-consent />
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
@@ -1140,10 +1144,10 @@
                 tagsRow.className = 'card-tags';
                 (props.tags || []).forEach(function (t) {
                     var chip = document.createElement('span');
-                    chip.className = 'tag-chip ' + t.kind;
+                    chip.className = 'tag-chip ' + t.kind + (t.pending ? ' is-pending' : '');
                     chip.textContent = t.name;
                     // Admins can take a tag off; it stays off even if the title matches the dictionary.
-                    if (IS_ADMIN) {
+                    if (IS_ADMIN && !t.pending) {
                         var rm = document.createElement('span');
                         rm.className = 'tag-chip-remove';
                         rm.setAttribute('role', 'button');
@@ -2403,6 +2407,7 @@
         // Tag dialog for one stream card.
         var tagModal = document.getElementById('tag-modal');
         var tagModalStreamId = null;
+        var tagModalEvent = null;
         var tagModalAttached = {};   // tag id → true for tags already on this stream
         var tagOptions = [];         // what the list shows: { tag } or { create: name }
         var tagSelected = -1;
@@ -2539,6 +2544,7 @@
         function openTagModal(ev) {
             if (!tagModal) return;
             tagModalStreamId = ev.id;
+            tagModalEvent = ev;
             tagModalAttached = {};
             ((ev.extendedProps && ev.extendedProps.tags) || []).forEach(function (t) { tagModalAttached[t.id] = true; });
             document.getElementById('tag-modal-title').textContent = ev.title;
@@ -2574,9 +2580,29 @@
             });
             document.getElementById('tag-submit').addEventListener('click', submitTag);
         }
+        var toastTimer = null;
+        function showToast(text) {
+            var el = document.getElementById('cc-toast');
+            if (!el) { alert(text); return; }
+            el.textContent = text;
+            el.hidden = false;
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(function () { el.hidden = true; }, 6000);
+        }
+        // The board may have been reloaded while the request was in flight, so look the card up again.
+        function boardEventById(id) {
+            return boardEvents.filter(function (e) { return String(e.id) === String(id); })[0] || null;
+        }
+        function setEventTags(id, fn) {
+            var ev = boardEventById(id);
+            if (!ev) return;
+            ev.extendedProps.tags = fn((ev.extendedProps.tags || []).slice());
+            renderBoard();
+        }
+
+        // Optimistic: close at once and show the chip greyed; the server answer
+        // replaces it, a failure takes it off again and says so.
         function submitTag() {
-            var btn = document.getElementById('tag-submit');
-            if (btn.disabled) return;
             var errEl = document.getElementById('tag-error');
             errEl.hidden = true;
             var opt = selectableTagOption(tagSelected) ? tagOptions[tagSelected] : null;
@@ -2586,34 +2612,49 @@
                 errEl.hidden = false;
                 return;
             }
-            btn.disabled = true;
-            fetch('/api/streams/' + tagModalStreamId + '/tags', {
+            var streamId = tagModalStreamId;
+            var kind = opt.create ? (kindInput ? kindInput.value : 'game') : opt.tag.kind;
+            var name = opt.create ? opt.create : opt.tag.name;
+            var placeholder = { id: opt.create ? 'pending-' + Date.now() : opt.tag.id, name: name, kind: kind, pending: true };
+            var hadBefore = {};
+            Object.keys(tagModalAttached).forEach(function (k) { hadBefore[k] = true; });
+
+            closeTagModal();
+            setEventTags(streamId, function (tags) { tags.push(placeholder); return tags; });
+            if (!opt.create) rememberRecentTag(opt.tag.id);
+
+            function rollBack(message) {
+                setEventTags(streamId, function (tags) { return tags.filter(function (t) { return t !== placeholder; }); });
+                showToast('「' + name + '」を付けられませんでした。' + (message ? '（' + message + '）' : '時間をおいて、もう一度お試しください。'));
+            }
+
+            fetch('/api/streams/' + streamId + '/tags', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN, Accept: 'application/json' },
-                body: JSON.stringify(opt.create ? { name: opt.create, kind: kindInput ? kindInput.value : 'game' } : { tag_id: opt.tag.id }),
+                body: JSON.stringify(opt.create ? { name: opt.create, kind: kind } : { tag_id: opt.tag.id }),
             }).then(function (res) {
-                return res.json().then(function (data) { return { ok: res.ok, data: data }; });
+                return res.json().catch(function () { return {}; }).then(function (data) { return { ok: res.ok, status: res.status, data: data }; });
             }).then(function (r) {
-                btn.disabled = false;
+                if (r.status === 409) { loadBoard(); return; }   // already on the stream: just show the real state
                 if (!r.ok) {
                     var firstError = r.data.errors ? Object.keys(r.data.errors).map(function (k) { return r.data.errors[k][0]; })[0] : null;
-                    errEl.textContent = firstError || r.data.message || 'エラーが発生しました。';
-                    errEl.hidden = false;
+                    // 5xx messages are Laravel's generic "Server Error": show our own wording instead.
+                    rollBack(r.status >= 500 ? '' : (firstError || r.data.message || ''));
                     return;
                 }
-                // A typed name may become a new tag or resolve to an existing one via an
-                // alias: the id is whichever tag the stream did not have before.
-                var addedId = opt.create
-                    ? ((r.data.tags || []).filter(function (t) { return !tagModalAttached[t.id]; })[0] || {}).id
-                    : opt.tag.id;
-                if (addedId) rememberRecentTag(addedId);
-                closeTagModal();
-                loadTags().then(function () { loadBoard(); });
-            }).catch(function () {
-                btn.disabled = false;
-                errEl.textContent = 'エラーが発生しました。';
-                errEl.hidden = false;
-            });
+                var tags = r.data.tags || [];
+                setEventTags(streamId, function () { return tags; });
+                if (opt.create) {
+                    // A typed name may become a new tag or resolve to an existing one via an
+                    // alias: the id is whichever tag the stream did not have before.
+                    var added = tags.filter(function (t) { return !hadBefore[t.id]; })[0];
+                    if (added) rememberRecentTag(added.id);
+                    // The new tag also landed on other streams that mention it.
+                    loadTags().then(function () { loadBoard(); });
+                } else {
+                    loadTrends();
+                }
+            }).catch(function () { rollBack(''); });
         }
         loadTags();
 

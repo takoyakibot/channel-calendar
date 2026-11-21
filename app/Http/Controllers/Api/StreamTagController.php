@@ -54,8 +54,9 @@ class StreamTagController extends Controller
         ]);
 
         // A brand-new tag name is also a dictionary entry: give it to every other stream that mentions it.
+        // Only the matching streams are touched here; the next streams:fetch does the full retag.
         if ($created) {
-            app(StreamTagger::class)->retagAll();
+            app(StreamTagger::class)->retagMatching($tag);
         }
 
         return response()->json([

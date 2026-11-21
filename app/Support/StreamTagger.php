@@ -4,6 +4,7 @@ namespace App\Support;
 
 use App\Models\Channel;
 use App\Models\IgnoredTerm;
+use App\Models\Setting;
 use App\Models\Stream;
 use App\Models\Tag;
 use App\Models\TagAlias;
@@ -125,6 +126,54 @@ class StreamTagger
      * Recount, from every title, the 【…】 pieces that no alias, ignore rule or
      * member name explains. Rebuilt from scratch so counts stay exact.
      */
+    /** Setting key: a dictionary change was applied only partly; the next full fetch runs retagAll(). */
+    public const FULL_RETAG_PENDING_KEY = 'tags_full_retag_pending_since';
+
+    /**
+     * Fast path for a tag created from the calendar: tag only the streams whose
+     * title mentions it, drop its exact terms from the unmatched list, and leave
+     * the full retag + unmatched rebuild to the next streams:fetch.
+     *
+     * @return int streams re-tagged
+     */
+    public function retagMatching(Tag $tag): int
+    {
+        $this->reload();
+        $n = 0;
+        Stream::query()->select('id', 'title', 'channel_id')->chunkById(500, function ($streams) use ($tag, &$n) {
+            foreach ($streams as $stream) {
+                if (in_array($tag->id, $this->matchTagIds($stream->title), true)) {
+                    $this->tag($stream);
+                    $n++;
+                }
+            }
+        });
+        UnmatchedTerm::whereIn('term', $tag->aliases()->pluck('alias'))->delete();
+        Setting::set(self::FULL_RETAG_PENDING_KEY, now()->format('Y-m-d\TH:i:s.uP'));
+
+        return $n;
+    }
+
+    /**
+     * Finish what retagMatching() left: full retag when one is pending. The flag
+     * is cleared only if no new tag arrived while this ran.
+     *
+     * @return bool whether a retag ran
+     */
+    public function retagAllIfPending(): bool
+    {
+        $since = Setting::get(self::FULL_RETAG_PENDING_KEY);
+        if ($since === null) {
+            return false;
+        }
+        $this->retagAll();
+        if (Setting::get(self::FULL_RETAG_PENDING_KEY) === $since) {
+            Setting::set(self::FULL_RETAG_PENDING_KEY, null);
+        }
+
+        return true;
+    }
+
     public function rebuildUnmatched(): void
     {
         $found = $this->unmatchedIn(Stream::query());
