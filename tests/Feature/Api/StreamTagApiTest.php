@@ -33,6 +33,39 @@ class StreamTagApiTest extends TestCase
         $this->assertSame([['id' => Tag::first()->id, 'name' => '歌枠', 'kind' => 'category']], $events->firstWhere('id', $stream->id)['extendedProps']['tags']);
     }
 
+    public function test_a_new_tag_tags_only_matching_streams_now_and_leaves_the_full_retag_for_the_next_fetch(): void
+    {
+        $channel = Channel::factory()->create();
+        $stream = Stream::factory()->create(['channel_id' => $channel->id, 'title' => '久しぶりの配信']);
+        $other = Stream::factory()->create(['channel_id' => $channel->id, 'title' => '【歌枠】別の配信']);
+        \App\Models\UnmatchedTerm::create(['term' => '歌枠', 'display' => '歌枠', 'count' => 1, 'last_seen_at' => now()]);
+        \App\Models\UnmatchedTerm::create(['term' => '雑談', 'display' => '雑談', 'count' => 1, 'last_seen_at' => now()]);
+
+        $this->postJson("/api/streams/{$stream->id}/tags", ['name' => '歌枠', 'kind' => 'category'])->assertCreated();
+
+        $this->assertDatabaseHas('stream_tag', ['stream_id' => $other->id, 'source' => 'auto']);
+        // The new tag's own term leaves the unmatched list at once; the rest waits for the full rebuild.
+        $this->assertDatabaseMissing('unmatched_terms', ['term' => '歌枠']);
+        $this->assertDatabaseHas('unmatched_terms', ['term' => '雑談']);
+        $this->assertNotNull(\App\Models\Setting::get(StreamTagger::FULL_RETAG_PENDING_KEY));
+
+        $tagger = new StreamTagger();
+        $this->assertTrue($tagger->retagAllIfPending());
+        $this->assertNull(\App\Models\Setting::get(StreamTagger::FULL_RETAG_PENDING_KEY));
+        $this->assertDatabaseMissing('unmatched_terms', ['term' => '雑談']);   // rebuilt from titles: no 【雑談】 anywhere
+        $this->assertFalse($tagger->retagAllIfPending());
+    }
+
+    public function test_adding_an_existing_tag_does_not_schedule_a_full_retag(): void
+    {
+        $stream = Stream::factory()->create();
+        $tag = Tag::createWithAlias('Minecraft', 'game');
+
+        $this->postJson("/api/streams/{$stream->id}/tags", ['tag_id' => $tag->id])->assertCreated();
+
+        $this->assertNull(\App\Models\Setting::get(StreamTagger::FULL_RETAG_PENDING_KEY));
+    }
+
     public function test_existing_tag_by_id_and_duplicate_is_refused(): void
     {
         $stream = Stream::factory()->create();
