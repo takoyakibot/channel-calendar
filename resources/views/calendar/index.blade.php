@@ -2545,8 +2545,9 @@
             document.getElementById('tag-error').hidden = true;
             tagQuery.value = '';
             renderTagOptions();
-            tagOptionsEl.scrollTop = 0;
             tagModal.hidden = false;
+            // Only after it is shown: a hidden list ignores scrollTop and keeps the last position.
+            tagOptionsEl.scrollTop = 0;
             tagQuery.focus();
         }
         function closeTagModal() { if (tagModal) tagModal.hidden = true; }
