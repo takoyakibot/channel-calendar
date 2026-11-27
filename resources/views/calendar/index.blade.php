@@ -115,6 +115,8 @@
         .menu-item { display: flex; align-items: center; gap: 0.5rem; width: 100%; padding: 0.5rem 0.625rem; border: 0; border-radius: 0.375rem; background: none; color: var(--cc-text); font: inherit; font-size: 0.875rem; text-align: left; text-decoration: none; white-space: nowrap; cursor: pointer; }
         .menu-item:hover, .menu-item:focus-visible { background: var(--cc-surface-alt); outline: none; }
         .menu-item[hidden] { display: none; }
+        .menu-item:disabled { opacity: 0.5; cursor: default; background: none; }
+        .menu-item .menu-hint { font-size: 0.75rem; color: var(--cc-text-tertiary); }
         .menu-item.menu-sub { padding: 0.125rem 0.625rem 0.375rem 2.375rem; font-size: 0.75rem; color: var(--cc-text-secondary); }
         .menu-icon { width: 1.25rem; flex: none; text-align: center; }
         .menu-icon.line { color: #06c755; font-weight: 700; }
@@ -405,7 +407,7 @@
                         <div class="menu-sep" role="separator"></div>
                         <button type="button" class="menu-item" role="menuitem" id="copy-url-btn"><span class="menu-icon">🔗</span><span class="menu-label">URL をコピー</span></button>
                         <button type="button" class="menu-item" role="menuitem" id="copy-state-url-btn" title="今の表示（ビュー・日付・サムネ・絞り込み）のままのURLをコピー"><span class="menu-icon">📌</span><span class="menu-label">今の表示の URL をコピー</span></button>
-                        <button type="button" class="menu-item" role="menuitem" id="share-image-btn" title="この月の配信をサムネイル入りの画像にして共有" hidden><span class="menu-icon">📷</span><span class="menu-label">配信結果を画像で共有</span></button>
+                        <button type="button" class="menu-item" role="menuitem" id="share-image-btn" title="この月の配信をサムネイル入りの画像にして共有"><span class="menu-icon">📷</span><span class="menu-label">配信結果を画像で共有</span><span class="menu-hint" id="share-image-hint" hidden>（月表示のみ）</span></button>
                     </div>
                 </div>
                 <div class="menu">
@@ -742,7 +744,7 @@
     }
     (function(){
         function items(panel) {
-            return Array.from(panel.querySelectorAll('.menu-item[role="menuitem"]')).filter(function (el) { return !el.hidden; });
+            return Array.from(panel.querySelectorAll('.menu-item[role="menuitem"]')).filter(function (el) { return !el.hidden && !el.disabled; });
         }
         document.querySelectorAll('.menu-trigger').forEach(function (trigger) {
             var panel = document.getElementById(trigger.getAttribute('aria-controls'));
@@ -1542,7 +1544,9 @@
             var isBoard = view !== 'month';
             boardView.hidden = !isBoard;
             monthView.hidden = isBoard;
-            shareImageBtn.hidden = isBoard;
+            // Built from the month grid, so it is greyed out on the week board rather than hidden.
+            shareImageBtn.disabled = isBoard;
+            document.getElementById('share-image-hint').hidden = !isBoard;
             toggleButtons.forEach(function (b) { b.classList.toggle('is-active', b.dataset.view === (isBoard ? 'board' : 'month')); });
             if (!isBoard) {
                 ensureCalendar();
