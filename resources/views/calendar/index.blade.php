@@ -253,6 +253,9 @@
         .si-steps > span { display: inline-flex; align-items: center; gap: 0.375rem; }
         .si-steps button { width: 1.75rem; height: 1.75rem; border-radius: 9999px; border: 1px solid var(--cc-border-light); background: var(--cc-surface); color: var(--cc-text); cursor: pointer; }
         .si-steps b { min-width: 1.25rem; text-align: center; color: var(--cc-text); }
+        .si-period { display: flex; flex-wrap: wrap; align-items: center; gap: 0.375rem 0.5rem; margin-bottom: 0.75rem; font-size: 0.8125rem; color: var(--cc-text-secondary); }
+        .si-period select, .si-period input { padding: 0.25rem 0.4rem; font-size: 0.8125rem; border: 1px solid var(--cc-border-light); border-radius: 0.375rem; background: var(--cc-input-bg); color: var(--cc-text); }
+        .si-period .si-period-error { flex-basis: 100%; margin: 0; font-size: 0.75rem; color: #dc2626; }
         .si-note { margin: 0.5rem 0 0; font-size: 0.75rem; color: var(--cc-text-tertiary); min-height: 1em; }
         .search-classify { display: flex; flex-wrap: wrap; align-items: center; gap: 0.375rem; margin: -0.25rem 0 0.75rem; font-size: 0.8125rem; color: var(--cc-text-secondary); }
         .search-results { list-style: none; margin: 0; padding: 0; max-height: 60vh; overflow-y: auto; }
@@ -647,6 +650,14 @@
                 <button type="button" role="tab" data-pattern="a">カレンダー</button>
                 <button type="button" role="tab" data-pattern="b">まとめ＋カレンダー</button>
                 <button type="button" role="tab" data-pattern="d">ジャンル別</button>
+            </div>
+            <div id="si-period" class="si-period" hidden>
+                <label for="si-preset">期間</label>
+                <select id="si-preset"></select>
+                <input type="date" id="si-from" aria-label="開始日">
+                <span>〜</span>
+                <input type="date" id="si-to" aria-label="終了日">
+                <p id="si-period-error" class="si-period-error" role="alert" hidden></p>
             </div>
             <div id="si-preview" class="si-preview"></div>
             <div id="si-steps" class="si-steps">
@@ -1513,6 +1524,18 @@
                 return GROUP_NAME || '';
             },
             stateUrl: function () { return stateUrl(); },
+            // Any other period (the genre mosaic): same APIs and channel filters as the month grid.
+            fetchEvents: function (start, end) {
+                var p = { start: start.toISOString(), end: end.toISOString() };
+                return Promise.all([
+                    fetch(apiUrl('/api/streams', p), { headers: { Accept: 'application/json' } }).then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); }),
+                    fetch(apiUrl('/api/video-posts', p), { headers: { Accept: 'application/json' } }).then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); }),
+                ]).then(function (results) {
+                    return results[0].concat(results[1]).filter(isVisible).map(function (e) {
+                        return { id: e.id, title: e.title, start: e.start, end: e.end, backgroundColor: e.color, extendedProps: e.extendedProps || {} };
+                    });
+                });
+            },
         };
 
         function setView(view) {

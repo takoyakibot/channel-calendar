@@ -7,6 +7,7 @@ import { toShareItems, mosaicItems } from './items.js';
 import { drawMosaic, loadImages } from './draw.js';
 import { drawMonthImage } from './month.js';
 import { monthStats, STAT_TILES } from './stats.js';
+import { PRESETS, presetRange, presetFor, rangeFromInputs, periodLabel, periodFilename, toInputValue } from './period.js';
 
 export function monthLabel(date) {
     return `${date.getFullYear()}年${date.getMonth() + 1}月`;
@@ -79,9 +80,13 @@ const state = {
     pattern: 'd',
     limits: { game: 2, cat: 1 },
     items: [],
-    mosaic: [], // items for D: without Twitch
+    mosaic: [], // items for D: without Twitch, over state.period (null while loading)
     images: null,
+    mosaicImages: null,
     monthStart: null,
+    monthLabel: '',
+    period: null, // {start, end} of D; starts as the month on screen
+    periodLoad: 0, // bumps on every period change, so a slow answer for an old period is dropped
     heading: '',
     filename: '',
     canvas: null,
@@ -118,12 +123,25 @@ function renderPreview() {
         b.classList.toggle('is-active', b.dataset.pattern === state.pattern);
         b.setAttribute('aria-selected', String(b.dataset.pattern === state.pattern));
     });
-    $('si-steps').hidden = state.pattern !== 'd';
+    const isD = state.pattern === 'd';
+    $('si-steps').hidden = !isD;
+    $('si-period').hidden = !isD;
+    const label = isD ? periodLabel(state.period) : state.monthLabel;
+    state.heading = shareText(window.ccShare.title(), label);
+    state.filename = isD ? periodFilename(state.period) : periodFilename({ start: state.monthStart, end: state.monthEnd });
+    $('si-heading').textContent = `📷 ${label}の配信結果を共有`;
     state.canvas = null;
     state.blob = null;
 
-    if (!(state.pattern === 'd' ? state.mosaic : state.items).length) {
-        preview.textContent = 'この月の配信はありません';
+    if (isD && !state.mosaic) {
+        preview.classList.remove('is-empty');
+        preview.textContent = '配信を読み込み中…';
+        submit.disabled = true;
+        setNote('');
+        return;
+    }
+    if (!(isD ? state.mosaic : state.items).length) {
+        preview.textContent = isD ? 'この期間の配信はありません' : 'この月の配信はありません';
         preview.classList.add('is-empty');
         submit.disabled = true;
         setNote('');
@@ -131,7 +149,7 @@ function renderPreview() {
     }
     preview.classList.remove('is-empty');
 
-    if (!state.images) {
+    if (!(isD ? state.mosaicImages : state.images)) {
         preview.textContent = 'サムネイルを読み込み中…';
         submit.disabled = true;
         return;
@@ -147,13 +165,57 @@ function renderPreview() {
         return;
     }
     const res = drawMosaic(canvas, state.mosaic, {
-        title: state.heading, gameMax: state.limits.game, categoryMax: state.limits.cat, images: state.images,
+        title: state.heading, gameMax: state.limits.game, categoryMax: state.limits.cat, images: state.mosaicImages,
     });
     showCanvas(canvas);
     const parts = [];
     if (res.foldedGames.length) parts.push(`ゲームにまとめた：${res.foldedGames.join('、')}`);
     if (res.foldedCategories.length) parts.push(`その他にまとめた：${res.foldedCategories.join('、')}`);
     setNote(parts.join(' ／ '));
+}
+
+/** Fill the preset menu and date inputs for the current period. */
+function showPeriod() {
+    $('si-preset').value = presetFor(state.period);
+    $('si-from').value = toInputValue(state.period.start);
+    $('si-to').value = toInputValue(new Date(state.period.end.getFullYear(), state.period.end.getMonth(), state.period.end.getDate() - 1));
+    $('si-period-error').hidden = true;
+}
+
+/** Switch D to another period: fetch its events, then its pictures. */
+function setPeriod(range) {
+    state.period = range;
+    showPeriod();
+    const load = ++state.periodLoad;
+    state.mosaic = null;
+    state.mosaicImages = null;
+    renderPreview();
+    window.ccShare.fetchEvents(range.start, range.end).then((events) => {
+        if (load !== state.periodLoad) return;
+        state.mosaic = mosaicItems(toShareItems(events, range.start, range.end));
+        renderPreview();
+        return loadImages(state.mosaic.flatMap((i) => [i.thumb, i.avatar])).then((images) => {
+            if (load !== state.periodLoad) return;
+            state.mosaicImages = images;
+            renderPreview();
+        });
+    }).catch(() => {
+        if (load !== state.periodLoad) return;
+        state.mosaic = [];
+        state.mosaicImages = new Map();
+        renderPreview();
+        setNote('配信を読み込めませんでした。時間をおいてもう一度お試しください。');
+    });
+}
+
+function onDatesChanged() {
+    const range = rangeFromInputs($('si-from').value, $('si-to').value);
+    if (range.error) {
+        $('si-period-error').textContent = range.error;
+        $('si-period-error').hidden = false;
+        return;
+    }
+    setPeriod(range);
 }
 
 function close() { $('share-image-modal').hidden = true; }
@@ -189,22 +251,36 @@ function wire() {
         $(`si-${key}-max`).textContent = String(state.limits[key]);
         renderPreview();
     }));
+    const preset = $('si-preset');
+    preset.replaceChildren(...PRESETS.map((p) => new Option(p.label, p.key)));
+    preset.addEventListener('change', () => {
+        const range = presetRange(preset.value);
+        if (range) setPeriod(range);
+        else $('si-from').focus();   // 期間を指定: keep the dates, let them be edited
+    });
+    $('si-from').addEventListener('change', onDatesChanged);
+    $('si-to').addEventListener('change', onDatesChanged);
     $('si-cancel').addEventListener('click', close);
     $('si-submit').addEventListener('click', submit);
     $('share-image-modal').addEventListener('click', (e) => { if (e.target === e.currentTarget) close(); });
 }
 
+const sameRange = (a, b) => +a.start === +b.start && +a.end === +b.end;
+
 export function open() {
     wire();
     const { events, start, end } = window.ccShare.monthEvents();
-    const label = monthLabel(start);
     state.items = toShareItems(events, start, end);
+    // D starts on the month on screen, from the same events; another period is fetched on demand.
+    state.periodLoad++;
+    state.period = { start, end };
     state.mosaic = mosaicItems(state.items);
-    state.heading = shareText(window.ccShare.title(), label);
-    state.filename = `channel-calendar-${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}.png`;
     state.images = null;
+    state.mosaicImages = null;
     state.monthStart = start;
-    $('si-heading').textContent = `📷 ${label}の配信結果を共有`;
+    state.monthEnd = end;
+    state.monthLabel = monthLabel(start);
+    showPeriod();
     $('si-submit').textContent = isMobile() ? '画像を作って共有' : '画像をコピーして X を開く';
     $('si-game-max').textContent = String(state.limits.game);
     $('si-cat-max').textContent = String(state.limits.cat);
@@ -216,6 +292,7 @@ export function open() {
     loadImages(items.flatMap((i) => [i.thumb, i.avatar])).then((images) => {
         if (state.items !== items) return; // reopened for another month meanwhile
         state.images = images;
+        if (state.mosaicImages === null && sameRange(state.period, { start: state.monthStart, end: state.monthEnd })) state.mosaicImages = images;
         renderPreview();
     });
 }
