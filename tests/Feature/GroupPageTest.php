@@ -124,7 +124,7 @@ class GroupPageTest extends TestCase
         $response->assertOk();
         $response->assertSee('id="share-x-btn"', false);
         $response->assertSee('https://x.com/intent/tweet?url=' . urlencode(url('/aaaa')), false);
-        $response->assertSee("apiUrl('/api/share-digest'", false);
+        $response->assertSee("fetchList('/api/share-digest'", false);
     }
 
     public function test_share_channel_names_checkbox_defaults_off_for_a_one_channel_group(): void

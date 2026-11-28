@@ -1178,7 +1178,7 @@
                                 headers: { 'X-CSRF-TOKEN': CSRF_TOKEN, Accept: 'application/json' },
                             }).then(function (res) {
                                 if (res.ok) { loadBoard(); return; }
-                                return res.json().then(function (d) { alert(d.message || '外せませんでした。'); });
+                                return res.json().catch(function () { return {}; }).then(function (d) { alert(errorText(res.status, d, '外せませんでした。')); });
                             }).catch(function () { alert('外せませんでした。'); });
                         });
                         chip.appendChild(rm);
@@ -1226,7 +1226,7 @@
                         headers: { 'X-CSRF-TOKEN': CSRF_TOKEN, Accept: 'application/json' },
                     }).then(function (res) {
                         if (res.ok) { loadBoard(); if (calendar) calendar.refetchEvents(); }
-                        else { res.json().then(function (d) { alert(d.message || '削除に失敗しました。'); }).catch(function () { alert('削除に失敗しました。'); }); }
+                        else { res.json().catch(function () { return {}; }).then(function (d) { alert(errorText(res.status, d, '削除に失敗しました。')); }); }
                     }).catch(function () { alert('削除に失敗しました。'); });
                 });
                 a.appendChild(delBtn);
@@ -1342,19 +1342,36 @@
 
         // A list from the site's own API. A failed answer is an error, not "no events":
         // retried twice, then the caller shows a notice instead of an empty calendar.
-        function fetchList(path, params, attempt) {
+        function fetchJson(url, attempt) {
             attempt = attempt || 0;
-            return fetch(apiUrl(path, params), { headers: { Accept: 'application/json' } }).then(function (r) {
+            var retry = function () {
+                return new Promise(function (res) { setTimeout(res, 1000 * (attempt + 1)); })
+                    .then(function () { return fetchJson(url, attempt + 1); });
+            };
+            return fetch(url, { headers: { Accept: 'application/json' } }).then(function (r) {
                 if (r.ok) return r.json();
-                if (attempt < 2 && (r.status === 429 || r.status >= 500)) {
-                    return new Promise(function (res) { setTimeout(res, 1000 * (attempt + 1)); })
-                        .then(function () { return fetchList(path, params, attempt + 1); });
-                }
-                throw new Error(path + ' ' + r.status);
+                if (attempt < 2 && (r.status === 429 || r.status >= 500)) return retry();
+                throw new Error(url + ' ' + r.status);
+            }, function (e) {
+                // Network hiccup (offline for a moment, connection reset): same retry.
+                if (attempt < 2) return retry();
+                throw e;
             });
         }
-        function showLoadError() {
-            showToast('配信を読み込めませんでした。時間をおいて再読み込みしてください。');
+        function fetchList(path, params) { return fetchJson(apiUrl(path, params)); }
+        // What to tell the person when a request was refused. Expired page / login and the
+        // rate limit get their own wording; 5xx bodies are Laravel's generic "Server Error".
+        function errorText(status, data, fallback) {
+            if (status === 419) return 'ページを開いてから時間がたったため送信できませんでした。再読み込みしてからやり直してください。';
+            if (status === 401) return 'ログインが切れています。再読み込みしてログインし直してください。';
+            if (status === 429) return '操作が続いたため受け付けられませんでした。少し待ってからやり直してください。';
+            if (status >= 500) return fallback;
+            data = data || {};
+            var first = data.errors ? Object.keys(data.errors).map(function (k) { return data.errors[k][0]; })[0] : null;
+            return first || data.message || fallback;
+        }
+        function showLoadError(what) {
+            showToast((what || '配信') + 'を読み込めませんでした。時間をおいて再読み込みしてください。');
         }
 
         function loadBoard() {
@@ -1549,8 +1566,8 @@
             fetchEvents: function (start, end) {
                 var p = { start: start.toISOString(), end: end.toISOString() };
                 return Promise.all([
-                    fetch(apiUrl('/api/streams', p), { headers: { Accept: 'application/json' } }).then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); }),
-                    fetch(apiUrl('/api/video-posts', p), { headers: { Accept: 'application/json' } }).then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); }),
+                    fetchList('/api/streams', p),
+                    fetchList('/api/video-posts', p),
                 ]).then(function (results) {
                     return results[0].concat(results[1]).filter(isVisible).map(function (e) {
                         return { id: e.id, title: e.title, start: e.start, end: e.end, backgroundColor: e.color, extendedProps: e.extendedProps || {} };
@@ -1637,8 +1654,7 @@
         }
         loadHiddenChannels();
 
-        fetch(apiUrl('/api/channels', {}), { headers: { Accept: 'application/json' } })
-            .then(function (res) { return res.json(); })
+        fetchList('/api/channels', {})
             .then(function (channels) {
                 // A shared link's ?ch= shows just those channels; ids not in this group are ignored.
                 if (urlState && urlState.ch) {
@@ -1721,7 +1737,7 @@
                 channelList = channels;
                 renderGroupXSearch();
                 initFromPrefs();
-            }).catch(function () { initFromPrefs(); });
+            }).catch(function () { showLoadError('チャンネル一覧'); initFromPrefs(); });
 
         // One X search covering every channel of this page that has an X account.
         function renderGroupXSearch() {
@@ -1805,9 +1821,9 @@
                 previewStatus.textContent = '投稿を読み込み中…';
                 previewStatus.hidden = false;
                 fetch('/api/tweet-preview?url=' + encodeURIComponent(url), { headers: { Accept: 'application/json' } })
-                    .then(function (res) { return res.json().then(function (data) { return { ok: res.ok, data: data }; }); })
+                    .then(function (res) { return res.json().catch(function () { return {}; }).then(function (data) { return { ok: res.ok, status: res.status, data: data }; }); })
                     .then(function (r) {
-                        if (!r.ok) { previewStatus.textContent = r.data.message || '投稿を取得できませんでした。'; hideTweetPreview(); return; }
+                        if (!r.ok) { previewStatus.textContent = errorText(r.status, r.data, '投稿を取得できませんでした。'); hideTweetPreview(); return; }
                         matched = selectChannelByXHandle(r.data.author_handle) || matched;
                         previewStatus.textContent = matched
                             ? 'チャンネルを「' + matched.name + '」に設定しました。'
@@ -1903,8 +1919,8 @@
                         closeModal();
                         return res.json().then(focusNewSchedule);
                     } else {
-                        return res.json().then(function (data) {
-                            errEl.textContent = data.message || 'エラーが発生しました。';
+                        return res.json().catch(function () { return {}; }).then(function (data) {
+                            errEl.textContent = errorText(res.status, data, 'エラーが発生しました。');
                             errEl.hidden = false;
                         });
                     }
@@ -1935,10 +1951,10 @@
             var vpAllChannels = null;
             function vpLoadAllChannels() {
                 if (vpAllChannels) return Promise.resolve(vpAllChannels);
-                return fetch('/api/channels', { headers: { Accept: 'application/json' } })
-                    .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+                // Not cached on failure, so the next open tries again.
+                return fetchJson('/api/channels')
                     .then(function (rows) { vpAllChannels = rows; return rows; })
-                    .catch(function () { return []; });
+                    .catch(function () { showLoadError('メンバー一覧'); return []; });
             }
             function vpMemberChip(ch, checkedIds) {
                 var label = document.createElement('label');
@@ -2015,10 +2031,10 @@
                 if (!url) { vpSetStatus(''); return; }
                 vpSetStatus('動画情報を読み込み中…');
                 fetch('/api/video-posts/preview?url=' + encodeURIComponent(url), { headers: { Accept: 'application/json' } })
-                    .then(function (res) { return res.json().then(function (data) { return { ok: res.ok, data: data }; }); })
+                    .then(function (res) { return res.json().catch(function () { return {}; }).then(function (data) { return { ok: res.ok, status: res.status, data: data }; }); })
                     .then(function (r) {
                         if (!r.ok) {
-                            vpSetStatus(r.data.message || (r.data.errors && r.data.errors.url && r.data.errors.url[0]) || '動画を取得できませんでした。');
+                            vpSetStatus(errorText(r.status, r.data, '動画を取得できませんでした。'));
                             return;
                         }
                         var d = r.data;
@@ -2056,15 +2072,14 @@
                     headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN, Accept: 'application/json' },
                     body: JSON.stringify({ url: vpUrl.value.trim(), kind: kindInput ? kindInput.value : 'clip', channel_ids: ids }),
                 }).then(function (res) {
-                    return res.json().then(function (data) { return { ok: res.ok, data: data }; });
+                    return res.json().catch(function () { return {}; }).then(function (data) { return { ok: res.ok, status: res.status, data: data }; });
                 }).then(function (r) {
                     if (r.ok) {
                         closeVideoModal();
                         focusNewEvent(r.data.id, r.data.start);
                         return;
                     }
-                    var firstError = r.data.errors ? Object.keys(r.data.errors).map(function (k) { return r.data.errors[k][0]; })[0] : null;
-                    vpError.textContent = r.data.message && !firstError ? r.data.message : (firstError || r.data.message || 'エラーが発生しました。');
+                    vpError.textContent = errorText(r.status, r.data, 'エラーが発生しました。');
                     vpError.hidden = false;
                     vpSubmit.disabled = false;
                 }).catch(function () {
@@ -2078,10 +2093,9 @@
         // ---- Weekly trends (issue #50) and tagging (issue #51) ----
         var tagList = [];
         function loadTags() {
-            return fetch('/api/tags', { headers: { Accept: 'application/json' } })
-                .then(function (r) { return r.ok ? r.json() : tagList; })
+            return fetchJson('/api/tags')
                 .then(function (tags) { tagList = tags; return tags; })
-                .catch(function () { return tagList; });
+                .catch(function () { showLoadError('タグ一覧'); return tagList; });   // keep the last good list
         }
         function kindLabel(kind) { return kind === 'game' ? 'ゲーム' : 'カテゴリ'; }
 
@@ -2326,11 +2340,11 @@
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN, Accept: 'application/json' },
                 body: JSON.stringify({ term: term, kind: kind, tag_id: tagId, name: name }),
             }).then(function (res) {
-                return res.json().then(function (data) { return { ok: res.ok, data: data }; });
+                return res.json().catch(function () { return {}; }).then(function (data) { return { ok: res.ok, status: res.status, data: data }; });
             }).then(function (r) {
                 if (!r.ok) {
                     chip.classList.remove('is-busy');
-                    setTrendStatus(r.data.message || 'エラーが発生しました。');
+                    setTrendStatus(errorText(r.status, r.data, 'エラーが発生しました。'));
                     return;
                 }
                 closeSearch();   // when classified from the search results
@@ -2358,10 +2372,8 @@
                     params.channels = shown.map(function (c) { return c.id; }).join(',') || '0';
                 }
             }
-            fetch(apiUrl('/api/trends', params), { headers: { Accept: 'application/json' } })
-                .then(function (r) { return r.ok ? r.json() : null; })
+            fetchList('/api/trends', params)
                 .then(function (d) {
-                    if (!d) return;
                     trendsPeriod = d.period;
                     document.getElementById('trends-range').textContent = d.period === 'month'
                         ? d.start.slice(0, 4) + '年' + Number(d.start.slice(5, 7)) + '月'
@@ -2371,7 +2383,7 @@
                     renderMembers(d.members || []);
                     renderUnmatched(d.unmatched || []);
                 })
-                .catch(function () {});
+                .catch(function () { showLoadError('集計'); });
         }
 
         // Title search: from the box in the summary head, or from a term's 🔍 (then
@@ -2414,8 +2426,7 @@
             loading.textContent = '検索中…';
             list.appendChild(loading);
             searchModal.hidden = false;
-            fetch(apiUrl('/api/streams/search', { q: q }), { headers: { Accept: 'application/json' } })
-                .then(function (r) { return r.ok ? r.json() : []; })
+            fetchList('/api/streams/search', { q: q })
                 .then(function (rows) {
                     list.textContent = '';
                     title.textContent = '「' + q + '」を含む配信（' + rows.length + '件' + (rows.length >= 50 ? '・新しい順に50件まで' : '') + '）';
@@ -2722,9 +2733,7 @@
             }).then(function (r) {
                 if (r.status === 409) { loadBoard(); return; }   // already on the stream: just show the real state
                 if (!r.ok) {
-                    var firstError = r.data.errors ? Object.keys(r.data.errors).map(function (k) { return r.data.errors[k][0]; })[0] : null;
-                    // 5xx messages are Laravel's generic "Server Error": show our own wording instead.
-                    rollBack(r.status >= 500 ? '' : (firstError || r.data.message || ''));
+                    rollBack(errorText(r.status, r.data, ''));
                     return;
                 }
                 var tags = r.data.tags || [];
@@ -2753,8 +2762,8 @@
                 var win = window.open('', '_blank');
                 var withChannels = document.getElementById('share-x-channels');
                 var params = withChannels && !withChannels.checked ? { channels: 0 } : {};
-                fetch(apiUrl('/api/share-digest', params), { headers: { Accept: 'application/json' } })
-                    .then(function (r) { return r.ok ? r.json() : {}; })
+                // On failure X still opens, with the plain page link (the fallback).
+                fetchList('/api/share-digest', params)
                     .then(function (d) { return d.text ? 'https://x.com/intent/tweet?text=' + encodeURIComponent(d.text) : fallback; })
                     .catch(function () { return fallback; })
                     .then(function (url) {
@@ -2823,15 +2832,14 @@
 
         function initFromPrefs() {
             // A shared link wins over the server prefs (and isn't saved back to them).
-            if (!IS_LOGGED_IN || urlState) {
+            function fromThisBrowser() {
                 var savedView = 'board';
                 try { savedView = localStorage.getItem('cc.view') || 'board'; } catch (e) {}
                 setView((urlState && urlState.view) || savedView);
                 loadBoard();
-                return;
             }
-            fetch('/api/preferences', { headers: { Accept: 'application/json', 'X-CSRF-TOKEN': CSRF_TOKEN } })
-                .then(function (r) { return r.ok ? r.json() : {}; })
+            if (!IS_LOGGED_IN || urlState) { fromThisBrowser(); return; }
+            fetchJson('/api/preferences')
                 .then(function (prefs) {
                     if (prefs.hidden_channels && prefs.hidden_channels.length) {
                         hiddenChannels = {};
@@ -2851,8 +2859,9 @@
                     loadBoard();
                 })
                 .catch(function () {
-                    setView('board');
-                    loadBoard();
+                    // Fall back to what this browser remembers rather than resetting the view.
+                    showLoadError('表示設定');
+                    fromThisBrowser();
                 });
         }
 
