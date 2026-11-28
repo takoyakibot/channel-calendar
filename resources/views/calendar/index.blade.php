@@ -292,6 +292,8 @@
         .kind-radios label { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.875rem; color: var(--cc-text); cursor: pointer; }
         .member-checks { display: flex; flex-wrap: wrap; gap: 0.375rem; max-height: 10rem; overflow-y: auto; }
         .member-checks label { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.2rem 0.6rem; border: 1px solid var(--cc-border); border-radius: 9999px; font-size: 0.8125rem; color: var(--cc-text); cursor: pointer; }
+        .member-checks .member-more { flex-basis: 100%; }
+        .member-checks .member-more summary { cursor: pointer; font-size: 0.75rem; color: var(--cc-text-secondary); margin: 0.125rem 0 0.375rem; }
         .member-checks label:has(input:checked) { background: var(--cc-active-bg); color: var(--cc-active-text); border-color: var(--cc-active-bg); }
         .video-preview { margin-top: 0.5rem; padding: 0.5rem 0.625rem; background: var(--cc-tweet-bg); border: 1px solid var(--cc-border); border-radius: 0.375rem; font-size: 0.8125rem; display: flex; gap: 0.5rem; align-items: flex-start; }
         .video-preview img { width: 4.5rem; border-radius: 0.25rem; flex: none; }
@@ -1928,20 +1930,56 @@
             var vpReady = null;  // preview of the current URL once it resolved and may be registered
 
             function vpSetStatus(text) { vpStatus.textContent = text || ''; vpStatus.hidden = !text; }
-            // The host's own channel is left out: its stream is imported already.
+            // Every active channel, not just this page's: the guest may belong to another
+            // group, and on a one-member page the only member may be the host itself.
+            var vpAllChannels = null;
+            function vpLoadAllChannels() {
+                if (vpAllChannels) return Promise.resolve(vpAllChannels);
+                return fetch('/api/channels', { headers: { Accept: 'application/json' } })
+                    .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+                    .then(function (rows) { vpAllChannels = rows; return rows; })
+                    .catch(function () { return []; });
+            }
+            function vpMemberChip(ch, checkedIds) {
+                var label = document.createElement('label');
+                var cb = document.createElement('input');
+                cb.type = 'checkbox';
+                cb.value = String(ch.id);
+                cb.checked = checkedIds.indexOf(ch.id) !== -1;
+                label.appendChild(cb);
+                label.appendChild(document.createTextNode(' ' + ch.name));
+                return label;
+            }
+            // This page's members first; everyone else folded under "ほかのメンバー", opened when
+            // one of them was detected or the page has nobody to pick. The host's own channel
+            // is left out: its stream is imported already.
             function vpRenderMembers(checkedIds, sourceMemberId) {
                 vpMembers.textContent = '';
-                channelList.forEach(function (ch) {
-                    if (ch.id === sourceMemberId) return;
-                    var label = document.createElement('label');
-                    var cb = document.createElement('input');
-                    cb.type = 'checkbox';
-                    cb.value = String(ch.id);
-                    cb.checked = checkedIds.indexOf(ch.id) !== -1;
-                    label.appendChild(cb);
-                    label.appendChild(document.createTextNode(' ' + ch.name));
-                    vpMembers.appendChild(label);
-                });
+                var pageIds = {};
+                channelList.forEach(function (ch) { pageIds[ch.id] = true; });
+                var mine = channelList.filter(function (ch) { return ch.id !== sourceMemberId; });
+                var others = (vpAllChannels || []).filter(function (ch) { return !pageIds[ch.id] && ch.id !== sourceMemberId; });
+                mine.forEach(function (ch) { vpMembers.appendChild(vpMemberChip(ch, checkedIds)); });
+                if (!others.length) {
+                    if (!mine.length) {
+                        var none = document.createElement('span');
+                        none.className = 'modal-hint-text';
+                        none.textContent = '選べるメンバーがいません。';
+                        vpMembers.appendChild(none);
+                    }
+                    return;
+                }
+                var more = document.createElement('details');
+                more.className = 'member-more';
+                more.open = !mine.length || others.some(function (ch) { return checkedIds.indexOf(ch.id) !== -1; });
+                var summary = document.createElement('summary');
+                summary.textContent = mine.length ? 'ほかのメンバー（' + others.length + '）' : 'メンバー（' + others.length + '）';
+                more.appendChild(summary);
+                var box = document.createElement('div');
+                box.className = 'member-checks';
+                others.forEach(function (ch) { box.appendChild(vpMemberChip(ch, checkedIds)); });
+                more.appendChild(box);
+                vpMembers.appendChild(more);
             }
             function openVideoModal() {
                 vpUrl.value = '';
@@ -1951,6 +1989,7 @@
                 vpPreview.hidden = true;
                 vpSetStatus('');
                 vpRenderMembers([]);
+                vpLoadAllChannels().then(function () { if (!vpReady && !videoModal.hidden && !vpUrl.value.trim()) vpRenderMembers([]); });
                 videoModal.hidden = false;
                 vpUrl.focus();
             }
@@ -1990,11 +2029,13 @@
                         var thumb = document.getElementById('vp-thumb');
                         if (d.thumbnail_url) { thumb.src = d.thumbnail_url; thumb.hidden = false; } else { thumb.hidden = true; }
                         vpPreview.hidden = false;
-                        vpRenderMembers(d.detected_channel_ids || [], d.source_member_id);
-                        if (d.already_registered) { vpSetStatus('この動画は登録済みです。'); return; }
-                        vpSetStatus((d.detected_channel_ids || []).length ? '' : 'メンバーを自動で判定できませんでした。該当するメンバーにチェックを入れてください。');
-                        vpReady = d;
-                        vpSubmit.disabled = false;
+                        return vpLoadAllChannels().then(function () {
+                            vpRenderMembers(d.detected_channel_ids || [], d.source_member_id);
+                            if (d.already_registered) { vpSetStatus('この動画は登録済みです。'); return; }
+                            vpSetStatus((d.detected_channel_ids || []).length ? '' : 'メンバーを自動で判定できませんでした。該当するメンバーにチェックを入れてください。');
+                            vpReady = d;
+                            vpSubmit.disabled = false;
+                        });
                     })
                     .catch(function () { vpSetStatus('動画を取得できませんでした。'); });
             });
