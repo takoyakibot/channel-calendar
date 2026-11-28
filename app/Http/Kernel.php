@@ -40,7 +40,9 @@ class Kernel extends HttpKernel
 
         'api' => [
             // \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
-            \Illuminate\Routing\Middleware\ThrottleRequests::class.':api',
+            // No blanket limit: the calendar's own read APIs are hit several times per
+            // month/week switch, and Laravel's default 60/min blanked the calendar.
+            // Write routes carry their own throttle in routes/api.php.
             \Illuminate\Routing\Middleware\SubstituteBindings::class,
         ],
     ];

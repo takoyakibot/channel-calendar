@@ -47,11 +47,12 @@ Route::middleware('web')->group(function () {
     Route::post('/streams/{stream}/tags', [StreamTagController::class, 'store'])->middleware('throttle:10,1');
 });
 
-Route::middleware('web', 'auth', 'admin')->group(function () {
+Route::middleware('web', 'auth', 'admin', 'throttle:api')->group(function () {
     Route::delete('/streams/{stream}/tags/{tag}', [StreamTagController::class, 'destroy']);
 });
 
-Route::middleware('web', 'auth')->group(function () {
+// Signed-in writes keep the 60/min limit that used to cover the whole API.
+Route::middleware('web', 'auth', 'throttle:api')->group(function () {
     Route::post('/manual-schedules', [ManualScheduleController::class, 'store']);
     Route::delete('/manual-schedules/{manualSchedule}', [ManualScheduleController::class, 'destroy']);
     Route::get('/preferences', [PreferenceController::class, 'show']);
