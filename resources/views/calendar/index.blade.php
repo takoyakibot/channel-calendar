@@ -1338,20 +1338,37 @@
             flashHighlightedCard();
         }
 
+        // A list from the site's own API. A failed answer is an error, not "no events":
+        // retried twice, then the caller shows a notice instead of an empty calendar.
+        function fetchList(path, params, attempt) {
+            attempt = attempt || 0;
+            return fetch(apiUrl(path, params), { headers: { Accept: 'application/json' } }).then(function (r) {
+                if (r.ok) return r.json();
+                if (attempt < 2 && (r.status === 429 || r.status >= 500)) {
+                    return new Promise(function (res) { setTimeout(res, 1000 * (attempt + 1)); })
+                        .then(function () { return fetchList(path, params, attempt + 1); });
+                }
+                throw new Error(path + ' ' + r.status);
+            });
+        }
+        function showLoadError() {
+            showToast('配信を読み込めませんでした。時間をおいて再読み込みしてください。');
+        }
+
         function loadBoard() {
             var end = addDays(boardStart, BOARD_DAYS);
             var params = { start: boardStart.toISOString(), end: end.toISOString() };
             Promise.all([
-                fetch(apiUrl('/api/streams', params), { headers: { Accept: 'application/json' } }).then(function (r) { return r.ok ? r.json() : []; }),
-                fetch(apiUrl('/api/manual-schedules', params), { headers: { Accept: 'application/json' } }).then(function (r) { return r.ok ? r.json() : []; }),
-                fetch(apiUrl('/api/video-posts', params), { headers: { Accept: 'application/json' } }).then(function (r) { return r.ok ? r.json() : []; }),
+                fetchList('/api/streams', params),
+                fetchList('/api/manual-schedules', params),
+                fetchList('/api/video-posts', params),
             ]).then(function (results) {
                 boardEvents = results[0].concat(results[1], results[2]);
                 lastLoadedAt = Date.now();
                 markVisited();
                 renderBoard();
                 loadTrends();
-            }).catch(function () { boardEvents = []; renderBoard(); });
+            }).catch(function () { boardEvents = []; renderBoard(); showLoadError(); });
         }
 
         // Keep the page current without reloads: the server re-checks streams every
@@ -1462,12 +1479,12 @@
                 events: function (info, successCallback, failureCallback) {
                     var p = { start: info.startStr, end: info.endStr };
                     Promise.all([
-                        fetch(apiUrl('/api/streams', p), { headers: { Accept: 'application/json' } }).then(function (r) { return r.ok ? r.json() : []; }),
-                        fetch(apiUrl('/api/manual-schedules', p), { headers: { Accept: 'application/json' } }).then(function (r) { return r.ok ? r.json() : []; }),
-                        fetch(apiUrl('/api/video-posts', p), { headers: { Accept: 'application/json' } }).then(function (r) { return r.ok ? r.json() : []; }),
+                        fetchList('/api/streams', p),
+                        fetchList('/api/manual-schedules', p),
+                        fetchList('/api/video-posts', p),
                     ]).then(function (results) {
                         successCallback(results[0].concat(results[1], results[2]).filter(isVisible));
-                    }).catch(failureCallback);
+                    }).catch(function (e) { showLoadError(); failureCallback(e); });
                 },
                 eventDidMount: function (info) {
                     // Hand the channel colour to CSS as a variable; the tint follows the theme.
